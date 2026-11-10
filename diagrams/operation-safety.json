@@ -1,0 +1,389 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "TARGET DESIGN \u2014 Admission, fence, restore and revocation (not implemented)",
+    "output": "diagrams/operation-safety.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "admission",
+      "label": "Admission \u2014 one immutable operation/task identity"
+    },
+    {
+      "id": "fence",
+      "label": "Uncertainty \u2014 explicit current authorization"
+    },
+    {
+      "id": "restore",
+      "label": "Supported restore \u2014 local admin only"
+    },
+    {
+      "id": "revoke",
+      "label": "Revocation \u2014 block sends, preserve uncertainty"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "prepare",
+      "lane": "admission",
+      "col": 0,
+      "type": "backend",
+      "label": "Prepare draft",
+      "sublabel": "Freeze target + task ID"
+    },
+    {
+      "id": "confirm",
+      "lane": "admission",
+      "col": 1,
+      "type": "security",
+      "label": "Confirm + recheck",
+      "sublabel": "Auth, grants, size, ready"
+    },
+    {
+      "id": "reserve",
+      "lane": "admission",
+      "col": 2,
+      "type": "database",
+      "label": "Possible-send commit",
+      "sublabel": "Durably reserve quota"
+    },
+    {
+      "id": "send",
+      "lane": "admission",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Typed WSS send",
+      "sublabel": "Current generation + TTL"
+    },
+    {
+      "id": "create",
+      "lane": "admission",
+      "col": 4,
+      "type": "security",
+      "label": "Delegate create gate",
+      "sublabel": "Guards + generation + lease"
+    },
+    {
+      "id": "observe",
+      "lane": "admission",
+      "col": 5,
+      "type": "database",
+      "label": "Canonical task / refusal",
+      "sublabel": "Same-ID observation"
+    },
+    {
+      "id": "unknown",
+      "lane": "fence",
+      "col": 0,
+      "type": "messagebus",
+      "label": "Lost ACK / timeout",
+      "sublabel": "Keep binding + quota"
+    },
+    {
+      "id": "resolve",
+      "lane": "fence",
+      "col": 1,
+      "type": "backend",
+      "label": "Passive resolve",
+      "sublabel": "Never starts or fences"
+    },
+    {
+      "id": "choice",
+      "lane": "fence",
+      "col": 2,
+      "type": "security",
+      "label": "Explicit recovery",
+      "sublabel": "Current dispatch/cancel right"
+    },
+    {
+      "id": "fenceid",
+      "lane": "fence",
+      "col": 3,
+      "type": "security",
+      "label": "Absent-ID fence",
+      "sublabel": "Maintenance + namespace"
+    },
+    {
+      "id": "refusal",
+      "lane": "fence",
+      "col": 4,
+      "type": "database",
+      "label": "Permanent refusal",
+      "sublabel": "Durable fsync + readback"
+    },
+    {
+      "id": "existing",
+      "lane": "fence",
+      "col": 5,
+      "type": "backend",
+      "label": "Existing / unresolved",
+      "sublabel": "Resume existing or cancel"
+    },
+    {
+      "id": "restore",
+      "lane": "restore",
+      "col": 0,
+      "type": "security",
+      "label": "Recovery-only mode",
+      "sublabel": "Reset credentials + grants"
+    },
+    {
+      "id": "roster",
+      "lane": "restore",
+      "col": 1,
+      "type": "security",
+      "label": "Complete prior roster",
+      "sublabel": "Hold all quota capacity"
+    },
+    {
+      "id": "barrier",
+      "lane": "restore",
+      "col": 2,
+      "type": "security",
+      "label": "Barrier every root",
+      "sublabel": "EXCLUSIVE; fresh generation"
+    },
+    {
+      "id": "inventory",
+      "lane": "restore",
+      "col": 3,
+      "type": "database",
+      "label": "Canonical inventory",
+      "sublabel": "All barriers must be durable"
+    },
+    {
+      "id": "reconcile",
+      "lane": "restore",
+      "col": 4,
+      "type": "backend",
+      "label": "Reconstruct / drain",
+      "sublabel": "Complete proof on all roots"
+    },
+    {
+      "id": "reopen",
+      "lane": "restore",
+      "col": 5,
+      "type": "security",
+      "label": "Explicit admin reopen",
+      "sublabel": "Recheck proof EXCLUSIVE"
+    },
+    {
+      "id": "revocation",
+      "lane": "revoke",
+      "col": 0,
+      "type": "security",
+      "label": "Grant/device revoked",
+      "sublabel": "Deny new sends/responses"
+    },
+    {
+      "id": "close",
+      "lane": "revoke",
+      "col": 1,
+      "type": "messagebus",
+      "label": "Close + drop unsent",
+      "sublabel": "No admission replay"
+    },
+    {
+      "id": "inflight",
+      "lane": "revoke",
+      "col": 2,
+      "type": "backend",
+      "label": "Already transmitted",
+      "sublabel": "May still complete"
+    },
+    {
+      "id": "closure",
+      "lane": "revoke",
+      "col": 3,
+      "type": "security",
+      "label": "Authorized closure",
+      "sublabel": "Resolve / fence / cancel"
+    },
+    {
+      "id": "hold",
+      "lane": "revoke",
+      "col": 4,
+      "type": "database",
+      "label": "Hold unknown quota",
+      "sublabel": "No automatic cancellation"
+    }
+  ],
+  "edges": [
+    {
+      "id": "prepare-confirm",
+      "from": "prepare",
+      "to": "confirm",
+      "variant": "default"
+    },
+    {
+      "id": "confirm-reserve",
+      "from": "confirm",
+      "to": "reserve",
+      "variant": "default"
+    },
+    {
+      "id": "reserve-send",
+      "from": "reserve",
+      "to": "send",
+      "variant": "default"
+    },
+    {
+      "id": "send-create",
+      "from": "send",
+      "to": "create",
+      "variant": "default"
+    },
+    {
+      "id": "create-observe",
+      "from": "create",
+      "to": "observe",
+      "variant": "default"
+    },
+    {
+      "id": "unknown-resolve",
+      "from": "unknown",
+      "to": "resolve",
+      "variant": "default"
+    },
+    {
+      "id": "resolve-choice",
+      "from": "resolve",
+      "to": "choice",
+      "variant": "default"
+    },
+    {
+      "id": "choice-fenceid",
+      "from": "choice",
+      "to": "fenceid",
+      "variant": "default"
+    },
+    {
+      "id": "fenceid-refusal",
+      "from": "fenceid",
+      "to": "refusal",
+      "variant": "default"
+    },
+    {
+      "id": "restore-roster",
+      "from": "restore",
+      "to": "roster",
+      "variant": "default"
+    },
+    {
+      "id": "roster-barrier",
+      "from": "roster",
+      "to": "barrier",
+      "variant": "default"
+    },
+    {
+      "id": "barrier-inventory",
+      "from": "barrier",
+      "to": "inventory",
+      "variant": "default"
+    },
+    {
+      "id": "inventory-reconcile",
+      "from": "inventory",
+      "to": "reconcile",
+      "variant": "default"
+    },
+    {
+      "id": "reconcile-reopen",
+      "from": "reconcile",
+      "to": "reopen",
+      "variant": "default"
+    },
+    {
+      "id": "revocation-close",
+      "from": "revocation",
+      "to": "close",
+      "variant": "default"
+    },
+    {
+      "id": "close-inflight",
+      "from": "close",
+      "to": "inflight",
+      "variant": "default"
+    },
+    {
+      "id": "inflight-closure",
+      "from": "inflight",
+      "to": "closure",
+      "variant": "default"
+    },
+    {
+      "id": "closure-hold",
+      "from": "closure",
+      "to": "hold",
+      "variant": "default"
+    },
+    {
+      "id": "fenceid-existing",
+      "from": "fenceid",
+      "to": "existing",
+      "variant": "security",
+      "label": "Present / uncertain",
+      "role": "branch"
+    }
+  ],
+  "mainPath": [
+    "prepare",
+    "confirm",
+    "reserve",
+    "send",
+    "create",
+    "observe"
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Admission and source of truth",
+      "items": [
+        "Prepare starts nothing. Actual frame encoding/size and queue checks precede possible-send; a failure remains definitely unsent. Duplicate confirmation observes the original operation.",
+        "Delegate creation compares active origin generation before any ordinary task-directory/prepared fragment, under maintenance SHARED + the per-ID namespace lease through durable commit. Refusal is checked before fragments.",
+        "A lost ACK enters the uncertainty row. No blind resend or new identity. Passive resolve cannot launch; explicit dispatch-authorized recovery may complete only the existing frozen prepared request."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fence is not synthetic absence",
+      "items": [
+        "Absent fence and create share one permanent per-ID namespace authority. Existing task returns existing; contention or uncertain evidence returns pending/unresolved. A late create must honor refusal.",
+        "Partial entries need full canonical no-launch proof under established admission/lifetime/run exclusion before the final nonblocking namespace check. Never call external recovery while holding namespace.",
+        "Unknown-origin fragments require explicit local operator selection/proof; never automatic MCP scan. Refusal proves no ordinary task admission/launch, not completed helper cleanup or zero cost."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Restore barrier before inventory and reopen",
+      "items": [
+        "Supported restore invalidates old certificates/tokens, clears effective restored grants/cloud authority and blocks admissions. Complete operator device/root roster includes destinations added after the snapshot.",
+        "Apply a fresh disabled admission generation durably on every destination before inventory. Old preparations cannot commit after the barrier. Missing roster/device/barrier/completeness keeps restore blocked.",
+        "Inventory covers immutable origin membership, refusals and partial entries. Reconstruct from canonical origin receipts or drain/cancel via Delegate; ownerless operations stay operator-only.",
+        "Reopen is local admin only, with regular re-enrolled credentials and explicit grant reapproval after all-destination reconciliation. Delegate revalidates membership/completeness under maintenance EXCLUSIVE immediately before enabling; changed membership requires refreshed inventory. No force-release shortcut."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Revocation and quota limits",
+      "items": [
+        "Gateway rechecks rights before sends/responses and on cached views/chunks. Revocation closes sockets and removes unsent queued messages; already-transmitted work may finish.",
+        "Revocation, timeout, TTL or disconnect never proves task termination. Retain reservations through unknown; release only authoritative terminal/refused or proven never-sent expiry. Defaults: 2 per device, 32 global.",
+        "Recovery-only re-enrollment of the same device may permit observation/cancel/fence but never admission/resume/reopen. Unreachable retained evidence keeps accounting blocked.",
+        "All routed task controls may verify whole payloads: one scan/device, three ordinary scans fleet-wide plus one protected cancel/fence scan. Busy cancellation returns resource_limit without queuing or preemption. Routing permits remain held through actual CLI Wait/cleanup, independently of Delegate execution reservations."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Scope and review gate",
+      "items": [
+        "Source: approved implementation contract v7, MCP / OPERATION CONTRACT; DELEGATE PUBLIC PREREQUISITE; RECOVERY OPERATIONS CLARIFICATIONS; FINAL INVARIANT CLARIFICATION.",
+        "Separate rows are related safety procedures, not automatic transitions. Request success is not task success; cancel acknowledgment is not confirmed closure. Planned controls are not implemented here.",
+        "Before PR: no known unresolved P0/P1/P2, independent reviews, and required checks. Separate Delegate work uses its dedicated worktree and own harness."
+      ]
+    }
+  ]
+}

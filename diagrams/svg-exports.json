@@ -1,0 +1,36 @@
+{
+  "scope": "Diagram communication assets only; no implementation or perceptual approval claim",
+  "renderer": {
+    "repository": "https://github.com/tt-a1i/archify.git",
+    "tag": "v3.2.0",
+    "commit": "208acba8d412335185b2056fedf54b3405df43fb",
+    "version": "3.2.0",
+    "localPatch": "../tools/archify-whitespace.patch",
+    "patchSha256": "0e9244a4757693d26d0399a9975a0b34784c22ceb16cc5f51054820d58b19ee6",
+    "build": "node scripts/generate-viewer.mjs (in owned source checkout)"
+  },
+  "exports": [
+    {
+      "artifact": "components.svg",
+      "sha256": "6d980f9fb94705027abaf13b9be86b3240bf6c0ba5b923bcde4430738ffc58d0",
+      "bytes": 181996,
+      "runtimeReportedBytes": 181995,
+      "runtimeCanonicalStateClean": true,
+      "method": "Production canonical SVG Auto export; saved with final newline",
+      "format": "svg",
+      "xmlParse": "pass",
+      "sourceHtmlSha256": "11f69bf2fce4ea16e82d88699cb1a352056a7d03116571889a5ceab888183f00"
+    },
+    {
+      "artifact": "operation-safety.svg",
+      "sha256": "37a39c69e115cadc9f3dfb13eecc081c39585a51348806e8a20bb049e4cc2ee1",
+      "bytes": 204615,
+      "runtimeReportedBytes": 204614,
+      "runtimeCanonicalStateClean": true,
+      "method": "Production canonical SVG Auto export; saved with final newline",
+      "format": "svg",
+      "xmlParse": "pass",
+      "sourceHtmlSha256": "4faab12e182d0f2718fb6903ee8bdcef79bd25c406e9002ad9061bbb0eb8fd9e"
+    }
+  ]
+}

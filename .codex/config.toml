@@ -1,0 +1,3 @@
+# Codex discovers standalone definitions under .codex/agents/*.toml.
+# Custom agents inherit the parent permissions; role instructions do not
+# establish a sandbox. Canonical behavior lives in agents/*.md.

@@ -1,0 +1,11 @@
+/bin/
+/dist/
+/.local/
+/.archify/
+/coverage/
+*.prof
+__pycache__/
+/diagrams/**/*.delivery.json
+/diagrams/**/*.browser-check.json
+/diagrams/**/*.finalize-summary.json
+/diagrams/**/*.finalize.json

@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "TARGET DESIGN \u2014 Gateway ownership (not implemented)",
+    "output": "diagrams/components.html",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "ChatGPT / MCP client",
+      "sublabel": "OAuth access token",
+      "pos": [
+        40,
+        270
+      ],
+      "size": [
+        210,
+        68
+      ]
+    },
+    {
+      "id": "idp",
+      "type": "security",
+      "label": "External OAuth issuer",
+      "sublabel": "Verified issuer + subject",
+      "pos": [
+        40,
+        65
+      ],
+      "size": [
+        210,
+        68
+      ]
+    },
+    {
+      "id": "admin",
+      "type": "security",
+      "label": "Local operator",
+      "sublabel": "Unix socket 0600",
+      "pos": [
+        410,
+        65
+      ],
+      "size": [
+        210,
+        68
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "Trusted Gateway",
+      "sublabel": "HTTPS MCP :443 / WSS :8443",
+      "pos": [
+        410,
+        270
+      ],
+      "size": [
+        230,
+        82
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "Gateway SQLite",
+      "sublabel": "Grants, correlations, quotas",
+      "pos": [
+        410,
+        525
+      ],
+      "size": [
+        230,
+        68
+      ]
+    },
+    {
+      "id": "connectorA",
+      "type": "backend",
+      "label": "Device A connector",
+      "sublabel": "Local aliases + policy ceiling",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        220,
+        68
+      ]
+    },
+    {
+      "id": "delegateA",
+      "type": "backend",
+      "label": "Public Delegate CLI",
+      "sublabel": "Sole task lifecycle owner",
+      "pos": [
+        1190,
+        100
+      ],
+      "size": [
+        220,
+        68
+      ]
+    },
+    {
+      "id": "storeA",
+      "type": "database",
+      "label": "Delegate A root",
+      "sublabel": "Tasks, refusals, accepted bytes",
+      "pos": [
+        1190,
+        255
+      ],
+      "size": [
+        220,
+        68
+      ]
+    },
+    {
+      "id": "connectorB",
+      "type": "backend",
+      "label": "Device B connector",
+      "sublabel": "Local aliases + policy ceiling",
+      "pos": [
+        800,
+        450
+      ],
+      "size": [
+        220,
+        68
+      ]
+    },
+    {
+      "id": "delegateB",
+      "type": "backend",
+      "label": "Public Delegate CLI",
+      "sublabel": "Sole task lifecycle owner",
+      "pos": [
+        1190,
+        450
+      ],
+      "size": [
+        220,
+        68
+      ]
+    },
+    {
+      "id": "storeB",
+      "type": "database",
+      "label": "Delegate B root",
+      "sublabel": "Tasks, refusals, accepted bytes",
+      "pos": [
+        1190,
+        605
+      ],
+      "size": [
+        220,
+        68
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "Gateway trust boundary \u2014 plaintext visible",
+      "wraps": [
+        "gateway",
+        "registry"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "region",
+      "label": "Device A \u2014 shared OS account boundary",
+      "wraps": [
+        "connectorA",
+        "delegateA",
+        "storeA"
+      ],
+      "pad": 24
+    },
+    {
+      "kind": "region",
+      "label": "Device B \u2014 separate network, shared OS account boundary",
+      "wraps": [
+        "connectorB",
+        "delegateB",
+        "storeB"
+      ],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "mcp",
+      "from": "client",
+      "to": "gateway",
+      "label": "HTTPS MCP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "jwt",
+      "from": "idp",
+      "to": "gateway",
+      "label": "JWT / JWKS",
+      "variant": "security"
+    },
+    {
+      "id": "admin-control",
+      "from": "admin",
+      "to": "gateway",
+      "label": "Admin socket",
+      "variant": "security"
+    },
+    {
+      "id": "registry-owner",
+      "from": "gateway",
+      "to": "registry",
+      "label": "Owns / persists"
+    },
+    {
+      "id": "outboundA",
+      "from": "connectorA",
+      "to": "gateway",
+      "label": "Outbound mTLS WSS",
+      "variant": "security"
+    },
+    {
+      "id": "outboundB",
+      "from": "connectorB",
+      "to": "gateway",
+      "label": "Outbound mTLS WSS",
+      "variant": "security"
+    },
+    {
+      "id": "cliA",
+      "from": "connectorA",
+      "to": "delegateA",
+      "label": "Typed argv/stdin"
+    },
+    {
+      "id": "cliB",
+      "from": "connectorB",
+      "to": "delegateB",
+      "label": "Typed argv/stdin"
+    },
+    {
+      "id": "authorityA",
+      "from": "delegateA",
+      "to": "storeA",
+      "label": "Canonical authority"
+    },
+    {
+      "id": "authorityB",
+      "from": "delegateB",
+      "to": "storeB",
+      "label": "Canonical authority"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Authority, not a second engine",
+      "items": [
+        "Gateway owns registry, grants, operation correlation, task reservations, durable CLI-routing permits and connection generations. Observations are dated caches; results are not persisted.",
+        "Connector owns local alias \u2192 pinned root/project mapping and its stricter ceiling. Effective permission is the intersection.",
+        "Delegate alone owns admission/refusal, creation, launch, supervision, cancellation and accepted outcomes. Local CLI/SSH/TUI share this authority.",
+        "CLI-routing permits survive lost replies and Gateway restart. Only actual CLI cleanup or a fenced same-process complete census releases them; a changed connector process needs local-admin CLI-only drain attestation. Delegate task reservations remain separate."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trust and transport",
+      "items": [
+        "OAuth authenticates every MCP call; no user mTLS certificate or token forwarding. Gateway is trusted and sees plaintext; end-to-end encryption is deferred.",
+        "Devices initiate WSS. Sessions carry generation-bound requests and responses. Same device account is one trust boundary; project grants are routing, not OS sandboxing.",
+        "Only public installed Delegate CLI; no shell, provider adapter, private task-file access, executor queue or automatic failover."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Planning source and implementation gate",
+      "items": [
+        "Source: approved implementation contract v7, OWNERS / COMPONENTS; DELEGATE PUBLIC PREREQUISITE; IDENTITY / ENROLLMENT / DEVICE TRANSPORT.",
+        "This is a target design, not source-backed implementation evidence. Proposed connector commands require a separately reviewed Delegate change in its dedicated worktree, using its own harness.",
+        "Before PR: independent integrated review and no known unresolved P0/P1/P2. Plan approval is not cloud acceptance or release readiness."
+      ]
+    }
+  ]
+}

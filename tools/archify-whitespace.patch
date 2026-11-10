@@ -1,0 +1,14 @@
+diff --git a/archify/renderers/shared/cli.mjs b/archify/renderers/shared/cli.mjs
+index c09d714..d49b0b8 100644
+--- a/archify/renderers/shared/cli.mjs
++++ b/archify/renderers/shared/cli.mjs
+@@ -86 +86 @@ export function loadDiagram({ rendererDir, diagramType, defaultExample, argv = p
+-  const template = fs.readFileSync(path.join(skillRoot, 'assets/template.html'), 'utf8');
++  const template = fs.readFileSync(path.join(skillRoot, 'assets/template.html'), 'utf8').replace(/[ \t]+$/gm, '');
+diff --git a/viewer/export.js b/viewer/export.js
+index d81ad2f..83abd6d 100644
+--- a/viewer/export.js
++++ b/viewer/export.js
+@@ -410,0 +411,2 @@
++        // Repository artifacts keep generated CSS free of trailing whitespace.
++        style.textContent = style.textContent.replace(/[ \t]+$/gm, '');

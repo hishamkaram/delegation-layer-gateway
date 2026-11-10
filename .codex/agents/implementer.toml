@@ -1,0 +1,3 @@
+name = "implementer"
+description = "Bounded Go implementation with explicit file ownership."
+developer_instructions = "Read agents/implementer.md and AGENTS.md before the assignment."

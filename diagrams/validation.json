@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "scope": "Observed local source-candidate Archify checks; target design only",
+  "pathBase": "Directory containing this file",
+  "recipe": "../scripts/render_diagrams.py",
+  "limitations": [
+    "Automated checks only; no perceptual visual review",
+    "No Gateway/Delegate behavior, device/provider execution, cloud acceptance or release readiness established",
+    "Raw local receipts are unpublished; this summary does not rerun validation on checkout"
+  ],
+  "diagrams": [
+    {
+      "id": "components",
+      "diagramType": "architecture",
+      "qualityProfile": "showcase",
+      "renderer": {
+        "repository": "https://github.com/tt-a1i/archify.git",
+        "tag": "v3.2.0",
+        "commit": "208acba8d412335185b2056fedf54b3405df43fb",
+        "version": "3.2.0",
+        "localPatch": "../tools/archify-whitespace.patch",
+        "patchSha256": "0e9244a4757693d26d0399a9975a0b34784c22ceb16cc5f51054820d58b19ee6",
+        "build": "node scripts/generate-viewer.mjs (in owned source checkout)"
+      },
+      "startedAt": "2026-11-10T17:47:27.051Z",
+      "finishedAt": "2026-11-10T17:47:57.536Z",
+      "exitCode": 0,
+      "source": {
+        "path": "components.json",
+        "sha256": "afe2de9064d4674888cfe230c76f8a6168b055d288cc7dd61e3a37c6b80c4b56",
+        "bytes": 7015
+      },
+      "html": {
+        "path": "components.html",
+        "sha256": "11f69bf2fce4ea16e82d88699cb1a352056a7d03116571889a5ceab888183f00",
+        "bytes": 833087
+      },
+      "gates": {
+        "validate": "pass",
+        "deliver": "pass",
+        "check": "pass",
+        "browser-check": "pass"
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "artifactCheckCount": 9,
+      "browserEvidence": {
+        "kind": "automated-browser",
+        "status": "pass",
+        "artifactSha256": "11f69bf2fce4ea16e82d88699cb1a352056a7d03116571889a5ceab888183f00",
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "provenance": "current",
+        "containment": "pass",
+        "readability": "pass",
+        "viewerChrome": "pass",
+        "themeStates": {
+          "status": "pass",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            }
+          ]
+        },
+        "visualReview": "not-requested"
+      },
+      "svgExport": {
+        "path": "components.svg",
+        "receipt": "svg-exports.json"
+      }
+    },
+    {
+      "id": "operation-safety",
+      "diagramType": "workflow",
+      "qualityProfile": "showcase",
+      "renderer": {
+        "repository": "https://github.com/tt-a1i/archify.git",
+        "tag": "v3.2.0",
+        "commit": "208acba8d412335185b2056fedf54b3405df43fb",
+        "version": "3.2.0",
+        "localPatch": "../tools/archify-whitespace.patch",
+        "patchSha256": "0e9244a4757693d26d0399a9975a0b34784c22ceb16cc5f51054820d58b19ee6",
+        "build": "node scripts/generate-viewer.mjs (in owned source checkout)"
+      },
+      "startedAt": "2026-11-10T17:48:08.176Z",
+      "finishedAt": "2026-11-10T17:48:51.096Z",
+      "exitCode": 0,
+      "source": {
+        "path": "operation-safety.json",
+        "sha256": "85af909827ef71d2735305c81701450a74c3fe92dfff1121767700bf6bc548fc",
+        "bytes": 11663
+      },
+      "html": {
+        "path": "operation-safety.html",
+        "sha256": "4faab12e182d0f2718fb6903ee8bdcef79bd25c406e9002ad9061bbb0eb8fd9e",
+        "bytes": 847324
+      },
+      "gates": {
+        "validate": "pass",
+        "deliver": "pass",
+        "check": "pass",
+        "browser-check": "pass"
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "artifactCheckCount": 9,
+      "browserEvidence": {
+        "kind": "automated-browser",
+        "status": "pass",
+        "artifactSha256": "4faab12e182d0f2718fb6903ee8bdcef79bd25c406e9002ad9061bbb0eb8fd9e",
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "provenance": "current",
+        "containment": "pass",
+        "readability": "pass",
+        "viewerChrome": "pass",
+        "themeStates": {
+          "status": "pass",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            }
+          ]
+        },
+        "visualReview": "not-requested"
+      },
+      "svgExport": {
+        "path": "operation-safety.svg",
+        "receipt": "svg-exports.json"
+      }
+    }
+  ]
+}
