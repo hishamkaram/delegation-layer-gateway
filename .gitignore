@@ -9,3 +9,7 @@ __pycache__/
 /diagrams/**/*.browser-check.json
 /diagrams/**/*.finalize-summary.json
 /diagrams/**/*.finalize.json
+
+# Local operator credentials.
+/.env
+/.env.*
