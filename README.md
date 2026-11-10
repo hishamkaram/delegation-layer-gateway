@@ -33,3 +33,6 @@ engineering gate. Runtime and live acceptance are separate; see
 [verification](docs/verification.md).
 
 Track delivery and evidence in [Issue #1](https://github.com/hishamkaram/delegation-layer-gateway/issues/1).
+
+For this host's isolated reverse proxy setup, see [Nginx setup](docs/nginx-setup.md).
+The helper does not start Gateway or establish live MCP acceptance.
