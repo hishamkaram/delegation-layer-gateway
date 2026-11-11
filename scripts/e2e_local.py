@@ -14,11 +14,11 @@ import base64
 import fcntl
 from builtins import BaseExceptionGroup
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime
 import hashlib
 import http.server
 import importlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -37,18 +37,17 @@ import urllib.error
 import urllib.request
 import uuid
 
+from e2e_contracts import (
+    CleanupUnconfirmed,
+    FixtureExecutionSnapshot,
+    FixtureLeaseObservation,
+    ProofFailure,
+)
+
 
 AUDITED_PI_FIXTURE_SHA256 = (
     "1dfa264d1719282a8c69db2fd318fbfd9ac5b90a480a919ebe70ff1379c5e365"
 )
-
-
-class ProofFailure(RuntimeError):
-    """A bounded acceptance invariant failed; private resources stay retained."""
-
-
-class CleanupUnconfirmed(ProofFailure):
-    """An owned process reports cleanup whose completion is still unknown."""
 
 
 class Interruptions:
@@ -175,11 +174,30 @@ def load_acceptance(repository):
     )
 
 
-def free_port():
+def fixture_listen_ip(value):
+    try:
+        address = ipaddress.IPv4Address(value)
+    except (ipaddress.AddressValueError, TypeError):
+        raise ProofFailure(
+            "fixture listen IP must be a canonical IPv4 literal"
+        ) from None
+    require(
+        isinstance(value, str)
+        and str(address) == value
+        and not address.is_unspecified
+        and not address.is_multicast
+        and not address.is_link_local
+        and value != "255.255.255.255",
+        "fixture listen IP must be a canonical unicast IPv4 literal",
+    )
+    return value
+
+
+def free_port(listen_ip="127.0.0.1"):
     # The CLI accepts addresses, not inherited listeners. A competing bind fails
     # this run explicitly; it never causes a new root or workload retry.
     with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
+        listener.bind((listen_ip, 0))
         return listener.getsockname()[1]
 
 
@@ -314,23 +332,6 @@ def require_requested_closure(closure, task_id):
     )
 
 
-@dataclass(frozen=True)
-class FixtureExecutionSnapshot:
-    root: Path
-    nonce: str
-    context: tuple[str, str]
-    executions: int
-    waiters: frozenset[tuple[str, int, int]]
-
-
-@dataclass(frozen=True)
-class FixtureLeaseObservation:
-    task_id: str
-    pid: int
-    path: Path
-    identity: tuple[int, int]
-
-
 class DelegateRoot:
     def __init__(self, owner, label):
         self.owner = owner
@@ -425,8 +426,10 @@ class DelegateRoot:
             "connector"
         ]
         require(
-            "namespace-admission-v1" in self.context["features"],
-            "Delegate root contract unavailable",
+            {"namespace-admission-v1", "namespace-mutation-lease-v1"}.issubset(
+                self.context["features"]
+            ),
+            "Delegate root contract unavailable; offline connector cutover required",
         )
         require(
             self.invocations() == 0,
@@ -663,6 +666,7 @@ class Harness:
         )
         self.sequence = 0
         self.material = None
+        self.fixture_allowed_ips = ()
         self.roots = []
         self.connectors = []
         self.gateway = None
@@ -829,16 +833,16 @@ class Harness:
         if delay > 0:
             time.sleep(delay)
         self.last_mcp_started = time.monotonic()
-        result = self.helper(
-            "mcp",
-            {
-                "endpoint": self.public + "/mcp",
-                "ca_file": self.material["ca_file"],
-                "token_file": self.material["token_file"],
-                "tool": tool,
-                "arguments": arguments,
-            },
-        )
+        value = {
+            "endpoint": self.public + "/mcp",
+            "ca_file": self.material["ca_file"],
+            "token_file": self.material["token_file"],
+            "tool": tool,
+            "arguments": arguments,
+        }
+        if allowed_ips := getattr(self, "fixture_allowed_ips", ()):
+            value["allowed_ips"] = list(allowed_ips)
+        result = self.helper("mcp", value)
         self.responses.append(result)
         envelope = result.get("structuredContent")
         require(isinstance(envelope, dict), "MCP structured response missing")
@@ -865,19 +869,27 @@ class Harness:
             require(time.monotonic() < deadline, description + " timed out")
             time.sleep(0.2)
 
-    def start_network(self):
-        self.jwks = http.server.HTTPServer(("127.0.0.1", 0), JWKSHandler)
-        issuer = f"https://127.0.0.1:{self.jwks.server_port}/"
-        self.public = f"https://127.0.0.1:{free_port()}"
-        self.material = self.helper(
-            "material",
-            {
-                "directory": str(self.directory("tls")),
-                "issuer": issuer,
-                "audience": self.public + "/mcp",
-            },
-        )
-        JWKSHandler.document = Path(self.material["jwks_file"]).read_bytes()
+    def start_network(self, *, listen_ip="127.0.0.1"):
+        listen_ip = fixture_listen_ip(listen_ip)
+        # The default helper already owns the historical loopback allowlist.
+        self.fixture_allowed_ips = () if listen_ip == "127.0.0.1" else (listen_ip,)
+
+        class HarnessJWKSHandler(JWKSHandler):
+            pass
+
+        self.jwks = http.server.HTTPServer((listen_ip, 0), HarnessJWKSHandler)
+        issuer = f"https://{listen_ip}:{self.jwks.server_port}/"
+        self.public = f"https://{listen_ip}:{free_port(listen_ip)}"
+        value = {
+            "directory": str(self.directory("tls")),
+            "issuer": issuer,
+            "audience": self.public + "/mcp",
+        }
+        if self.fixture_allowed_ips:
+            value["allowed_ips"] = list(self.fixture_allowed_ips)
+        self.material = self.helper("material", value)
+        # Assigned once before serving; other Harness instances have private keys.
+        HarnessJWKSHandler.document = Path(self.material["jwks_file"]).read_bytes()
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         tls.minimum_version = ssl.TLSVersion.TLSv1_3
         tls.load_cert_chain(
@@ -897,7 +909,7 @@ class Harness:
             "gateway_id": self.gateway_id,
             "public_url": self.public,
             "public_address": self.public.removeprefix("https://"),
-            "device_address": f"127.0.0.1:{free_port()}",
+            "device_address": f"{listen_ip}:{free_port(listen_ip)}",
             "tls": self.material["tls"],
             "device_ca": self.material["device_ca"],
             "database": str(database),

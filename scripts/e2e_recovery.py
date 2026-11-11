@@ -11,12 +11,8 @@ import json
 import socket
 import uuid
 
-from e2e_local import (
-    FixtureLeaseObservation,
-    context_guard,
-    require,
-    require_requested_closure,
-)
+from e2e_contracts import FixtureLeaseObservation
+from e2e_local import context_guard, require, require_requested_closure
 
 
 MAX_RESPONSE = 65536
@@ -103,7 +99,7 @@ def require_same_live_fixture(before, after):
     )
 
 
-def require_active_operation(value, root, prepared):
+def require_active_binding(value, root, prepared):
     require(isinstance(value, dict), "active operation response is not an object")
     require(
         value.get("operation_id") == prepared["operation_id"]
@@ -114,12 +110,24 @@ def require_active_operation(value, root, prepared):
         and value.get("delivery") in ("possible_send", "resolved"),
         "Gateway restart changed the active operation binding or reservation",
     )
+
+
+def require_active_operation(value, root, prepared):
+    require_active_binding(value, root, prepared)
     observation = value.get("observation")
     require(
         isinstance(observation, dict)
         and observation.get("kind") == "existing"
         and observation.get("execution_closure") is None,
         "Gateway restart did not preserve an existing task without closure",
+    )
+
+
+def require_dispatch_retry(value, root, prepared):
+    require_active_binding(value, root, prepared)
+    require(
+        "observation" not in value,
+        "dispatch confirmation exposed a task-read observation",
     )
 
 
@@ -308,7 +316,9 @@ class RecoveryScenario:
         # A non-prepared response permits only the existing-operation dispatch
         # retry; Gateway's dispatch contract cannot start a second admission.
         repeated = h.mcp("dispatch_task", handle)
-        require_active_operation(repeated, root, prepared)
+        require_dispatch_retry(repeated, root, prepared)
+        observed = h.mcp("resolve_operation", handle)
+        require_active_operation(observed, root, prepared)
         lease.assert_live()
         require(
             root.invocations() == expected_executions,

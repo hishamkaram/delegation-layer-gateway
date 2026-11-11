@@ -3,6 +3,7 @@
 import unittest
 import json
 import os
+import runpy
 from contextlib import nullcontext
 import tempfile
 from pathlib import Path
@@ -22,6 +23,18 @@ def fixture_root():
 
 
 class RecoveryBoundaryTests(unittest.TestCase):
+    def test_script_namespace_uses_the_shared_fixture_value_identity(self):
+        namespace = runpy.run_path(
+            str(Path(__file__).with_name("e2e_local.py")),
+            run_name="fixture_entrypoint",
+        )
+        observation = namespace["FixtureLeaseObservation"](
+            "task", 123, Path("/owned/fifo"), (1, 2)
+        )
+        e2e_recovery.require_same_live_fixture(observation, observation)
+        self.assertIs(namespace["FixtureExecutionSnapshot"], FixtureExecutionSnapshot)
+        self.assertIs(namespace["ProofFailure"], ProofFailure)
+
     def active_restart(self):
         root = fixture_root()
         root.invocations = mock.Mock(return_value=3)
@@ -44,6 +57,17 @@ class RecoveryBoundaryTests(unittest.TestCase):
             "delivery": "resolved",
             "observation": {"kind": "existing"},
         }
+        # Dispatch confirmation has dispatch scope only; observations require
+        # a separate read control, as the actual MCP and Gateway contracts do.
+        h.mcp.side_effect = lambda tool, _arguments: (
+            {
+                key: value
+                for key, value in h.mcp.return_value.items()
+                if key != "observation"
+            }
+            if tool == "dispatch_task"
+            else h.mcp.return_value
+        )
         scenario = e2e_recovery.RecoveryScenario(h)
         scenario.connected = mock.Mock(return_value=True)
         return scenario, root, prepared, before, live, lease
@@ -78,6 +102,7 @@ class RecoveryBoundaryTests(unittest.TestCase):
             [
                 mock.call("resolve_operation", {"operation_id": "op"}),
                 mock.call("dispatch_task", {"operation_id": "op"}),
+                mock.call("resolve_operation", {"operation_id": "op"}),
             ],
         )
         self.assertEqual(
@@ -88,6 +113,30 @@ class RecoveryBoundaryTests(unittest.TestCase):
         self.assertIn(
             "same_registry_gateway_restart_during_live_task", h.summary["stages"]
         )
+
+    def test_active_retry_rejects_binding_changes_and_read_observation_leaks(self):
+        for fault in ("binding", "read-leak", "closed-after-retry"):
+            with self.subTest(fault=fault):
+                scenario, root, prepared, before, live, lease = self.active_restart()
+                reply = scenario.h.mcp.side_effect
+
+                def altered(tool, arguments):
+                    value = dict(reply(tool, arguments))
+                    if tool == "dispatch_task":
+                        if fault == "binding":
+                            value["task_id"] = "different-task"
+                        elif fault == "read-leak":
+                            value["observation"] = {"kind": "existing"}
+                        else:
+                            scenario.h.mcp.return_value["observation"] = {
+                                "kind": "terminal"
+                            }
+                    return value
+
+                scenario.h.mcp.side_effect = altered
+                with self.assertRaises(ProofFailure):
+                    scenario.restart_while_active(root, prepared, before, live, lease)
+                self.assertNotIn("restart_while_active", scenario.h.summary)
 
     def test_active_restart_missing_or_dead_initial_lease_cannot_stop_gateway(self):
         for missing in (False, True):
