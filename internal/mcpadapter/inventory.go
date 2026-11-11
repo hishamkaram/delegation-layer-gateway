@@ -84,6 +84,10 @@ func (a *Adapter) capabilities(ctx context.Context, actor domain.Actor, input Ca
 		return Capabilities{}, err
 	}
 	result := Capabilities{DeviceID: input.DeviceID, ProjectAlias: input.ProjectAlias, ExecutionReadiness: "not_ready", Providers: []Provider{}}
+	// Authorization is a request-time Registry projection, independent of
+	// transport/provider readiness. Every subsequent control rechecks it.
+	result.TaskReadAllowed = actor.Scopes.Has(domain.TaskRead) && authorization.Grant.Scopes.Has(domain.TaskRead)
+	result.TaskCancelAllowed = actor.Scopes.Has(domain.TaskCancel) && authorization.Grant.Scopes.Has(domain.TaskCancel)
 	snapshot, online, err := a.snapshot(destination.Device)
 	if err != nil || !online {
 		return result, err

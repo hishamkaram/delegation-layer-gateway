@@ -119,6 +119,8 @@ type ProjectPage struct {
 type Capabilities struct {
 	DeviceID           string     `json:"device_id"`
 	ProjectAlias       string     `json:"project_alias"`
+	TaskReadAllowed    bool       `json:"task_read_allowed"`
+	TaskCancelAllowed  bool       `json:"task_cancel_allowed"`
 	Online             bool       `json:"online"`
 	DelegateReady      bool       `json:"delegate_ready"`
 	ExecutionReadiness string     `json:"execution_readiness"`

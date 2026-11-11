@@ -30,6 +30,13 @@ Operation handles are not bearer capabilities. User principal is validated
 `(issuer, subject)`; inventory, dispatch, read and cancellation scopes remain
 separate and also require per-device/project grants.
 
+`get_capabilities` reports `task_read_allowed` and `task_cancel_allowed` for the
+selected device/project. Each is the intersection of the verified token scopes
+and the current Registry grant, even when the device is offline or has no
+provider report. They are request-time authorization observations, independent
+of provider authentication and execution readiness. Later controls recheck
+authority; these fields cannot promise cleanup after expiry or revocation.
+
 ## Delegate public boundary
 
 The dedicated Delegate worktree implements these additive interfaces:
