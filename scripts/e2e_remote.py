@@ -853,8 +853,26 @@ def target_roster(config: Config, diagnostic_target: str | None):
     return selected
 
 
+def evidence_category(diagnostic_target: str | None, diagnostic_direct: bool):
+    if diagnostic_target is None:
+        return "physical two-Mac zero-cost fixture"
+    return (
+        "diagnostic_native_direct" if diagnostic_direct else "diagnostic_native_capture"
+    )
+
+
 class Controller:
-    def __init__(self, config, interruptions, diagnostic_target: str | None = None):
+    def __init__(
+        self,
+        config,
+        interruptions,
+        diagnostic_target: str | None = None,
+        diagnostic_direct: bool = False,
+    ):
+        require(
+            not diagnostic_direct or diagnostic_target is not None,
+            "direct diagnostics require an explicit diagnostic target",
+        )
         self.config = config
         self.diagnostic_target = diagnostic_target
         self.targets = target_roster(config, diagnostic_target)
@@ -864,7 +882,7 @@ class Controller:
             fixture_tool=config.fixture_tool,
             delegate_repository=config.delegate_repository,
             work_parent=config.work_parent,
-            capture_native=diagnostic_target is not None,
+            capture_native=diagnostic_target is not None and not diagnostic_direct,
             delegate=config.candidate_directory / "delegate",
             delegate_run=config.candidate_directory / "delegate-run",
             pueue=Path(selected.pueue),
@@ -877,11 +895,7 @@ class Controller:
         self.h.summary.pop("connector_processes", None)
         self.h.summary.update(
             expected_connector_targets=len(self.targets),
-            category=(
-                "diagnostic_native_capture"
-                if diagnostic_target is not None
-                else "physical two-Mac zero-cost fixture"
-            ),
+            category=evidence_category(diagnostic_target, diagnostic_direct),
             physical_device_acceptance="unverified",
             multi_network_acceptance="unverified",
             real_provider_acceptance="unverified",
@@ -947,7 +961,7 @@ class Controller:
                 "wss_url": h.device_url,
             }
 
-            if self.diagnostic_target is not None:
+            if h.args.capture_native:
                 manifest["capture_native"] = True
 
             def pump(current=root):
@@ -1106,7 +1120,7 @@ class Controller:
                         and root.final.get("cleanup_confirmed") is True,
                         "remote exit/cleanup unconfirmed; retain known locators",
                     )
-                    if h.summary.get("category") == "diagnostic_native_capture":
+                    if self.diagnostic_target is not None:
                         require(
                             root.final.get("attempts")
                             == {
@@ -1172,7 +1186,11 @@ def arguments(argv=None):
     parser.add_argument("--run-remote-fixtures", action="store_true", required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--diagnose-native-target", metavar="ALIAS")
-    return parser.parse_args(argv)
+    parser.add_argument("--diagnose-native-direct", action="store_true")
+    args = parser.parse_args(argv)
+    if args.diagnose_native_direct and args.diagnose_native_target is None:
+        parser.error("--diagnose-native-direct requires --diagnose-native-target")
+    return args
 
 
 def main(argv=None):
@@ -1190,7 +1208,12 @@ def main(argv=None):
         target_roster(
             config, args.diagnose_native_target
         )  # Reject before resource creation.
-        controller = Controller(config, interruptions, args.diagnose_native_target)
+        controller = Controller(
+            config,
+            interruptions,
+            args.diagnose_native_target,
+            args.diagnose_native_direct,
+        )
         controller.run()
         success = True
     except Exception as error:
@@ -1214,9 +1237,9 @@ def main(argv=None):
                 "category": (
                     controller.h.summary["category"]
                     if controller is not None
-                    else "diagnostic_native_capture"
-                    if args.diagnose_native_target is not None
-                    else "physical two-Mac zero-cost fixture"
+                    else evidence_category(
+                        args.diagnose_native_target, args.diagnose_native_direct
+                    )
                 ),
                 "result": (
                     controller.h.summary["result"] if success and cleanup else "failed"

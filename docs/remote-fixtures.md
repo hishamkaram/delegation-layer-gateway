@@ -70,11 +70,20 @@ before resources are created. This mode grants inventory access only, performs
 one fresh project inspection and stops before root initialization or task
 admission. Completion also requires zero fixture attempts and confirmed cleanup.
 
-It reuses the existing private Native-capture launcher. The launcher adds a
+By default it reuses the existing private Native-capture launcher. The launcher adds a
 Python parent and delays forwarding stdout until the Native child finishes.
 Raw CLI captures remain private and can include context tokens and local paths.
-A diagnostic success is a distinct evidence category: it neither fixes nor
+This mode reports `diagnostic_native_capture`; its success neither fixes nor
 proves the original direct execution path.
+
+Add `--diagnose-native-direct` together with `--diagnose-native-target` to run
+the same zero-task inspection through direct Native execution, without the
+Python capture parent or raw CLI capture files. It reports the separate
+`diagnostic_native_direct` evidence category and still requires zero attempts
+and confirmed cleanup. The direct flag without a target fails before resource
+creation. Neither diagnostic category proves the full two-target fixture flow,
+installed-provider behavior, physical devices, multiple networks or cloud-client
+acceptance. The normal two-target fixture mode is unchanged.
 
 The transferred Native source includes its exact versioned Unicode folding data
 file. An isolated staged-import regression checks this dependency without using

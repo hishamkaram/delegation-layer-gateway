@@ -4,6 +4,7 @@ from contextlib import nullcontext
 import dataclasses
 import hashlib
 import io
+from itertools import product
 import json
 import os
 from pathlib import Path
@@ -124,28 +125,44 @@ class ConfigTests(unittest.TestCase):
                     remote.Controller(config, local.Interruptions(), invalid)
             ssh.assert_not_called()
             harness.assert_not_called()
+            with self.assertRaises(local.ProofFailure):
+                remote.Controller(config, local.Interruptions(), diagnostic_direct=True)
+            ssh.assert_not_called()
+            harness.assert_not_called()
         path = self.base / "configuration.json"
         path.write_text(json.dumps(self.value))
-        with (
-            patch.object(remote, "Controller") as constructor,
-            patch.object(remote.signal, "signal"),
-            patch("sys.stdout", io.StringIO()),
-        ):
+        for direct in (False, True):
+            public = io.StringIO()
+            with (
+                self.subTest(direct=direct),
+                patch.object(remote, "Controller") as constructor,
+                patch.object(remote.signal, "signal"),
+                patch("sys.stdout", public),
+            ):
+                self.assertEqual(
+                    remote.main(
+                        [
+                            "--run-remote-fixtures",
+                            "--config",
+                            str(path),
+                            "--diagnose-native-target",
+                            "missing",
+                            *(["--diagnose-native-direct"] if direct else []),
+                        ]
+                    ),
+                    1,
+                )
+                constructor.assert_not_called()
+            report = json.loads(public.getvalue())
             self.assertEqual(
-                remote.main(
-                    [
-                        "--run-remote-fixtures",
-                        "--config",
-                        str(path),
-                        "--diagnose-native-target",
-                        "missing",
-                    ]
-                ),
-                1,
+                report["category"],
+                "diagnostic_native_direct" if direct else "diagnostic_native_capture",
             )
-            constructor.assert_not_called()
+            self.assertEqual(report["failure_kind"], "ProofFailure")
+            self.assertNotIn("missing", public.getvalue())
         defaults = remote.arguments(["--run-remote-fixtures", "--config", str(path)])
         self.assertIsNone(defaults.diagnose_native_target)
+        self.assertFalse(defaults.diagnose_native_direct)
         selected = remote.arguments(
             [
                 "--run-remote-fixtures",
@@ -156,6 +173,28 @@ class ConfigTests(unittest.TestCase):
             ]
         )
         self.assertEqual(selected.diagnose_native_target, "mac-b")
+        self.assertFalse(selected.diagnose_native_direct)
+
+    def test_direct_flag_without_target_fails_before_reading_config_or_creating_resources(
+        self,
+    ):
+        with (
+            patch.object(remote, "read_json") as read,
+            patch.object(remote, "Controller") as constructor,
+            patch("sys.stderr", io.StringIO()),
+            self.assertRaises(SystemExit) as stopped,
+        ):
+            remote.main(
+                [
+                    "--run-remote-fixtures",
+                    "--config",
+                    str(self.base / "absent.json"),
+                    "--diagnose-native-direct",
+                ]
+            )
+        self.assertEqual(stopped.exception.code, 2)
+        read.assert_not_called()
+        constructor.assert_not_called()
 
     def test_unknown_config_same_target_and_public_candidate_refused(self):
         for change in (
@@ -402,8 +441,18 @@ class DiagnosticDriverTests(unittest.TestCase):
     def test_selected_capture_path_has_one_fresh_refresh_and_no_task_or_origin_mutation(
         self,
     ):
+        self.assert_selected_diagnostic(False)
+
+    def test_selected_direct_path_has_one_fresh_refresh_and_no_task_or_origin_mutation(
+        self,
+    ):
+        self.assert_selected_diagnostic(True)
+
+    def assert_selected_diagnostic(self, direct):
         with self.patches():
-            controller = remote.Controller(self.config, local.Interruptions(), "mac-b")
+            controller = remote.Controller(
+                self.config, local.Interruptions(), "mac-b", direct
+            )
             controller.run()
             self.assertEqual(self.h.summary["result"], "diagnostic_rpc_completed")
             self.assertNotIn("fixture_tasks_executed", self.h.summary)
@@ -412,8 +461,15 @@ class DiagnosticDriverTests(unittest.TestCase):
             [root.target.ssh_alias for root in controller.roots], ["mac-b"]
         )
         self.assertEqual(controller.roots[0].device, "fixture-device-2")
-        self.assertTrue(self.h.args.capture_native)
-        self.assertTrue(self.manifests[0]["capture_native"])
+        self.assertEqual(self.h.args.capture_native, not direct)
+        if direct:
+            self.assertNotIn("capture_native", self.manifests[0])
+        else:
+            self.assertTrue(self.manifests[0]["capture_native"])
+        self.assertEqual(
+            self.h.summary["category"],
+            "diagnostic_native_direct" if direct else "diagnostic_native_capture",
+        )
         self.assertEqual(self.h.summary["expected_connector_targets"], 1)
         self.assertEqual(self.h.summary["fixture_task_limit"], 0)
         self.assertEqual(self.h.summary["max_active_fixture_tasks"], 0)
@@ -459,8 +515,10 @@ class DiagnosticDriverTests(unittest.TestCase):
         self.h.grant_root.assert_not_called()
 
     def test_public_diagnostic_result_requires_rpc_success_and_cleanup(self):
-        for failure in ("none", "rpc", "ssh", "attempt"):
-            with self.subTest(failure=failure):
+        for direct, failure in product(
+            (False, True), ("none", "rpc", "ssh", "attempt")
+        ):
+            with self.subTest(direct=direct, failure=failure):
                 with tempfile.TemporaryDirectory() as directory:
                     self.h.base = Path(directory)
                     self.h.summary = {"stages": [], "result": "started"}
@@ -484,11 +542,18 @@ class DiagnosticDriverTests(unittest.TestCase):
                                 str(config_path),
                                 "--diagnose-native-target",
                                 "mac-b",
+                                *(["--diagnose-native-direct"] if direct else []),
                             ]
                         )
                     self.assertEqual(code, 0 if failure == "none" else 1)
                     report = json.loads(public.getvalue())
-                    self.assertEqual(report["category"], "diagnostic_native_capture")
+                    self.assertEqual(
+                        report["category"],
+                        "diagnostic_native_direct"
+                        if direct
+                        else "diagnostic_native_capture",
+                    )
+                    self.assertEqual(self.h.args.capture_native, not direct)
                     self.assertEqual(
                         report["result"],
                         "diagnostic_completed" if failure == "none" else "failed",
@@ -524,7 +589,9 @@ class FailureEvidenceTests(unittest.TestCase):
                 remote,
                 "arguments",
                 return_value=SimpleNamespace(
-                    config=config, diagnose_native_target=None
+                    config=config,
+                    diagnose_native_target=None,
+                    diagnose_native_direct=False,
                 ),
             ):
                 with patch.object(
@@ -1066,6 +1133,7 @@ class CleanupTests(unittest.TestCase):
                 operations=remote.peer.MAX_OPERATIONS,
             )
             controller = remote.Controller.__new__(remote.Controller)
+            controller.diagnostic_target = None
             controller.roots = [root]
 
             class Link:
@@ -1163,6 +1231,7 @@ class CleanupTests(unittest.TestCase):
             for root in roots:
                 root.channel = Link(root.device, root.base)
             controller = remote.Controller.__new__(remote.Controller)
+            controller.diagnostic_target = None
             controller.roots = roots
             controller.h = SimpleNamespace(
                 base=Path(directory),
@@ -1214,6 +1283,7 @@ class CleanupTests(unittest.TestCase):
             root.channel = Link()
             root.initialized = True
             controller = remote.Controller.__new__(remote.Controller)
+            controller.diagnostic_target = None
             controller.roots = [root]
             controller.h = SimpleNamespace(
                 base=Path(directory),
