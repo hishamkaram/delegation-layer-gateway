@@ -165,32 +165,75 @@ print(json.dumps({'event':'bootstrap_ready','bytes':count}),flush=True)
 
     def test_faulted_output_is_still_drained_and_joined(self):
         sources = {
-            "malformed": "os.write(1,b'bad\\n')",
-            "oversized": "os.write(1,b'x'*70000+b'\\n')",
-            "continuous": "\nfor _ in range(1024): os.write(1,b'x'*8192)",
+            "malformed": ("b'bad\\n'", 4, "invalid_output_json"),
+            "oversized": ("b'x'*70000+b'\\n'", 70001, "output_frame_limit"),
+            # More than two bounded drains, without depending on megabytes of
+            # pipe throughput during the finite join and failure-cleanup budget.
+            "fault_then_tail": (
+                "b'bad\\n'+b'x'*131072",
+                131076,
+                "invalid_output_json",
+            ),
         }
-        for name, output in sources.items():
+        for name, (output, expected_bytes, expected_fault) in sources.items():
             with self.subTest(name=name):
-                link, _ = self.start("import os\n" + output)
+                link, book = self.start(
+                    "import sys;sys.stdout.buffer.write(" + output + ")"
+                )
                 link.close_input()
                 drained = []
+                drained_after_fault = []
                 original = link.capture.drain
 
                 def bounded_drain():
                     before = link.capture.bytes
+                    already_faulted = link.capture.error is not None
                     original()
                     drained.append(link.capture.bytes - before)
+                    if already_faulted:
+                        drained_after_fault.append(link.capture.bytes - before)
 
                 with patch.object(link.capture, "drain", side_effect=bounded_drain):
                     result = link.join(timeout=5)
                 self.assertTrue(drained)
                 self.assertLessEqual(max(drained), channel.DRAIN_BYTES)
+                self.assertEqual(sum(drained), expected_bytes)
                 self.assertEqual(result["exit_code"], 0)
                 self.assertTrue(result["natural_wait"])
-                self.assertIsNotNone(result["capture_error"])
+                self.assertTrue(book.finished_naturally())
+                self.assertEqual(result["capture_error"], expected_fault)
                 self.assertTrue(link.capture.eof)
-                self.assertGreater(link.capture.bytes, 0)
-                self.assertNotIn("xxxxx", link.process.stdout_path.read_text())
+                self.assertEqual(link.capture.bytes, expected_bytes)
+                metadata = link.process.stdout_path.read_text()
+                self.assertEqual(json.loads(metadata)["bytes"], expected_bytes)
+                self.assertNotIn("xxxxx", metadata)
+                if name == "fault_then_tail":
+                    self.assertGreater(expected_bytes, 2 * channel.DRAIN_BYTES)
+                    self.assertGreaterEqual(sum(count > 0 for count in drained), 3)
+                    self.assertGreater(sum(drained_after_fault), 0)
+
+    def test_capture_accepts_byte_ceiling_and_faults_on_next_byte(self):
+        # Exercise the parser input boundary directly: pipe throughput and Native
+        # ownership are covered above. 64 legal 64 KiB frames fill exactly 4 MiB
+        # without triggering the independent frame-size or frame-count limits.
+        capture = channel.JSONLCapture()
+        self.addCleanup(capture.close)
+        prefix = b'{"event":"initialized","padding":"'
+        suffix = b'"}\n'
+        line = prefix + b"x" * (65536 - len(prefix) - len(suffix)) + suffix
+        for _ in range(64):
+            capture._accept(line)
+        self.assertEqual(capture.bytes, 4194304)
+        self.assertEqual(capture.bytes, channel.MAX_BYTES)
+        self.assertEqual(len(capture._frames), 64)
+        self.assertIsNone(capture.error)
+        capture._accept(b"x")
+        self.assertEqual(capture.bytes, 4194305)
+        self.assertEqual(capture.error, "output_byte_limit")
+        metadata = json.loads(capture.sanitized(0))
+        self.assertEqual(metadata["bytes"], 4194305)
+        self.assertEqual(metadata["fault"], "output_byte_limit")
+        self.assertNotIn("xxxxx", capture.sanitized(0).decode())
 
     def test_strict_json_and_fixed_events_reject_without_raw_payload(self):
         invalid = [

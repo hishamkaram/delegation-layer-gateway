@@ -62,6 +62,23 @@ def input_pipe(data, *, connected=False):
 
 
 class BootstrapTests(unittest.TestCase):
+    def test_valid_staging_fixture_accepts_a_symlinked_temporary_parent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            physical = base / "physical"
+            physical.mkdir()
+            alias = base / "alias"
+            alias.symlink_to(physical, target_is_directory=True)
+            case = BootstrapTests(
+                "test_exact_frame_handoff_preserves_peer_input_and_exec_contract"
+            )
+            result = unittest.TestResult()
+            with mock.patch.object(tempfile, "tempdir", str(alias)):
+                case.run(result)
+            self.assertEqual(result.testsRun, 1)
+            self.assertEqual(result.skipped, [])
+            self.assertEqual(result.failures + result.errors, [])
+
     def invoke(self, home, payload, *, execve=None, deadline=None, connected=False):
         with (
             input_pipe(payload, connected=connected) as reader,
@@ -80,7 +97,7 @@ class BootstrapTests(unittest.TestCase):
     def test_exact_frame_handoff_preserves_peer_input_and_exec_contract(self):
         entries = [(bootstrap.PEER, BENIGN), ("bin/gateway", b"owned candidate")]
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             observed = []
             peer_input = b'{"next":"peer manifest"}\n'
             with input_pipe(
@@ -202,7 +219,7 @@ class BootstrapTests(unittest.TestCase):
         data = b'{"fixture":"versioned source data"}\n'
         entries = [(bootstrap.PEER, BENIGN), (data_path, data)]
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             value = manifest(home, entries)
             execute = mock.Mock()
             result, events = self.invoke(
@@ -221,7 +238,7 @@ class BootstrapTests(unittest.TestCase):
             ):
                 bootstrap.validate_manifest(value, home, os.getuid())
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             execute = mock.Mock()
             result, events = self.invoke(
                 home,
@@ -255,7 +272,7 @@ class BootstrapTests(unittest.TestCase):
                 self.subTest(mutate=mutate),
                 tempfile.TemporaryDirectory() as temporary,
             ):
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 value = manifest(home)
                 mutate(value)
                 execute = mock.Mock()
@@ -291,7 +308,7 @@ class BootstrapTests(unittest.TestCase):
                 self.subTest(symlink=symlink),
                 tempfile.TemporaryDirectory() as temporary,
             ):
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 stage = home / ("gs-" + RUN_ID)
                 target = home / "existing"
                 target.mkdir()
@@ -313,7 +330,7 @@ class BootstrapTests(unittest.TestCase):
             (b"short", "truncated_frame"),
         ]:
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 execute = mock.Mock()
                 result, events = self.invoke(
                     home, frame(manifest(home), data), execve=execute
@@ -338,7 +355,7 @@ class BootstrapTests(unittest.TestCase):
         ]
         for data in inputs:
             with self.subTest(data=data), tempfile.TemporaryDirectory() as temporary:
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 result, events = self.invoke(home, data)
                 self.assertEqual(result, 1)
                 self.assertEqual(len(events), 1)
@@ -347,7 +364,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_connected_incomplete_input_has_one_finite_deadline(self):
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             start = time.monotonic()
             result, events = self.invoke(
                 home, frame(manifest(home), b""), connected=True, deadline=start + 0.03
@@ -362,7 +379,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_symlink_parent_and_file_overwrites_rejected_under_fd_custody(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             outside = root / "outside"
             outside.mkdir()
             stage = root / "stage"
@@ -390,7 +407,7 @@ class BootstrapTests(unittest.TestCase):
                     self.subTest(phase=phase, boundary=boundary),
                     tempfile.TemporaryDirectory() as temporary,
                 ):
-                    base = Path(temporary)
+                    base = Path(temporary).resolve()
                     home = base / "home"
                     home.mkdir()
                     stage = home / ("gs-" + RUN_ID)
@@ -470,7 +487,7 @@ class BootstrapTests(unittest.TestCase):
                     self.subTest(phase=phase, mutation=mutation),
                     tempfile.TemporaryDirectory() as temporary,
                 ):
-                    home = Path(temporary)
+                    home = Path(temporary).resolve()
                     peer = home / ("gs-" + RUN_ID) / bootstrap.PEER
                     retained = home / "retained-original-peer.py"
                     marker = home / "replacement-marker"
@@ -531,7 +548,7 @@ class BootstrapTests(unittest.TestCase):
                     self.subTest(phase=phase, name=name),
                     tempfile.TemporaryDirectory() as temporary,
                 ):
-                    home = Path(temporary)
+                    home = Path(temporary).resolve()
                     stage = home / ("gs-" + RUN_ID)
                     unexpected = stage / "gateway/scripts" / name
                     marker = home / "unlisted-code-marker"
@@ -588,7 +605,7 @@ class BootstrapTests(unittest.TestCase):
                 self.subTest(mutation=mutation),
                 tempfile.TemporaryDirectory() as temporary,
             ):
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 stage = home / ("gs-" + RUN_ID)
                 peer = stage / bootstrap.PEER
                 retained = home / "retained-original-stage"
@@ -663,7 +680,7 @@ class BootstrapTests(unittest.TestCase):
                 self.subTest(mutation=mutation),
                 tempfile.TemporaryDirectory() as temporary,
             ):
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 candidate = home / ("gs-" + RUN_ID) / "bin/delegate"
                 entries = [(bootstrap.PEER, BENIGN), ("bin/delegate", candidate_data)]
                 actual_stage_files = bootstrap.stage_files
@@ -696,7 +713,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_handoff_rechecks_share_the_original_finite_deadline(self):
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             expired = False
             actual_emit = bootstrap.emit
 
@@ -759,7 +776,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_visible_launcher_symlink_is_refused_without_adopting_original(self):
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             stage = home / ("gs-" + RUN_ID)
             retained = home / "retained-original-gateway"
             actual_stage_files = bootstrap.stage_files
@@ -787,7 +804,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_home_symlink_loop_is_a_bounded_binding_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             home = base / "home"
             home.mkdir()
             retained = base / "retained-home"
@@ -849,7 +866,7 @@ class BootstrapTests(unittest.TestCase):
 
     def test_account_resolution_rejects_symlink_home_and_effective_uid_mismatch(self):
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             alias = home / "alias"
             alias.symlink_to(home, target_is_directory=True)
             with mock.patch.object(
@@ -871,7 +888,7 @@ class BootstrapTests(unittest.TestCase):
         data = b"owned candidate chunk\x00" * 8192
         entries = [(bootstrap.PEER, BENIGN), ("bin/delegate", data)]
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             with tempfile.TemporaryFile() as source, tempfile.TemporaryFile() as output:
                 source.write(frame(manifest(home, entries), BENIGN + data))
                 source.seek(0)
@@ -890,7 +907,7 @@ class BootstrapTests(unittest.TestCase):
                 )
                 execute.assert_called_once()
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             execute = mock.Mock()
             with mock.patch.object(
                 bootstrap.os, "fsync", side_effect=OSError("private disk fault")
@@ -916,7 +933,7 @@ class MaintainedProcessTests(unittest.TestCase):
         import e2e_local
 
         acceptance = e2e_local.load_acceptance(Path(repository))
-        root = Path(tempfile.mkdtemp(prefix="bootstrap-full-output-test-"))
+        root = Path(tempfile.mkdtemp(prefix="bootstrap-full-output-test-")).resolve()
         processes = acceptance.processes.Processes(
             root / "captures", environment={"PATH": "/usr/bin:/bin"}
         )
@@ -990,7 +1007,7 @@ class MaintainedProcessTests(unittest.TestCase):
         import e2e_local
 
         acceptance = e2e_local.load_acceptance(Path(repository))
-        root = Path(tempfile.mkdtemp(prefix="bootstrap-test-"))
+        root = Path(tempfile.mkdtemp(prefix="bootstrap-test-")).resolve()
         processes = acceptance.processes.Processes(
             root / "captures", environment={"PATH": "/usr/bin:/bin"}
         )

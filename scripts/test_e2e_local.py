@@ -31,7 +31,7 @@ class MaintainedFixtureLeaseTests(unittest.TestCase):
             "scripts.acceptance.private_cli.tests.test_shutdown"
         )
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             fixture = fixtures.ManagedLifetimeFixture(base)
             fixture.task.rmdir()
             root = object.__new__(e2e_local.DelegateRoot)
@@ -170,14 +170,15 @@ class MCPPolicyTests(unittest.TestCase):
 
 class HarnessBoundaryTests(unittest.TestCase):
     def execution_root(self, directory):
+        base = Path(directory).resolve()
         root = object.__new__(e2e_local.DelegateRoot)
         root.owner = mock.Mock()
-        root.state = Path(directory) / "state"
+        root.state = base / "state"
         root.context = {"root_token": "root", "project_token": "project"}
         root.nonce = "nonce"
-        root.waiters = Path(directory) / "waiters"
+        root.waiters = base / "waiters"
         root.waiters.mkdir()
-        root.counter = Path(directory) / "counter"
+        root.counter = base / "counter"
         root.counter.write_text("execution\nexecution\n")
         os.mkfifo(root.waiters / "nonce-123.fifo", 0o600)
         return root
@@ -293,7 +294,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_root_reuses_original_gate_and_rejects_closed_lease(self):
         with tempfile.TemporaryDirectory() as directory:
-            root, gate = self.gate_root(Path(directory))
+            root, gate = self.gate_root(Path(directory).resolve())
             original_inode = root.gate.stat().st_ino
             self.assertIs(root.acquire_fixture_gate(), gate)
             self.assertIs(root.acquire_fixture_gate(), gate)
@@ -309,7 +310,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_root_rejects_replaced_gate_without_reacquiring(self):
         with tempfile.TemporaryDirectory() as directory:
-            root, gate = self.gate_root(Path(directory))
+            root, gate = self.gate_root(Path(directory).resolve())
             root.acquire_fixture_gate()
             root.gate.rename(root.gate.with_suffix(".original"))
             root.gate.touch(mode=0o600)
@@ -321,9 +322,9 @@ class HarnessBoundaryTests(unittest.TestCase):
     def test_root_finish_releases_gate_before_canonical_cleanup_even_on_failure(self):
         for fail in (False, True):
             with self.subTest(fail=fail), tempfile.TemporaryDirectory() as directory:
-                root, gate = self.gate_root(Path(directory))
+                root, gate = self.gate_root(Path(directory).resolve())
                 root.acquire_fixture_gate()
-                root.state = Path(directory) / "state"
+                root.state = Path(directory).resolve() / "state"
                 root.pending = []
                 root.close_engine = mock.Mock(return_value={})
 
@@ -513,7 +514,7 @@ class HarnessBoundaryTests(unittest.TestCase):
                     harness.interruptions.inject_acquisition_signal = True
                 else:
                     harness.interruptions = e2e_local.Interruptions()
-                harness.base = Path(directory)
+                harness.base = Path(directory).resolve()
                 ledger = harness.base / "fixture-attempts"
                 ledger.write_bytes(b"attempt\n" * 4)
                 ledger.chmod(0o600)
@@ -615,7 +616,7 @@ class HarnessBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             harness = object.__new__(e2e_local.Harness)
             harness.interruptions = e2e_local.Interruptions()
-            harness.base = Path(directory)
+            harness.base = Path(directory).resolve()
             harness.args = mock.Mock(gateway=Path("/fixture/gateway"))
             harness.summary = {"result": "started"}
             harness.operations = {}
@@ -648,7 +649,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_fifth_literal_attempt_is_visible_after_budget_rejection(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             fixture = base / "literal"
             fixture.write_text(f"#!{e2e_local.sys.executable}\nraise SystemExit(0)\n")
             fixture.chmod(0o700)
@@ -679,7 +680,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_concurrent_literal_attempt_is_visible_before_lease_rejection(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             counter = base / "executions"
             wrapper = base / "wrapper"
             wrapper.write_text(
@@ -709,7 +710,7 @@ class HarnessBoundaryTests(unittest.TestCase):
     def test_attempt_oracle_rejects_malformed_or_unsafe_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
             harness = object.__new__(e2e_local.Harness)
-            harness.base = Path(temporary)
+            harness.base = Path(temporary).resolve()
             harness.assert_fixture_attempts(0)
             ledger = harness.base / "fixture-attempts"
             ledger.write_bytes(b"attempt\n")
@@ -734,7 +735,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_help_probe_does_not_record_an_execution_attempt(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             counter = base / "executions"
             wrapper = base / "wrapper"
             wrapper.write_text(
@@ -943,6 +944,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_default_work_parent_uses_operator_home(self):
         with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
             with (
                 mock.patch.object(Path, "home", return_value=Path(directory)),
                 mock.patch.object(e2e_local, "checked_binary", side_effect=Path),
@@ -966,7 +968,7 @@ class HarnessBoundaryTests(unittest.TestCase):
                         "--run-native",
                     ]
                 )
-            self.assertEqual(args.work_parent, Path(directory))
+            self.assertEqual(args.work_parent, home)
 
     def test_failure_trace_excludes_messages_paths_and_source_content(self):
         try:
@@ -1061,7 +1063,7 @@ class HarnessBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             harness = object.__new__(e2e_local.Harness)
             harness.interruptions = e2e_local.Interruptions()
-            harness.base = Path(directory)
+            harness.base = Path(directory).resolve()
             harness.summary = {"result": "started"}
             harness.args = mock.Mock(gateway=Path("/fixture/gateway"))
             harness.operations = {}
@@ -1162,7 +1164,7 @@ class HarnessBoundaryTests(unittest.TestCase):
 
     def test_provider_source_change_is_rejected_before_import(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             processes = root / "scripts/acceptance/processes"
             processes.mkdir(parents=True)
             (processes / "operations.py").write_text("")
@@ -1282,7 +1284,7 @@ class HarnessBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             harness = object.__new__(e2e_local.Harness)
             harness.interruptions = e2e_local.Interruptions()
-            harness.base = Path(directory)
+            harness.base = Path(directory).resolve()
             harness.args = mock.Mock(gateway=Path("/fixture/gateway"))
             harness.summary = {"result": "started"}
             harness.operations = {}
@@ -1293,7 +1295,7 @@ class HarnessBoundaryTests(unittest.TestCase):
             harness.connectors = [process]
             harness.gateway = None
             root = mock.Mock()
-            root.native_captures = Path(directory) / "native"
+            root.native_captures = Path(directory).resolve() / "native"
             root.native_captures.mkdir(mode=0o700)
             root.finish.return_value = {}
             harness.roots = [root]
@@ -1320,7 +1322,7 @@ class HarnessBoundaryTests(unittest.TestCase):
             with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
                 harness = object.__new__(e2e_local.Harness)
                 harness.interruptions = e2e_local.Interruptions()
-                harness.base = Path(directory)
+                harness.base = Path(directory).resolve()
                 harness.args = mock.Mock(gateway=Path("/fixture/gateway"))
                 harness.summary = {"result": "started"}
                 harness.operations = {}
@@ -1332,7 +1334,7 @@ class HarnessBoundaryTests(unittest.TestCase):
                 harness.connectors = []
                 harness.gateway = None
                 root = mock.Mock()
-                root.native_captures = Path(directory) / "native"
+                root.native_captures = Path(directory).resolve() / "native"
                 root.native_captures.mkdir(mode=0o700)
                 root.finish.return_value = {}
                 harness.roots = [root]

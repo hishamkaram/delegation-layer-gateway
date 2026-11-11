@@ -515,6 +515,23 @@ class PeerBoundaryTests(unittest.TestCase):
 
 
 class PairSelectionTests(unittest.TestCase):
+    def test_bundle_fixture_accepts_a_symlinked_temporary_parent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            physical = base / "physical"
+            physical.mkdir()
+            alias = base / "alias"
+            alias.symlink_to(physical, target_is_directory=True)
+            case = PairSelectionTests(
+                "test_bundle_precedence_matches_native_before_path"
+            )
+            result = unittest.TestResult()
+            with mock.patch.object(tempfile, "tempdir", str(alias)):
+                case.run(result)
+            self.assertEqual(result.testsRun, 1)
+            self.assertEqual(result.skipped, [])
+            self.assertEqual(result.failures + result.errors, [])
+
     def pair(self, directory, first, second):
         directory.mkdir(parents=True, exist_ok=True)
         for name in (first, second):
@@ -525,7 +542,7 @@ class PairSelectionTests(unittest.TestCase):
 
     def test_runner_is_the_explicit_adjacent_named_role(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             delegate, runner = self.pair(base / "bin", "delegate", "delegate-run")
             client, daemon = self.pair(base / "native", "pueue", "pueued")
             peer.validate_selected_pairs(delegate, runner, client, daemon)
@@ -545,7 +562,7 @@ class PairSelectionTests(unittest.TestCase):
 
     def test_bundle_precedence_matches_native_before_path(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             delegate, runner = self.pair(base / "bin", "delegate", "delegate-run")
             path_pair = self.pair(base / "path", "pueue", "pueued")
             libexec_pair = self.pair(base / "libexec", "pueue", "pueued")
@@ -649,7 +666,7 @@ class OwnedProcessTests(unittest.TestCase):
         ):
             owner.operate({"operation": "wait_fixture_started", "task_id": "b" * 32})
             lease = owner.fixture_observer[2]
-            owner.base = Path(temporary)
+            owner.base = Path(temporary).resolve()
             owner.root.daemon = None
             owner.root.finish = mock.Mock()
             owner.root.release_fixture_gate = mock.Mock(
@@ -681,7 +698,7 @@ class OwnedProcessTests(unittest.TestCase):
             "scripts.acceptance.private_cli.tests.test_shutdown"
         )
         with tempfile.TemporaryDirectory() as temporary:
-            fixture = fixture_module.ManagedLifetimeFixture(Path(temporary))
+            fixture = fixture_module.ManagedLifetimeFixture(Path(temporary).resolve())
             fixture.write_task(include_wait=False, termination_cause="previous-boot")
             canonical = self.acceptance.supervisor.read_managed_closure(
                 fixture.state, ()
@@ -738,7 +755,9 @@ class OwnedProcessTests(unittest.TestCase):
         self,
     ):
         with tempfile.TemporaryDirectory() as temporary:
-            fixture, fixture_module = self.intent_absence_fixture(Path(temporary))
+            fixture, fixture_module = self.intent_absence_fixture(
+                Path(temporary).resolve()
+            )
             canonical = self.acceptance.supervisor.read_managed_closure(
                 fixture.state, ()
             )
@@ -756,7 +775,7 @@ class OwnedProcessTests(unittest.TestCase):
 
     def test_incomplete_absence_evidence_still_fails_canonical_reader(self):
         with tempfile.TemporaryDirectory() as temporary:
-            fixture, _ = self.intent_absence_fixture(Path(temporary))
+            fixture, _ = self.intent_absence_fixture(Path(temporary).resolve())
             (fixture.task / "lifetime/worker-wait.json").unlink()
             with self.assertRaises(self.acceptance.supervisor.AcceptanceFailure):
                 self.acceptance.supervisor.read_managed_closure(fixture.state, ())
@@ -938,7 +957,7 @@ class OwnedProcessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = object.__new__(peer.local.DelegateRoot)
             root.owner = SimpleNamespace(acceptance=self.acceptance)
-            root.gate = Path(temporary) / "gate"
+            root.gate = Path(temporary).resolve() / "gate"
             root.fixture_gate = None
             root.fixture_execution_snapshot = mock.Mock(return_value=object())
             owner = object.__new__(peer.Peer)
@@ -975,7 +994,7 @@ class OwnedProcessTests(unittest.TestCase):
 
     def full_output_pipe(self, blocked_event):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             ownership = self.acceptance.directories.DirectoryOwner()
             processes = self.acceptance.processes.Processes(
                 base / "captures",
@@ -1092,7 +1111,7 @@ class OwnedProcessTests(unittest.TestCase):
 
     def test_eof_joins_exact_live_intake_child_before_native_cleanup(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             owner = object.__new__(peer.Peer)
             owner.base = base
             owner.interruptions = peer.local.Interruptions()
@@ -1157,7 +1176,7 @@ class OwnedProcessTests(unittest.TestCase):
 
     def test_real_owned_literal_children_enforce_allocation_before_exec(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             ownership = self.acceptance.directories.DirectoryOwner()
             processes = self.acceptance.processes.Processes(
                 base / "captures",
@@ -1200,7 +1219,7 @@ class OwnedProcessTests(unittest.TestCase):
 
     def run_cleanup(self, exit_code):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             owner = object.__new__(peer.Peer)
             owner.base = base
             owner.interruptions = peer.local.Interruptions()

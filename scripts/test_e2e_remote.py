@@ -281,6 +281,23 @@ class ConfigTests(unittest.TestCase):
 
 
 class DiagnosticDriverTests(unittest.TestCase):
+    def test_diagnostic_fixture_accepts_a_symlinked_temporary_parent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            physical = base / "physical"
+            physical.mkdir()
+            alias = base / "alias"
+            alias.symlink_to(physical, target_is_directory=True)
+            case = DiagnosticDriverTests(
+                "test_public_diagnostic_result_requires_rpc_success_and_cleanup"
+            )
+            result = unittest.TestResult()
+            with patch.object(tempfile, "tempdir", str(alias)):
+                case.run(result)
+            self.assertEqual(result.testsRun, 1)
+            self.assertEqual(result.skipped, [])
+            self.assertEqual(result.failures + result.errors, [])
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -520,13 +537,13 @@ class DiagnosticDriverTests(unittest.TestCase):
         ):
             with self.subTest(direct=direct, failure=failure):
                 with tempfile.TemporaryDirectory() as directory:
-                    self.h.base = Path(directory)
+                    self.h.base = Path(directory).resolve()
                     self.h.summary = {"stages": [], "result": "started"}
                     self.h.roots = []
                     self.refresh_fails = failure == "rpc"
                     self.ssh_exit = 255 if failure == "ssh" else 0
                     self.attempts = 1 if failure == "attempt" else 0
-                    config_path = Path(directory) / "configuration.json"
+                    config_path = self.h.base / "configuration.json"
                     config_path.write_text("{}")
                     public = io.StringIO()
                     with (
@@ -647,7 +664,7 @@ class HandoffTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.h = SimpleNamespace(base=self.base, processes=object())
 
     def root(self, failed=False):
@@ -734,7 +751,9 @@ class HandoffTests(unittest.TestCase):
                     return frame
 
                 with tempfile.TemporaryDirectory() as directory:
-                    harness = SimpleNamespace(base=Path(directory), processes=object())
+                    harness = SimpleNamespace(
+                        base=Path(directory).resolve(), processes=object()
+                    )
                     with patch.object(root.channel, "expect", side_effect=tagged):
                         if capture_tag == "diagnostic_capture":
                             remote.bootstrap_peer(
@@ -1539,7 +1558,7 @@ class CleanupTests(unittest.TestCase):
 
             root.channel = Link()
             controller.h = SimpleNamespace(
-                base=Path(directory),
+                base=Path(directory).resolve(),
                 operations={},
                 closed_operations=set(),
                 gateway=None,
@@ -1619,7 +1638,7 @@ class CleanupTests(unittest.TestCase):
             controller.diagnostic_target = None
             controller.roots = roots
             controller.h = SimpleNamespace(
-                base=Path(directory),
+                base=Path(directory).resolve(),
                 operations={},
                 closed_operations=set(),
                 gateway=None,
@@ -1671,7 +1690,7 @@ class CleanupTests(unittest.TestCase):
             controller.diagnostic_target = None
             controller.roots = [root]
             controller.h = SimpleNamespace(
-                base=Path(directory),
+                base=Path(directory).resolve(),
                 operations={},
                 closed_operations=set(),
                 gateway=None,

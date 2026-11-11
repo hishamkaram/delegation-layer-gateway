@@ -179,7 +179,7 @@ class DriverTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.receipt = Path(self.temporary.name) / "receipt"
+        self.receipt = Path(self.temporary.name).resolve() / "receipt"
         self.receipt.mkdir(mode=0o700)
         self.config = contracts.Config.parse(configuration(), "provider")
         self.helpers = BoundaryHelpers(self.config)
@@ -621,7 +621,8 @@ class ContractTests(unittest.TestCase):
         self,
     ):
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "config.json"
+            base = Path(temporary).resolve()
+            path = base / "config.json"
             for content in ('{"key":1,"key":2}', '{"key":NaN}', '{"key":1e999}'):
                 path.write_text(content)
                 path.chmod(0o600)
@@ -632,14 +633,14 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(live.Failure):
                 live.private_json(path)
             path.chmod(0o600)
-            alias = Path(temporary) / "alias"
+            alias = base / "alias"
             alias.symlink_to(path)
             with self.assertRaises(live.Failure):
                 live.private_json(alias)
 
     def test_receipt_lease_refuses_concurrent_controller(self):
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             directory.chmod(0o700)
             first = live.ReceiptLease(directory)
             try:
@@ -652,7 +653,7 @@ class ContractTests(unittest.TestCase):
 
     def test_prior_resource_proof_rejects_missing_legacy_or_unhealthy_fields(self):
         with tempfile.TemporaryDirectory() as temporary:
-            receipt = Path(temporary)
+            receipt = Path(temporary).resolve()
             receipt.chmod(0o700)
             attempt = receipt / ("attempt-" + "a" * 32)
             attempt.mkdir(mode=0o700)
@@ -687,12 +688,13 @@ class ContractTests(unittest.TestCase):
 
     def test_prior_resource_scan_refuses_symlinks_and_excess_attempts(self):
         with tempfile.TemporaryDirectory() as temporary:
-            receipt = Path(temporary) / "receipt"
+            base = Path(temporary).resolve()
+            receipt = base / "receipt"
             receipt.mkdir(mode=0o700)
             attempt = receipt / ("attempt-" + "a" * 32)
             attempt.mkdir(mode=0o700)
             path = attempt / "summary.json"
-            target = Path(temporary) / "foreign.json"
+            target = base / "foreign.json"
             good = {
                 "schema_version": 1,
                 "helpers_join_scope": "current_controller",
@@ -819,7 +821,7 @@ class HelperTests(unittest.TestCase):
 
     def test_fixed_sdk_argv_and_metadata_request_have_no_token(self):
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             config = contracts.Config.parse(configuration(), "provider")
             process = SimpleNamespace(
                 json=mock.Mock(return_value={"resource": config.endpoint})
@@ -844,7 +846,7 @@ class CommandTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.base = Path(self.temporary.name)
+        self.base = Path(self.temporary.name).resolve()
         self.base.chmod(0o700)
         self.native = self.base / "native"
         self.native.mkdir(mode=0o700)
