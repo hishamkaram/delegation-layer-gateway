@@ -10,6 +10,11 @@ Configuration and token files must be owned regular 0600 files. The selected
 Native source checkout must contain its maintained acceptance harness. Select
 installed executables by absolute path and run them in place.
 
+All local paths must be canonical absolute paths, including the configuration,
+receipt parent, token file, helper and Native checkout. Use physical paths rather
+than symlink aliases. On macOS, `/var/...` may resolve to `/private/var/...`;
+provide the physical form. Invalid aliases are rejected before network work.
+
 ## One installed-provider task
 
 An operator must first authorize the environment and a finite monetary budget.

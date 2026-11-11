@@ -36,6 +36,32 @@ separate CI gate; see the
 [PR checks](https://github.com/hishamkaram/delegation-layer-gateway/pull/2/checks).
 The earlier Linux gate alone does not establish that portability correction.
 
+The [second CI run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43048606085)
+again passed Linux. macOS passed the repaired validator, then reported 14 Python
+failures, 33 errors and three skips across 343 tests. Valid test fixtures still
+supplied lexical temporary paths to strict canonical-path contracts. Their
+creators now canonicalize valid roots before deriving configs, receipts,
+manifests and preferred bundles. Deliberate invalid aliases and all identity,
+mutation and finite-deadline rejection assertions remain unchanged. Production
+path validation was not relaxed. Three additional regressions reproduce the
+alias-parent cases with real filesystem symlinks on Linux.
+
+That run also exposed a channel test's throughput assumption: a finite 8 MiB
+producer was expected to drain within a five-second join. The log established
+join expiry and unverified cleanup, not a stalled production drain. The repaired
+fixture uses 131,076 bytes and requires at least three positive bounded drains,
+continued capture after the protocol fault, exact byte totals, EOF and natural
+Wait with exit zero. A separate parser boundary accepts exactly 4 MiB of valid
+frames and rejects byte 4,194,305 as `output_byte_limit`. No production pump,
+Native receipt, timeout or assertion was weakened.
+
+After those test-only corrections, all **347 Python tests passed without skips**
+under an actual symlinked temporary parent on Linux in **35.470 seconds**
+(**36.375 seconds** including the controlled runner). Native's maintained
+directory owner confirmed cleanup of that run. Ruff/harness/docs and all six
+bindings then passed in **2.515 seconds**. This is integrated alias-path and
+bounded-drain evidence; corrected native macOS CI remains a separate gate.
+
 The preceding final invocation failed in **56.921 seconds** on unchanged inputs:
 one of 335 tests incorrectly assumed a timeout-test helper would remain alive
 until an assertion after another child's Wait. Its three-second self-exit could
@@ -109,6 +135,14 @@ Opus `c29c6157c960050d00b2bae5c683bc4e`. Both closed the precondition finding an
 reported no current actionable P0/P1/P2 in that inspected correction. The
 independent containment review also accepted the root/destination safeguards.
 
+The subsequent six-file test-fixture correction received exact-session reviews
+from Sol `a072722ac29e25ea61e5cf9d166a77a5` and Opus
+`c5fb5a3664f2b2eeb61cbd26440cf4a4`. Both reviewed the six-file correction within their stated scopes and
+reported no current actionable P0/P1/P2 in that correction. They confirmed that
+invalid path cases remain invalid and the channel's independent byte, drain,
+fault and cleanup oracles are preserved. Neither review executed the tests or
+established corrected native macOS CI.
+
 These are scoped source-review conclusions. Reviewers did not run the final
 aggregate, inspect every descendant receipt or establish external acceptance.
 Their verdicts do not imply zero defects. Root separately verified the actual
@@ -163,8 +197,13 @@ last test. Fatal timeout bypassed fixture cleanup, so descendant/resource closur
 is unverified. No uncertain resource was removed or signaled, and the unchanged
 suite was not retried. Separate exact-commit CI is recorded on the
 [Native PR checks](https://github.com/hishamkaram/delegation-layer/pull/179/checks);
-its result cannot erase the local failure or cleanup uncertainty. The installed
-CLI was not replaced. Independent Sol and Opus 5.5 reviews accepted the bounded
+its result cannot erase the local failure or cleanup uncertainty. The complete
+[Native CI run 43044064368](https://github.com/hishamkaram/delegation-layer/actions/runs/43044064368)
+subsequently passed all 19 jobs on `ad255598`, including Linux/macOS gates and all
+six distribution-install checks. Gateway CI now pins that reviewed revision.
+The Native `scripts` tree is identical to `62b11d34`, so retained local Python
+harness evidence uses the same source. The installed CLI was not replaced.
+Independent Sol and Opus 5.5 reviews accepted the bounded
 core corrections after source-backed challenges. The committed remote-harness
 corrections also received scoped independent reviews; the normal physical-device execution path subsequently passed its
 bounded fixture flow. No installed-provider or release verdict is implied.
@@ -178,7 +217,7 @@ manual run omitted distribution jobs and is separate evidence.
 | ID | Work | State |
 | --- | --- | --- |
 | M0 | Gateway engineering harness, contracts, architecture and instructions | Implemented; structural/workflow checks and source-backed review passed |
-| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; core Linux/macOS CI passed; later correction reviewed; local App timeout and cleanup gap retained; latest CI on PR checks |
+| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; all 19 exact-head checks passed at `ad255598`; local App timeout and cleanup gap retained |
 | M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; local/two-Mac fixtures and configured checks passed; public Auth0 proof open |
 | M3 | WSS connector, local ceilings and Delegate adapter | Local and two-Mac fixture flows passed; installed-provider accounts remain open |
 | M4 | MCP orchestration and recovery across real processes | Local recovery and physical restart/reconnect/dedupe/cancel/revocation passed; external proof open |
