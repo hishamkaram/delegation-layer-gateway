@@ -8,7 +8,7 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
-      "revision": "96af53f7ca399d036c5b14461bd88d6ede5510c6",
+      "revision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
       "link_mode": "local-only"
     }
   },
@@ -83,6 +83,11 @@
           "path": "internal/registry/routing_drain.go",
           "line": 35,
           "end_line": 59
+        },
+        {
+          "path": "internal/adminapi/listener.go",
+          "line": 52,
+          "end_line": 70
         }
       ]
     },
@@ -133,8 +138,8 @@
       "sources": [
         {
           "path": "internal/registry/store.go",
-          "line": 90,
-          "end_line": 117
+          "line": 85,
+          "end_line": 103
         },
         {
           "path": "internal/registry/routing.go",
@@ -202,6 +207,11 @@
           "path": "internal/connector/cli.go",
           "line": 163,
           "end_line": 192
+        },
+        {
+          "path": "internal/protocol/native_features.go",
+          "line": 5,
+          "end_line": 13
         }
       ]
     },
@@ -285,6 +295,11 @@
           "path": "internal/connector/adapter.go",
           "line": 100,
           "end_line": 136
+        },
+        {
+          "path": "internal/protocol/native_features.go",
+          "line": 5,
+          "end_line": 13
         }
       ]
     },
@@ -439,9 +454,9 @@
       "dot": "amber",
       "title": "Source-backed candidate, bounded evidence",
       "items": [
-        "Gateway source is pinned to commit 96af53f7 (full revision in metadata). All node references resolve against committed Gateway bytes with local-only links. External Native nodes cite the Gateway consumer contract, not foreign implementation.",
-        "Gateway enforces frozen task guards, root-only namespace probes and live project checks for new execution. This diagram does not establish future Native CWD/barrier corrections or compatibility of an arbitrary installed CLI.",
-        "Checkpoint verification records Go 1.27.4 make check and 151 Python tests. Latest completed local fixture flow used Go 1.27.3; the newer active-restart harness has not run live. No release, real-provider, Cloud or physical-device proof follows from these diagrams."
+        "Gateway source is pinned to commit 5e065e84 (full revision in metadata). All node references resolve against committed Gateway bytes with local-only links. External Native nodes cite the Gateway consumer contract, not foreign implementation.",
+        "Native is an external prerequisite: namespace-admission-v1 and namespace-mutation-lease-v1 are both required. The reviewed Native prerequisite is commit 62b11d34 (PR 179); an arbitrary installed CLI is not presumed compatible.",
+        "Gateway enforces frozen task guards, root-only namespace probes and live project checks for new execution. Current commands, results and remaining acceptance limits belong in docs/verification.md; this diagram supplies source provenance, not runtime or release proof."
       ]
     }
   ]

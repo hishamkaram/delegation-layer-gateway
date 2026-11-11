@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-11-11T07:03:46.088572+00:00",
-  "repositoryRevision": "96af53f7ca399d036c5b14461bd88d6ede5510c6",
+  "reviewedAt": "2026-11-11T14:28:44.095994+00:00",
+  "repositoryRevision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
   "reviewer": "Image-capable repository agent",
   "method": "Fresh strict-provenance Archify visual-check HTML captures; standalone canonical SVG opened in Chrome with emulated prefers-color-scheme light/dark; every listed image inspected with view_image",
   "captureStorage": "Raw captures/contact sheets/receipts retained as ignored private evidence; no unpublished capture paths linked from maintained documentation",
   "findings": [
     "Main figures: no clipped labels or route-through-node collisions observed in either theme at reviewed sizes.",
     "Component figure: HTTPS MCP entrance, JWT/JWKS and admin paths, outbound mTLS WSS from both connector roles, external Native prerequisite labels and canonical-evidence branches are readable.",
-    "Workflow figure: admission and restore rows, explicit fence present/uncertain branch and separate CLI-routing ownership/phase-4 retention row are readable; arrowheads and branch label remain distinct in light/dark.",
+    "Workflow figure: admission and restore rows, passive resolve / conditional absent-fence branch and separate CLI-routing ownership/phase-4 retention row are readable; arrowheads and branch label remain distinct in light/dark.",
     "Canonical Auto SVG exports render both themes with the same labels/routes as the corresponding HTML figure."
   ],
   "limitations": [
@@ -22,13 +22,13 @@
       "id": "components",
       "source": {
         "path": "components.json",
-        "sha256": "1142d1f28996d2356cad3a3ab0110df5efbb6070440fa5e7878e74bacc8f4fa6",
-        "bytes": 11304
+        "sha256": "4b0c72a06e14192b129ba2dbde10ce4919bc7414d6c6d2ca0f2559f27c07513f",
+        "bytes": 11678
       },
       "html": {
         "path": "components.html",
-        "sha256": "6de0df6c82cb08c8826e03c20d44886ae990106857eadc315af3a24211df1dc2",
-        "bytes": 836092
+        "sha256": "c7f78ca502b65bb57ab0098f4eebb97316790becf2e6e827518c4f07a97fc6f2",
+        "bytes": 836301
       },
       "svg": {
         "path": "components.svg",
@@ -61,8 +61,8 @@
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "9823f61931b13c876e882c9dd1c45b12a10da0427d1bb6f4d133a4756477f8b9",
-          "bytes": 139861,
+          "sha256": "ee853a4fba436e678efb93a9273852ccb18c23a4f9107259b5abdfff314b94d9",
+          "bytes": 139867,
           "imageInspected": true
         },
         {
@@ -70,8 +70,8 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "18e8a9520f454410a02fb5f78540498c40b9228cc54a763f87be3206ab1ac5aa",
-          "bytes": 222986,
+          "sha256": "591ba5666ba38edf9495ae21edeb4833079efa40459d75d1fdd1435924e13362",
+          "bytes": 222521,
           "imageInspected": true
         },
         {
@@ -79,23 +79,27 @@
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "a138b0e0cd814d391a3fd1032883c4eb6ea6b8568950078aa238a62a8d4c6dad",
-          "bytes": 245913,
+          "sha256": "66c0bf2e5d0014a714880b07da126ea81cebff99e659a015e98e83e0957a024b",
+          "bytes": 245387,
           "imageInspected": true
         },
         {
           "id": "svg-auto-light",
           "theme": "light",
-          "sha256": "d550191d32ca941fd4a43e39158aa22906d8a7449bbe40e954263e8fb09b3baa",
-          "bytes": 90113,
-          "imageInspected": true
+          "sha256": "44ac42dfe9a0718c35c268773dad3eeadc62553ba0d5e5e65edec61c461c4dac",
+          "bytes": 94201,
+          "imageInspected": true,
+          "width": 1600,
+          "height": 1200
         },
         {
           "id": "svg-auto-dark",
           "theme": "dark",
-          "sha256": "bfc5a3f658f95f4b4761430c4b25eb2a991546480d831a782c62001e61759785",
-          "bytes": 90569,
-          "imageInspected": true
+          "sha256": "405c562b42426824bdaef8444a8d54bcffccf346e0ad67be90ed6ab84fdad230",
+          "bytes": 94740,
+          "imageInspected": true,
+          "width": 1600,
+          "height": 1200
         }
       ]
     },
@@ -103,18 +107,18 @@
       "id": "operation-safety",
       "source": {
         "path": "operation-safety.json",
-        "sha256": "78e10a7455aa72554f26dd6c5feb789fc268d52ebe6d6ae5b811c440a6e77a3a",
-        "bytes": 17534
+        "sha256": "91a7922a898fbff94ae00aa05123e079c7b280a846d07a3fcc00172cb545be08",
+        "bytes": 18284
       },
       "html": {
         "path": "operation-safety.html",
-        "sha256": "6fadd99f420c706a1eef74ea00b7ed60421fc87bb3632767ceee05b0ff48c491",
-        "bytes": 853740
+        "sha256": "6f1fe5f5fe60612500b75cd1ed2ac7363e326911452611d51cec16a8a5ea80df",
+        "bytes": 854279
       },
       "svg": {
         "path": "operation-safety.svg",
-        "sha256": "64c406fe74d74cdcb4c0a47fdc694d64d82db04f398de98e76f69fbc95d25aa6",
-        "bytes": 209109
+        "sha256": "d048f3e3be9e9f17bcd7f42a87879a0757178bbce24506c10b51579089eb0a0c",
+        "bytes": 209033
       },
       "htmlCaptureGate": {
         "status": "pass",
@@ -133,8 +137,8 @@
           "theme": "light",
           "width": 1440,
           "height": 900,
-          "sha256": "94529f0c78d8ff6edc19eaa8bd48392376d58fb66afe06a6b1e45a01f8c0b105",
-          "bytes": 190353,
+          "sha256": "14d5512121f774ad04557e76e903fd0536965981505822a2b162b9d023c472f6",
+          "bytes": 183777,
           "imageInspected": true
         },
         {
@@ -142,8 +146,8 @@
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "7057d48d857f54c1203a4b7946c1313e8b730d2f966d2c9da7e3c8bcb0082273",
-          "bytes": 213036,
+          "sha256": "bbedfb9f8fcb67662b1eddfcb9e625ebb2799c1bc33ae6cd01fe0dfb0ec0e054",
+          "bytes": 208089,
           "imageInspected": true
         },
         {
@@ -151,8 +155,8 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "8fba30ad7efeb5269b9e2c05ef3c53d84500c0f4335af731819a266ee1c835dc",
-          "bytes": 302547,
+          "sha256": "01b1da7cfde6c641d04d4fdf1960f48cf68700b88a63b81e2e5872acf3ad0a0b",
+          "bytes": 301409,
           "imageInspected": true
         },
         {
@@ -160,23 +164,27 @@
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "caafcc6c9b0924ac5294bfb2747e045d8a14a10fd60b4bba81d712b3aadb06d3",
-          "bytes": 340446,
+          "sha256": "4d49e901afab3a703a82218e7f645a37ee272b7c8a222066079e1e6eb283f697",
+          "bytes": 338050,
           "imageInspected": true
         },
         {
           "id": "svg-auto-light",
           "theme": "light",
-          "sha256": "79cce419d810af0308f6f09ebaa72d171d9cc4fce69d817075a8d44735a73b89",
-          "bytes": 116742,
-          "imageInspected": true
+          "sha256": "57ac27adaeb6febb1ab921c6ac3381848d989db26dab8b16322d66a7133f5e63",
+          "bytes": 125738,
+          "imageInspected": true,
+          "width": 1600,
+          "height": 1200
         },
         {
           "id": "svg-auto-dark",
           "theme": "dark",
-          "sha256": "a40cc61819e1b99630c14ab27ce34d47f7904fe3c0ce8b3388542a065f50c5c6",
-          "bytes": 118950,
-          "imageInspected": true
+          "sha256": "561c164fc44a3b2fc99d4e78f83f565a6730564b541ae652e9a76be7fd609b05",
+          "bytes": 127951,
+          "imageInspected": true,
+          "width": 1600,
+          "height": 1200
         }
       ]
     }

@@ -8,7 +8,7 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
-      "revision": "96af53f7ca399d036c5b14461bd88d6ede5510c6",
+      "revision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
       "link_mode": "local-only"
     }
   },
@@ -116,13 +116,18 @@
       "sources": [
         {
           "path": "internal/connector/adapter.go",
-          "line": 83,
+          "line": 99,
           "end_line": 136
         },
         {
           "path": "internal/connector/command.go",
           "line": 219,
           "end_line": 290
+        },
+        {
+          "path": "internal/protocol/native_features.go",
+          "line": 5,
+          "end_line": 13
         }
       ]
     },
@@ -200,19 +205,24 @@
       "id": "fenceid",
       "lane": "fence",
       "col": 3,
-      "type": "external",
-      "label": "Native absent fence",
-      "sublabel": "Original ID; required contract",
+      "type": "backend",
+      "label": "Resolve / absent fence",
+      "sublabel": "Original ID; conditional refusal",
       "sources": [
         {
           "path": "internal/connector/fence.go",
           "line": 9,
-          "end_line": 41
+          "end_line": 44
         },
         {
-          "path": "internal/connector/command.go",
-          "line": 219,
-          "end_line": 241
+          "path": "internal/connector/adapter.go",
+          "line": 423,
+          "end_line": 430
+        },
+        {
+          "path": "internal/gateway/control.go",
+          "line": 87,
+          "end_line": 120
         }
       ]
     },
@@ -248,6 +258,11 @@
           "path": "internal/gateway/control.go",
           "line": 110,
           "end_line": 140
+        },
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 261,
+          "end_line": 279
         }
       ]
     },
@@ -609,9 +624,9 @@
       "dot": "cyan",
       "title": "Source-backed Gateway; external Native contract",
       "items": [
-        "Every node cites committed Gateway source at 96af53f7. External Native nodes show the public capability/receipt boundary consumed by Gateway, not Native implementation verified in this repository.",
+        "Every node cites committed Gateway source at 5e065e84. External Native nodes show the public capability/receipt boundary consumed by Gateway, not Native implementation verified in this repository.",
         "Prepare starts nothing. Encoding and queue reservation precede the atomic possible-send decision. The actual write and response acceptance recheck current rights and immutable identity; duplicate confirmation observes the original operation.",
-        "New execution requires fresh live project context and current local ceilings. Passive task controls use frozen receipt guards; namespace operations use fresh root-only evidence without granting project readiness. Native CWD/barrier fixes remain prerequisite work."
+        "New execution requires fresh live project context and current local ceilings. Passive task controls use frozen receipt guards; namespace operations use fresh root-only evidence without granting project readiness. Both namespace-admission-v1 and namespace-mutation-lease-v1 are required; Native prerequisite 62b11d34 is reviewed separately in PR 179."
       ]
     },
     {
@@ -619,7 +634,8 @@
       "title": "No synthetic task closure",
       "items": [
         "Rows are separate related procedures, not automatic transitions. Lost ACK, timeout, disconnect, accepted result bytes and cancellation requested do not prove task closure. Unknown transmitted work retains its execution reservation.",
-        "Explicit cancellation fences the original ID first, then cancels only a verified existing task. Release requires a validated canonical execution closure, exact requested-and-terminated stop, or permanent refusal. Partial/unresolved evidence stays blocked.",
+        "Explicit cancellation first sends Gateway FenceAbsent for the original ID. A complete matching existing receipt is resolved passively, without Native refusal locking, and may then be canceled. Only validated absence or independently root-checked partial preparation invokes the Native refusal fence. Unknown or partial evidence retains the reservation.",
+        "Execution reservation release requires validated canonical execution closure, an exact requested-and-terminated stop, or permanent refusal. Result bytes and routing completion do not establish task closure.",
         "Revoked principal/grant/device or stale credential/connection blocks current sends and responses. Already-transmitted work can finish; revocation is not task cancellation."
       ]
     },
@@ -646,7 +662,7 @@
       "title": "Candidate and evidence limits",
       "items": [
         "This is a source-backed Gateway implementation candidate, not release approval. Native public CLI prerequisites are separate. Before PR, independent integrated reviews and no known unresolved P0/P1/P2 remain required.",
-        "Checkpoint docs record Go 1.27.4 full engineering gates plus 151 Python checks. Latest completed local fixture run used Go 1.27.3; current active-restart harness is not live-run proof. No physical devices, paid/installed provider account or Cloud acceptance is established here."
+        "Current test commands, environments, results and remaining acceptance limits are recorded in docs/verification.md. These graphics establish source provenance only; they do not prove installed-provider, public OAuth, multi-network, Cloud or release acceptance."
       ]
     }
   ]

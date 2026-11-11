@@ -1,46 +1,153 @@
 # Verification and delivery gates
 
-The latest local process run passed in 146.953 seconds with confirmed cleanup.
-It used the actual Gateway, two local connectors and the source-built Delegate
-candidate with a controlled literal fixture. HTTPS/JWKS authentication,
-enrollment, explicit device/project selection, accepted 36-byte result retrieval,
-descriptor verification, stable operation retry and private administrative
-resolution passed. Public cancellation established requested termination, an
-empty native scope and actual worker Wait before the task deadline while the
-fixture gate remained held. Cancellation retry preserved its identity.
+The final configured `make check` passed in **439.666 seconds** on unchanged
+inputs using Go 1.27.4, `GOTOOLCHAIN=local`, `GOMAXPROCS=2`, `GOFLAGS=-p=2`
+and the pinned Native acceptance checkout. Its command was:
 
-Explicit same-registry recovery also completed: full-fleet routing coverage,
-inventory, import, drain, reopen and finish. Early finish and regular enrollment
-were denied during recovery. Four fixture attempts executed, with no concurrency
-or allocation-limit rejection; both roots had confirmed canonical cleanup.
-The harness required a fresh execution counter and FIFO identity followed by the
-maintained nonce/PID handshake before advancing past provider startup. Earlier
-failed runs remain failures; their evidence was retained.
+```sh
+DELEGATE_ACCEPTANCE_REPOSITORY="$PWD/.ci-native" GOFLAGS=-p=2 make check
+```
 
-This run does not establish backup rollback or Gateway restart while a task
-remains executing: its retained task was cancelled before restart. Installed
-provider accounts, native two-device tests and actual ChatGPT Cloud acceptance
-remain unverified. The Delegate candidate has unresolved independent-review
-findings, so this passing controlled run is not a release verdict.
+It executed **338 Python tests without skips**, pinned Ruff, harness rejection
+fixtures, six diagram bindings, formatting, both Go vet/lint scopes, the full
+Go race suite, tagged MCP helper race tests, build and tagged vulnerability
+analysis. Both Go lint scopes reported zero issues. The compiler was selected
+explicitly on `PATH` with matching `GOROOT`; an ambient compiler is not proof.
 
-That completed process run used Go 1.27.3. The compiler has since been patched to
-1.27.4 for the published `net/http` advisory GO-2026-6859; the patched build and
-vulnerability checks passed. The current harness additionally retains one
-validated FIFO observer across an active-task Gateway restart and operation
-retry. Its regression and real-FIFO checks passed, but that new live scenario
-has not run yet. Neither change retroactively upgrades the earlier run's scope.
+The preceding final invocation failed in **56.921 seconds** on unchanged inputs:
+one of 335 tests incorrectly assumed a timeout-test helper would remain alive
+until an assertion after another child's Wait. Its three-second self-exit could
+win that race. An isolated preimage counterexample reproduced the assertion
+failure and observed natural exit 17. That separate observation does not supply
+the original failed run's unrecorded exit code. The repair holds Native's release
+gate through both Wait attempts, preserves the unresolved-owner and zero-signal
+assertions, then releases and joins both children. The failed invocation remains
+failed evidence; the passing invocation followed this concrete fixture repair.
+
+The earlier 383.775-second gate remains historical evidence. Two Python files
+changed during that earlier run, so it was followed by a scoped 322-test rerun;
+it is superseded by the unchanged-input final invocation above.
+
+Govulncheck reported zero reachable vulnerabilities and zero additional
+vulnerabilities in imported packages. Its verbose module-only results were
+[GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866) and
+[GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) in `golang.org/x/net` HTML
+rendering, and [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) in
+`golang.org/x/crypto/openpgp`. Those affected packages are not imported by this
+candidate according to that scan. This is scoped static analysis, not a claim
+that all required modules are free of advisories or the system is defect-free.
+
+The latest physical two-Mac fixture passed in **119.661 seconds**, with unchanged
+inputs and confirmed cleanup. It adds simulated dispatch HTTP-response loss
+before delivery to the MCP SDK, then proves the same-operation retry does not
+create another execution. It also confirms a fresh matching verified-credential
+registration rejection after explicit revoke. All 14 remote process waits and
+two SSH waits completed naturally with exit zero. The response-discarding client
+intentionally returned exit one; that is the injected loss signal, not a service
+failure. Installed-provider, public HTTPS/Auth0, different-WAN and actual ChatGPT
+Cloud acceptance remain unverified. Final named Sol/Opus correction reviews
+closed their known findings in the inspected scope; no release readiness is
+claimed.
+
+The preceding response-loss run failed after **97.241 seconds** because its
+assertion required a resolved delivery state while the original task was still
+running. The actual Registry contract permits `possible_send/existing` then
+`resolved/terminal`; identity checks and rejection of prepared, unknown, refused
+and impossible pairs remain required before retry. The corrected test preserves
+those negative cases and uses both legal running and terminal observations.
+The failed run remains failed evidence with confirmed cleanup. The preceding
+**114.132-second** run remains valid evidence for the fresh credential denial,
+but did not inject HTTP-response loss.
+
+## Final independent correction reviews
+
+Actual Sol and Claude Opus 5.5 high-effort exact-session reviews examined the
+integrated corrections and challenged their failure paths. Both independently
+found one P2: observation-only recovery could cancel the original task after an
+observation failure or interrupt. Explicit construction-time cancellation intent
+now permits cleanup mutation only for the original provider run and explicit
+`resume --cancel`. Failure and interruption regressions require zero observation
+mutations; cancellation retries retain the original identities. Both named
+reviewers and the independent security reviewer closed this finding.
+
+The final named correction tasks were Sol
+`e988fa4b5234c5906ea381dcb189d010` and Opus
+`8b6584ea0615b9f682f9d57745239934`. Their committed payloads were read completely
+after checking the returned path, regular-file type, byte length and SHA-256.
+They accepted the lost-response legal-state correction, deterministic timeout
+fixture, public prepare allowlist, idempotent Native import setup and the Native
+caller-brief classification repair. Caller file-I/O failures match dispatch's
+existing validation classification; the canonical and plugin guides document
+that this does not imply malformed contents. The conservative summary-write gap
+after lease release is documented and cannot establish missing closure proof.
+
+These are scoped source-review conclusions. Reviewers did not run the final
+aggregate, inspect every descendant receipt or establish external acceptance.
+Their verdicts do not imply zero defects. Root separately verified the actual
+commands, process waits and retained evidence described here.
+
+The diagram worker inspected 12 generated page/export captures across both
+themes and two viewport sizes; Root additionally inspected two full-diagram
+export captures. Both diagrams were reconciled against the production source
+checkpoint `5e065e84`, including conditional absence-fencing semantics and the
+Native prerequisite. Later acceptance-driver and caller-brief corrections do
+not change the displayed state ownership or topology. Integrity checks passed;
+visual inspection and source reconciliation are separate evidence.
+
+## Local process fixture evidence
+
+The latest local process run (Run 15) passed in 86.241 seconds on Go 1.27.4
+with confirmed cleanup. It used actual Gateway and Delegate processes, two local
+connectors and a controlled literal fixture. HTTPS/JWKS authentication, enrollment,
+explicit device/project selection, accepted 36-byte result retrieval and digest
+verification passed. Stable dispatch retries returned correlation metadata;
+separate resolution established authoritative task observations.
+
+The same retained FIFO observer, nonce, PID, task identity and execution count
+survived an active-task Gateway stop with actual Wait and restart against the same
+registry. Reconnection, resolution and duplicate dispatch did not create another
+execution. Public cancellation established requested termination, an empty native
+scope and actual worker Wait before the deadline while the fixture gate remained
+held. Cancellation retry preserved its identity.
+
+Explicit same-registry recovery completed: full-fleet routing coverage, inventory,
+import, drain, reopen and finish. Early finish and regular enrollment were denied
+during recovery. Four fixture attempts executed with a 30-second ceiling and at
+most one active task; both roots had confirmed canonical cleanup. Earlier failed
+runs remain failures with separate evidence and closure reports.
+
+Run 15 used a frozen snapshot of maintained Native acceptance source, predating
+the new borrowed-input port. It proves neither that port nor the physical-device
+SSH controller. It also does not establish backup rollback, two physical devices,
+separate underlying networks, installed-provider accounts or actual ChatGPT Cloud
+acceptance. New nonloopback binding and remote staging/channel harness components
+have focused regression evidence; physical execution remains a separate gate.
+
+The Native core candidate used by these fixtures is committed at
+`62b11d347dbd7d524f5f5322f3c9c85ecdb3a7a9`. A later independent CLI input-error
+repair is committed at `ad2555987a49a1f5e5dcb58d9392c5aed251d322` in the same
+dedicated worktree and PR. Its focused lifecycle/public-App regressions, lifecycle
+race package and final documentation checks passed; its full app-package race
+run and new-head CI remain pending. The installed CLI was not replaced. Independent Sol and Opus 5.5 reviews
+accepted the bounded core corrections after source-backed challenges. The committed remote-harness corrections also received scoped independent
+reviews; the normal physical-device execution path subsequently passed its
+bounded fixture flow. No installed-provider or release verdict is implied.
+The separate [Native prerequisite PR](https://github.com/hishamkaram/delegation-layer/pull/179) is open. Native CI passed and is recorded in
+[PR run 42998412645](https://github.com/hishamkaram/delegation-layer/actions/runs/42998412645),
+including Linux/macOS gates and all six distribution-install checks. The earlier
+manual run omitted distribution jobs and is separate evidence.
 
 ## Milestones
 
 | ID | Work | State |
 | --- | --- | --- |
-| M0 | Gateway engineering harness, contracts, architecture and instructions | In progress |
-| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | Candidate implemented; complete mandatory gate remains open |
-| M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; recovery integration and final checks in progress |
-| M3 | WSS connector, local ceilings and Delegate adapter | Local fixture process flow passed; native devices and provider accounts remain open |
-| M4 | MCP orchestration and recovery across real processes | Local same-registry fixture flow passed; active-execution restart and external proof remain open |
-| M5 | Integrated hardening, docs and independent code reviews | In progress; Native launch identity and recovery findings remain open |
-| M6 | Live evidence matrix and release assessment | Pending |
+| M0 | Gateway engineering harness, contracts, architecture and instructions | Implemented; structural/workflow checks and source-backed review passed |
+| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; core Linux/macOS CI passed; latest caller-brief correction CI pending |
+| M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; local/two-Mac fixtures and configured checks passed; public Auth0 proof open |
+| M3 | WSS connector, local ceilings and Delegate adapter | Local and two-Mac fixture flows passed; installed-provider accounts remain open |
+| M4 | MCP orchestration and recovery across real processes | Local recovery and physical restart/reconnect/dedupe/cancel/revocation passed; external proof open |
+| M5 | Integrated hardening, docs and independent code reviews | Sol/Opus and specialized correction reviews completed; no known P0/P1/P2 remains in reviewed scope |
+| M6 | Live evidence matrix and release assessment | Fixture evidence recorded; public/provider/cloud acceptance remains unverified |
 
 Root owns integration and Git. Native implementers own bounded packages and
 tests. Independent Sol and Opus 5.5 high-effort reviews examine each current
@@ -59,18 +166,28 @@ Gateway uses adapted generic practices; it does not replace Delegate's harness.
   an explicitly controlled fixture provider.
 - `make e2e-provider`: opt-in real installed-provider execution with authorized
   credentials and a finite approved workload budget.
-- `make e2e-external`: named devices/networks, issuer and MCP clients.
+- `make e2e-external`: zero-task system-trusted HTTPS/SDK preflight for an
+  expected issuer and two explicit device/project targets.
 
-The local process harness passed its bounded fixture flow. Provider and external
-targets still fail explicitly pending their authorized environments and
-implementation. Delegate retains its own gates.
+The local process harness passed its bounded fixture flow. The opt-in live
+drivers and their recovery commands are documented in
+[live acceptance](live-acceptance.md). Actual installed-provider and external
+acceptance remain unverified. Delegate retains its own gates.
 
-The configured Gateway `make check` completed successfully on Go 1.27.4 in
-1539.166 seconds: formatting, vet, lint, every Go race package, build and
-vulnerability checks passed. No Go, module, compiler-pin or tooling inputs changed
-during that run. Five Python harness files changed after its initial tooling
-stage, so the complete harness/docs/tooling/Python targets were rerun on their
-frozen inputs: all 151 tests executed with no skips, and Ruff passed.
+The complete configured Gateway gate passed on an earlier candidate on Go
+1.27.4 in 1539.166 seconds. After subsequent Native-feature compatibility changes,
+the then-current Go recipes `make fmt-check vet lint test-race build vuln` passed in
+629.967 seconds with unchanged Go, module, compiler and tooling inputs. A preceding
+invocation failed four test-function complexity checks; the tests were simplified
+without weakening assertions and the invalidated checks were rerun.
+
+An earlier CI-equivalent `make test-tooling lint-python check-docs verify-harness`
+floor passed after the scheduling correction: all 260 tests executed with
+no skips using the pinned Native acceptance source checkout, and pinned Ruff
+passed. This includes the staging, correlated channel and controller corrections.
+The formatter's ignored-dependency fix also passed all nine focused tooling tests
+and an actual `make fmt-check` in 8.603 seconds. These are separate command results;
+a failed aggregate invocation is not relabeled successful.
 
 An earlier aggregate Go run failed an obsolete recovery transport fixture. Its
 test-only correction now checks initial denial, complete fleet coverage, exact
@@ -161,8 +278,8 @@ combined with a different canonical task observation. Missing/wrong native task
 and root IDs now reject the stop receipt; regressions demonstrated false
 termination before the guards and rejection afterward. The root-ID guard is
 included in the latest passing local process run. Fixture-gate reuse and the
-same-registry recovery flow also passed. This does not close the outstanding
-Native launch-identity findings or broader live matrix.
+same-registry recovery flow also passed. Native launch-identity corrections have since received scoped race and source
+review evidence. The broader live matrix remains open.
 
 Record local protocol, actual loopback processes, simulated network faults,
 real-provider execution, two physical devices/networks, actual ChatGPT Cloud and
@@ -174,6 +291,105 @@ Fault/race scenarios cover delayed/duplicate requests, lost ACKs, partial writes
 refusal conflicts, root/project substitution, legacy writers, restart, revocation,
 restore with late old preparation, result corruption, control-slot retention,
 resource limits, malformed/oversized/slow inputs, canary logging and shutdown.
+
+## Physical-device checkpoint
+
+Two configured SSH targets completed bounded authenticated identity probes and
+reported distinct Darwin boot sessions. That establishes two running OS sessions,
+not underlying network separation or hardware attestation. Source-built Darwin
+candidates were transferred to private fixture directories; no installed provider
+account was used.
+
+The first target enrolled, connected over outbound WSS and appeared online in the
+normal controller run. Root initialization was rejected, so no fixture task
+was dispatched and the second target never started. The retained aggregate error
+does not identify whether inspection or the subsequent registry transaction
+failed; zero recovery rows alone cannot distinguish a rejected transaction from
+a path that never entered it. The first peer's final receipt confirmed all seven owned child Waits
+and its SSH Wait. The aggregate run remains failed because its conservative
+cleanup report also included the unstarted second target. No successful task or
+aggregate cleanup is inferred from that narrower closure evidence.
+
+A subsequent explicitly selected, zero-task diagnostic completed in 25.792 seconds
+with controller/SSH/Native Wait and confirmed cleanup. Native startup inspection
+and a fresh project refresh each returned valid public context responses under
+the private capture launcher. Capture adds a Python parent and redirects Native
+output to regular files before forwarding it. This is diagnostic evidence only;
+it does not resolve the normal-path failure or prove physical task execution.
+The original failure's child output and failure stage were not captured. A
+subsequent direct zero-task diagnostic reproduced a fresh project-refresh
+failure in 24.802 seconds with actual Wait and confirmed cleanup. This narrows
+that later failure to the direct inspection exchange, but does not establish
+the original initialization failure's branch or its root cause.
+
+A separate metadata-only diagnostic identified the refresh rejection as HTTP
+503 `device_offline`, before any routed Native call. Source investigation found
+that transport published session presence as online before its handshake was
+complete, while reservations correctly refused that session. Online and routing
+readiness now derive from the existing handshake-completion signal and closing
+state. The regression holds a real TLS handshake before capabilities finish,
+then releases it and checks online routing separately from execution readiness.
+The full transport race suite passed in 158.344 seconds. Sol, Opus 5.5 and an
+independent concurrency reviewer accepted the correction after inspecting its
+source and regression.
+
+The next normal two-target run completed both root initializations and executed
+four literal-fixture attempts, two per target, with no concurrency or quota
+rejections. Two accepted results passed byte/descriptor checks. Two retained
+fixture tasks overlapped and survived an actual Gateway stop/Wait/restart with
+the same registry, identities, leases and attempt counts. These are partial live
+proofs; the aggregate run failed in 205.089 seconds before normal cancellation,
+because its conservative local scheduling guard had expired. Cleanup established
+canonical root closure, seven owned control/service child Waits per peer and both
+SSH Waits, all with zero exits. No full scenario pass is inferred.
+
+The schedule now prepares both tasks before either dispatch, anchors each local
+guard before its own dispatch, and prioritizes each first cancellation after that
+root's restart checks. Both canonical requested closures precede cancellation
+retries and gate release. Task budgets remain 30 seconds, local guards remain
+25 seconds, and all lease/restart checks remain. Synthetic clock regressions
+reject the old setup-inclusive guard and a wrongly moved global guard; exact
+send/acknowledgment boundaries reject for each task. The per-task-only run still failed at the second acknowledgment, in
+133.481 seconds, with confirmed cleanup. Three independent post-restart public
+phases now use pairs of existing MCP helper processes under Native's process
+owner; admissions and cancellations remain sequential. Every known helper is
+joined on errors, and responses are matched by request index and original task
+binding. No task budget or proof step was removed.
+
+The resulting normal two-target run passed in **143.045 seconds**, with unchanged
+runtime source inputs and confirmed cleanup. It used the source-built Go 1.27.4
+Gateway and Native revision `62b11d347dbd7d524f5f5322f3c9c85ecdb3a7a9`.
+All four literal-fixture executions completed the expected flow: accepted results,
+overlapping held tasks, actual Gateway stop/Wait/restart, reconnect, stable
+resolve/retry/resolve, requested cancellation with empty scope and actual worker
+Wait before Native deadlines while gates remained held, cancellation replay,
+authorization visibility, metadata/audit canaries, shutdown and cleanup.
+Both peers reported exactly two attempts with no quota/concurrency rejection;
+all fourteen owned remote control/service child Waits and both SSH Waits exited
+zero. This is fixture-only physical-device acceptance, not installed-provider,
+underlying-network or actual ChatGPT Cloud proof. Public revocation visibility
+does not prove a certificate-specific reconnect denial; that remains explicit
+in the run summary.
+
+The next aggregate Go gate failed an older server fixture that assumed client
+Dial return meant server handshake completion. Its repeated focused check also
+exposed an assumption that socket join implied immediate session-map retirement.
+The corrected test waits for Hub readiness, checks absent or offline/non-routing
+revoked sessions, and retains actual revoked-certificate reconnect denial.
+Independent review then identified that a duplicate session could mask a
+credential-rejection test unless retirement was observed first. A bounded wait
+for actual map retirement now precedes the revoked-certificate Dial.
+Focused race count 10 passed in 27.278 seconds; the full server race suite passed
+in 15.306 seconds. Independent review accepted the correction. The failed aggregate
+run remains failed; its later build and vulnerability targets did not execute.
+That failed aggregate is separate from the later successful configured checks
+recorded above.
+
+At that earlier checkpoint, physical certificate-bound reconnect denial was
+unverified: generic audit events could not attribute a fresh credential denial.
+The registration-only observation and subsequent physical proof below close that
+specific gap. Network separation, installed-provider accounts and actual ChatGPT
+Cloud remain unverified.
 
 ## PR and release policy
 
@@ -190,3 +406,33 @@ Native Linux/macOS behavior needs native evidence on each host.
 Update Issue #1 with real milestone/check/review results. Distinguish implemented,
 verified, blocked and release-ready. Do not merge, release or close the issue
 automatically because a PR exists or CI is green.
+
+## Fresh credential rejection after explicit revocation
+
+A subsequent physical two-Mac fixture run passed in **114.132 seconds** with
+unchanged tracked scenario inputs, four zero-cost fixture attempts and confirmed
+cleanup. All fourteen remote control/service children and both SSH transports
+had successful actual Wait receipts. It used newly built normal Linux/macOS
+Gateway candidates and the tagged SDK helper, with Native source
+`62b11d347dbd7d524f5f5322f3c9c85ecdb3a7a9`.
+
+After all four operations closed, the controller read the current credential
+identity through the protected admin API, persisted a private audit cursor and
+explicitly revoked that device. It then observed a **new verified registration
+rejected by Registry**, matching the frozen device/epoch/generation. The private
+receipt identifies the exact audit segment, offset, record length and SHA-256.
+Protected Recorder health was healthy before and after the observation.
+
+This supplements the earlier public inventory/authorization revocation proof.
+It does not identify unique certificate DER, establish an exclusive rejection
+reason, prove client receipt of HTTP 403, or independently witness completion of
+that audit event's fsync. The fixture owns the fresh private registry and sole
+administrative writer; same-reference connector renewal remains allowed.
+Installed-provider, multi-WAN and actual ChatGPT Cloud acceptance remain
+unverified.
+
+The run preceded two subsequently identified test-loader origin-check fixes.
+Those fixes reject a foreign cached parent search path and foreign
+`acceptance.py` providers before import. They do not change the tested Gateway
+binaries or the fresh registration/Registry-denial behavior; their own regression
+and source-selection validation must be assessed separately.
