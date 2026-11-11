@@ -18,7 +18,7 @@ import (
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
-		if _, writeErr := fmt.Fprintln(os.Stderr, `{"code":"fixture_failed"}`); writeErr != nil {
+		if _, writeErr := fmt.Fprintln(os.Stderr, failureOutput(err)); writeErr != nil {
 			os.Exit(2)
 		}
 		os.Exit(1)
@@ -134,4 +134,13 @@ func writeOutput(out io.Writer, value any) error {
 		return io.ErrShortWrite
 	}
 	return err
+}
+
+// Only the exact normalized marker certifies successful fault cleanup. A joined
+// or wrapped marker retains ordinary failure reporting and cannot pass E2E.
+func failureOutput(err error) string {
+	if err == errExpectedResponseLoss { //nolint:errorlint // Exact marker identity excludes joined or wrapped cleanup failures.
+		return `{"code":"fixture_response_discarded"}`
+	}
+	return `{"code":"fixture_failed"}`
 }

@@ -48,8 +48,25 @@ The scenario permits exactly two fixture attempts per target, four in total,
 with a 30-second per-task budget and one active task per target. It checks explicit
 selection, accepted-result bytes, overlapping retained fixture observations,
 Gateway restart against the same registry, stable retries, canonical cancellation
-before deadline and credential revocation after task closure. A missed timing or
-cleanup condition fails acceptance; budgets are not extended to obtain a pass.
+before deadline and credential revocation after task closure. Both tasks are held
+and prepared before either is dispatched. Each local cancellation guard starts
+before its own dispatch. The three independent post-restart public observation
+phases use pairs of existing MCP helpers; both helpers start before either Wait,
+and all known handles are joined even on failure. Each device receives its first
+cancel after its retained-lease proof. Both canonical closures are checked while gates remain held,
+then the original cancellation IDs are retried before gate release. A missed
+timing or cleanup condition fails acceptance; budgets are not extended to obtain
+a pass.
+
+The first target's short task injects one bounded client-side response loss:
+the helper receives the successful HTTP response, closes its body, then discards
+it before delivery to the MCP SDK. Before ordinary retry, resolution must identify
+the original operation, task, device and cancellation identity, with either
+`possible_send/existing` or `resolved/terminal`. Prepared, unknown, refused and
+impossible observations fail the scenario. The ordinary retry and final attempt
+counts must still prove one execution. This simulates lost client delivery; it
+does not prove packet loss across different networks. The intentionally failing
+helper has a fixed loss marker, empty stdout and a real joined exit receipt.
 
 Stages and evidence remain retained even on success. A final resource receipt
 alone does not prove the SSH child exited. Missing output, uncertain launch or

@@ -18,7 +18,7 @@ type protectedMetadata struct {
 }
 
 func readMetadata(ctx context.Context, input callInput) (protectedMetadata, error) {
-	if input.TrustMode != "system" || input.TokenFile != "" || input.Tool != "" || len(input.Arguments) != 0 {
+	if input.DiscardToolResponse || input.TrustMode != "system" || input.TokenFile != "" || input.Tool != "" || len(input.Arguments) != 0 {
 		return protectedMetadata{}, errors.New("fixture metadata requires tokenless system trust input")
 	}
 	endpoint, err := callEndpoint(input)

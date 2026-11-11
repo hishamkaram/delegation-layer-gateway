@@ -645,6 +645,17 @@ def check_revoked_visibility(h, revoked, other):
     )
 
 
+def require_short_task_binding(value, root, prepared):
+    require(
+        type(value) is dict
+        and value.get("operation_id") == prepared["operation_id"]
+        and value.get("task_id") == prepared["task_id"]
+        and value.get("device_id") == root.device
+        and value.get("project_alias") == root.alias,
+        "short fixture operation binding changed",
+    )
+
+
 def fixture_scenarios(h, roots):
     """Exactly two accepted tasks per target; retries retain operation identity."""
     h.brief_canary = "E2E_PRIVATE_BRIEF_" + uuid.uuid4().hex
@@ -673,18 +684,28 @@ def fixture_scenarios(h, roots):
             failure=True,
         )
     expected = b"private supervisor acceptance passed"
-    for root in roots:
+    for index, root in enumerate(roots):
         prepared = h.prepare(
             root, "Return controlled fixture sentence. " + h.brief_canary
         )
         handle = {"operation_id": prepared["operation_id"]}
+        if index == 0:
+            # Drop one real HTTP response at the local SDK boundary, then
+            # reconcile the original identity before its idempotent retry.
+            h.dispatch_with_response_loss(prepared["operation_id"])
+            observed = h.mcp("resolve_operation", handle)
+            require_short_task_binding(observed, root, prepared)
+            observation = observed.get("observation")
+            require(
+                type(observation) is dict
+                and (observed.get("delivery"), observation.get("kind"))
+                in (("possible_send", "existing"), ("resolved", "terminal")),
+                "lost response did not establish prior Native admission",
+            )
         dispatched = h.mcp("dispatch_task", handle)
-        require(
-            dispatched["task_id"] == prepared["task_id"]
-            and dispatched["device_id"] == root.device,
-            "dispatch binding changed",
-        )
+        require_short_task_binding(dispatched, root, prepared)
         final = h.await_operation(prepared["operation_id"], result=True)
+        require_short_task_binding(final, root, prepared)
         descriptor = final["observation"]["result"]
         chunk = h.mcp(
             "read_result_chunk",
@@ -792,6 +813,12 @@ def fixture_scenarios(h, roots):
     )
     check_revoked_visibility(h, roots[0], roots[1])
     h.summary["fixture_tasks_executed"] = 4
+    h.summary["client_response_loss_category"] = (
+        "simulated client HTTP response loss before SDK delivery"
+    )
+    h.summary["stages"].append(
+        "simulated_client_http_response_loss_before_sdk_delivery"
+    )
     h.summary["revocation_acceptance"] = "public_authorization_and_inventory_visibility"
     h.summary["revoked_certificate_reconnect_denial"] = (
         "fresh_verified_registration_registry_denial_after_explicit_revoke"
@@ -841,6 +868,86 @@ class RemoteHarness(local.Harness):
     def mcp(self, tool, arguments, failure=False):
         with self._serviced():
             return super().mcp(tool, arguments, failure)
+
+    def dispatch_with_response_loss(self, operation):
+        """One fixture-only lost response; Native owns launch and exact Wait."""
+        require(
+            type(operation) is str and bool(operation) and operation in self.operations,
+            "lossy dispatch identity was not prepared",
+        )
+        tracked = self.operations[operation]
+        require(
+            type(tracked) is dict
+            and all(
+                type(tracked.get(key)) is str
+                and re.fullmatch(r"[0-9a-f]{32}", tracked[key])
+                for key in ("task_id", "cancellation_id")
+            ),
+            "lossy dispatch cleanup identity missing",
+        )
+        with self._serviced():
+            self.interruptions.checkpoint()
+            # Exclusive intent prevents a second possibly-sent injection if a
+            # caller repeats this method after an observation failure.
+            durable_record(
+                self.base / "client-response-loss-intent.json",
+                {
+                    "schema_version": 1,
+                    "operation_id": operation,
+                    "task_id": tracked["task_id"],
+                    "category": "simulated client HTTP response loss before SDK delivery",
+                },
+            )
+            value = self.mcp_input("dispatch_task", {"operation_id": operation})
+            value["discard_tool_response"] = True
+            path = self.input_file(value)
+            self.pace_mcp()
+            self.interruptions.checkpoint()
+            self.sequence += 1
+            process = self.processes.run(
+                f"control-{self.sequence:04d}",
+                [self.args.fixture_tool, "mcp", "--input", path],
+                self.base,
+                expected=1,
+                timeout=45,
+                environment=self.env,
+            )
+            self.interruptions.checkpoint()
+            marker = b'{"code":"fixture_response_discarded"}\n'
+            result = process.result
+            require(
+                type(result) is dict
+                and result.get("natural_wait") is True
+                and result.get("exit_code") == 1
+                and result.get("stdout_bytes") == 0
+                and result.get("stderr_bytes") == len(marker)
+                and result.get("stdout_sha256") == hashlib.sha256(b"").hexdigest()
+                and result.get("stderr_sha256") == hashlib.sha256(marker).hexdigest()
+                and result.get("capture_error") is None
+                and result.get("stdin_error") is None
+                and result.get("stdin_complete") is True,
+                "expected client response loss receipt missing",
+            )
+            with process.stdout_path.open("rb") as stream:
+                require(
+                    stream.read(1) == b"", "lossy helper unexpectedly returned stdout"
+                )
+            with process.stderr_path.open("rb") as stream:
+                require(
+                    stream.read(len(marker) + 1) == marker,
+                    "expected client response loss marker missing",
+                )
+            durable_record(
+                self.base / "client-response-loss-observed.json",
+                {
+                    "schema_version": 1,
+                    "operation_id": operation,
+                    "task_id": tracked["task_id"],
+                    "helper_receipt": str(
+                        process.directory.relative_to(self.base) / "completed.json"
+                    ),
+                },
+            )
 
     def observe_revoked_registration(self, root):
         # This fixture owns the fresh private registry/admin writer. The only

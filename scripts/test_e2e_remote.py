@@ -852,6 +852,7 @@ class ScenarioHarness:
         self.revocation_error = "not_found"
         self.restarts = 0
         self.paired = []
+        self.lossy_operations = []
 
     def prepare(self, root, brief):
         operation = str(len(self.prepared))
@@ -861,8 +862,21 @@ class ScenarioHarness:
         }
         self.prepared[operation] = (root, value, brief)
         root.tasks.append(value["task_id"])
-        self.operations[operation] = {"cancellation_id": "cancel-" + operation}
+        self.operations[operation] = {
+            "cancellation_id": "cancel-" + operation,
+            "task_id": value["task_id"],
+        }
         return value
+
+    def dispatch_with_response_loss(self, operation):
+        root, prepared, _ = self.prepared[operation]
+        if prepared["task_id"] not in root.tasks or operation not in self.operations:
+            raise AssertionError("response loss before cleanup identity retained")
+        self.lossy_operations.append(operation)
+        self.ledger.append(("lossy_dispatch", operation))
+        # Scheduling double only: actual process marker/Wait handling is tested
+        # separately. The execution occurs but this response is not delivered.
+        self.mcp("dispatch_task", {"operation_id": operation})
 
     def mcp(self, tool, value, failure=False):
         self.calls.append((tool, value, failure))
@@ -904,7 +918,7 @@ class ScenarioHarness:
                 "device_id": root.device,
                 "project_alias": root.alias,
                 "reserved": True,
-                "delivery": "resolved",
+                "delivery": "possible_send",
             }
         if tool == "resolve_operation":
             return {
@@ -912,7 +926,7 @@ class ScenarioHarness:
                 "device_id": root.device,
                 "project_alias": root.alias,
                 "reserved": True,
-                "delivery": "resolved",
+                "delivery": "possible_send",
                 "observation": {"kind": "existing", "execution_closure": None},
             }
         if tool == "read_result_chunk":
@@ -926,12 +940,17 @@ class ScenarioHarness:
         self.closed_operations.add(operation)
         root.closed.add(prepared["task_id"])
         return {
+            **prepared,
+            "device_id": root.device,
+            "project_alias": root.alias,
+            "reserved": False,
+            "delivery": "resolved",
             "observation": {
                 "result": {
                     "sha256": "981282aa7875565f33c7d9ca84eae82548361beb9d765fdfd5a40b3e5c25e202",
                     "length": 36,
                 }
-            }
+            },
         }
 
     def mcp_pair(self, requests):
@@ -1058,6 +1077,192 @@ class TimedScenarioHarness(ScenarioHarness):
 
 
 class ScenarioTests(unittest.TestCase):
+    def test_lost_ack_observes_original_identity_then_retries_without_another_prepare(
+        self,
+    ):
+        h = ScenarioHarness()
+        remote.fixture_scenarios(h, h.roots)
+        self.assertEqual(h.lossy_operations, ["0"])
+        relevant = [
+            (tool, value["operation_id"])
+            for tool, value, failed in h.calls
+            if not failed and value.get("operation_id") == "0"
+        ]
+        self.assertEqual(
+            relevant[:3],
+            [
+                ("dispatch_task", "0"),
+                ("resolve_operation", "0"),
+                ("dispatch_task", "0"),
+            ],
+        )
+        self.assertEqual(relevant[3][0], "read_result_chunk")
+        self.assertEqual(len(h.prepared), 4)
+        self.assertEqual([root.attempted for root in h.roots], [2, 2])
+        self.assertEqual(
+            h.summary["client_response_loss_category"],
+            "simulated client HTTP response loss before SDK delivery",
+        )
+
+    def test_loss_marker_without_prior_native_admission_cannot_turn_retry_into_first_launch(
+        self,
+    ):
+        cases = (
+            ("prepared", None),
+            ("possible_send", {"kind": "unknown"}),
+            ("resolved", {"kind": "unknown"}),
+            ("resolved", {"kind": "refused"}),
+            ("prepared", {"kind": "existing"}),
+            ("resolved", {"kind": "existing"}),
+        )
+        for delivery, observation in cases:
+            with self.subTest(delivery=delivery, observation=observation):
+                h = ScenarioHarness()
+                original = h.mcp
+                resolved = []
+
+                def lost_without_launch(operation):
+                    # A tool-error HTTP200 could produce the injection marker
+                    # without admitting Native work. No attempt is counted.
+                    h.lossy_operations.append(operation)
+                    h.ledger.append(("loss_marker_without_launch", operation))
+
+                def resolve_first(tool, value, failure=False):
+                    if (
+                        tool == "resolve_operation"
+                        and value["operation_id"] == "0"
+                        and not resolved
+                    ):
+                        resolved.append("0")
+                        h.calls.append((tool, value, failure))
+                        root, prepared, _ = h.prepared["0"]
+                        result = {
+                            **prepared,
+                            "device_id": root.device,
+                            "project_alias": root.alias,
+                            "reserved": False,
+                            "delivery": delivery,
+                        }
+                        if observation is not None:
+                            result["observation"] = observation
+                        return result
+                    return original(tool, value, failure)
+
+                with (
+                    patch.object(
+                        h,
+                        "dispatch_with_response_loss",
+                        side_effect=lost_without_launch,
+                    ),
+                    patch.object(h, "mcp", side_effect=resolve_first),
+                ):
+                    with self.assertRaisesRegex(
+                        local.ProofFailure, "prior Native admission"
+                    ):
+                        remote.fixture_scenarios(h, h.roots)
+                self.assertEqual(h.lossy_operations, ["0"])
+                self.assertEqual(resolved, ["0"])
+                self.assertEqual(len(h.prepared), 1)
+                self.assertEqual([root.attempted for root in h.roots], [0, 0])
+                self.assertFalse(any(tool == "dispatch_task" for tool, _, _ in h.calls))
+                self.assertNotIn("client_response_loss_category", h.summary)
+                self.assertNotIn("fixture_tasks_executed", h.summary)
+                self.assertFalse(h.revoked)
+
+    def test_lost_ack_retries_a_proven_running_task_without_waiting_for_closure(self):
+        h = ScenarioHarness()
+        original = h.mcp
+        running_observations = []
+
+        def captured_running(tool, value, failure=False):
+            result = original(tool, value, failure)
+            if tool == "resolve_operation" and value["operation_id"] == "0":
+                # Production capture: Native has admitted the running task,
+                # while Gateway has not yet observed terminal task closure.
+                result = {
+                    **result,
+                    "delivery": "possible_send",
+                    "reserved": True,
+                    "observation": {"kind": "existing"},
+                }
+                running_observations.append(result)
+            return result
+
+        with patch.object(h, "mcp", side_effect=captured_running):
+            remote.fixture_scenarios(h, h.roots)
+        self.assertEqual(len(running_observations), 1)
+        observation = running_observations[0]
+        self.assertNotIn("result", observation["observation"])
+        self.assertNotIn("execution_closure", observation["observation"])
+        calls = [
+            tool
+            for tool, value, failed in h.calls
+            if not failed and value.get("operation_id") == "0"
+        ]
+        self.assertEqual(
+            calls[:3], ["dispatch_task", "resolve_operation", "dispatch_task"]
+        )
+        self.assertEqual(h.lossy_operations, ["0"])
+        self.assertEqual([root.attempted for root in h.roots], [2, 2])
+        self.assertEqual(h.summary["fixture_tasks_executed"], 4)
+
+    def test_lost_ack_allows_already_terminal_native_admission_before_retry(self):
+        h = ScenarioHarness()
+        original = h.mcp
+
+        def terminal(tool, value, failure=False):
+            result = original(tool, value, failure)
+            if tool == "resolve_operation" and value["operation_id"] == "0":
+                return {
+                    **result,
+                    "reserved": False,
+                    "delivery": "resolved",
+                    "observation": {"kind": "terminal"},
+                }
+            return result
+
+        with patch.object(h, "mcp", side_effect=terminal):
+            remote.fixture_scenarios(h, h.roots)
+        self.assertEqual(h.lossy_operations, ["0"])
+        self.assertEqual([root.attempted for root in h.roots], [2, 2])
+        self.assertEqual(h.summary["fixture_tasks_executed"], 4)
+
+    def test_loss_marker_failure_stops_without_retry_or_replacement_identity(self):
+        h = ScenarioHarness()
+        with patch.object(
+            h,
+            "dispatch_with_response_loss",
+            side_effect=local.ProofFailure("loss unconfirmed"),
+        ):
+            with self.assertRaisesRegex(local.ProofFailure, "unconfirmed"):
+                remote.fixture_scenarios(h, h.roots)
+        self.assertEqual(len(h.prepared), 1)
+        self.assertFalse(any(tool == "dispatch_task" for tool, _, _ in h.calls))
+        self.assertNotIn("client_response_loss_category", h.summary)
+        self.assertFalse(h.revoked)
+
+    def test_short_task_identity_changes_fail_before_retry_and_acceptance(self):
+        for field in ("operation_id", "task_id", "device_id", "project_alias"):
+            with self.subTest(field=field):
+                h = ScenarioHarness()
+                original = h.mcp
+
+                def changed(tool, value, failure=False):
+                    result = original(tool, value, failure)
+                    if tool == "resolve_operation" and value["operation_id"] == "0":
+                        result[field] = "changed"
+                    return result
+
+                with patch.object(h, "mcp", side_effect=changed):
+                    with self.assertRaisesRegex(local.ProofFailure, "binding"):
+                        remote.fixture_scenarios(h, h.roots)
+                self.assertEqual(h.lossy_operations, ["0"])
+                self.assertEqual(
+                    sum(tool == "dispatch_task" for tool, _, _ in h.calls), 1
+                )
+                self.assertEqual(len(h.prepared), 1)
+                self.assertNotIn("client_response_loss_category", h.summary)
+
     def test_paired_recovery_rejects_a_reply_bound_to_the_other_root(self):
         h = ScenarioHarness()
         pair = h.mcp_pair
@@ -1147,7 +1352,7 @@ class ScenarioTests(unittest.TestCase):
             for tool, value, _ in h.calls
             if tool == "dispatch_task"
         ]
-        self.assertEqual(dispatches, ["0", "1", "2", "3", "2", "3"])
+        self.assertEqual(dispatches, ["0", "0", "1", "2", "3", "2", "3"])
         self.assertEqual(
             h.paired,
             [
@@ -1860,6 +2065,165 @@ class PumpTests(unittest.TestCase):
         )
 
 
+class LostResponseProcessTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        repository = os.environ.get("DELEGATE_ACCEPTANCE_REPOSITORY")
+        if repository is None:
+            raise unittest.SkipTest(
+                "Native source required for lost-response process tests"
+            )
+        cls.acceptance = local.load_acceptance(Path(repository))
+
+    @contextmanager
+    def harness(
+        self, *, output=b"", error=b'{"code":"fixture_response_discarded"}\n', code=1
+    ):
+        owner = self.acceptance.directories.DirectoryOwner()
+        base = Path(tempfile.mkdtemp(prefix="mcp-loss-")).resolve()
+        owner.adopt_created("lost-response test", base, base.parent)
+        helper = base / "helper"
+        helper.write_text(
+            "#!" + str(Path(sys.executable).resolve()) + "\n"
+            "import json,sys\nfrom pathlib import Path\n"
+            "value=json.loads(Path(sys.argv[-1]).read_text())\n"
+            "assert value['tool']=='dispatch_task' and value['discard_tool_response'] is True\n"
+            "assert value['arguments']=={'operation_id':'prepared-operation'}\n"
+            "sys.stdout.buffer.write(" + repr(output) + ")\n"
+            "sys.stderr.buffer.write(" + repr(error) + ")\n"
+            "raise SystemExit(" + str(code) + ")\n"
+        )
+        helper.chmod(0o700)
+        h = object.__new__(remote.RemoteHarness)
+        h.base = base
+        h.args = SimpleNamespace(fixture_tool=helper)
+        h.env = {}
+        h.sequence = 0
+        h.last_mcp_started = 0
+        h.public = "https://fixture.invalid"
+        h.material = {"ca_file": "fixture-ca", "token_file": "fixture-token"}
+        h.responses = []
+        h.interruptions = local.Interruptions()
+        h.processes = self.acceptance.processes.Processes(
+            base / "processes", environment={}, owner=owner
+        )
+        h.operations = {
+            "prepared-operation": {
+                "task_id": "a" * 32,
+                "cancellation_id": "b" * 32,
+            }
+        }
+        h.peer_pump = lambda: None
+        h._pumping = False
+        try:
+            yield h
+        finally:
+            if h.processes.drain(timeout=5):
+                owner.release()
+                raise AssertionError(
+                    "lost-response test retained unresolved owned child"
+                )
+            owner.rollback()
+
+    def test_exact_marker_is_bound_to_one_native_wait_and_existing_operation(self):
+        with self.harness() as h:
+            events = []
+            h.peer_pump = lambda: events.append("pump")
+            with patch.object(h.processes, "run", wraps=h.processes.run) as run:
+                h.dispatch_with_response_loss("prepared-operation")
+            self.assertEqual(run.call_args.kwargs["expected"], 1)
+            self.assertEqual(run.call_args.kwargs["timeout"], 45)
+            self.assertEqual(events, ["pump", "pump"])
+            self.assertEqual(len(h.processes.entries), 1)
+            child = h.processes.entries[0]
+            self.assertEqual(child.result["exit_code"], 1)
+            self.assertTrue(child.result["natural_wait"])
+            self.assertTrue(h.processes.finished_naturally())
+            self.assertEqual(h.responses, [])
+            intent = json.loads(
+                (h.base / "client-response-loss-intent.json").read_text()
+            )
+            observed = json.loads(
+                (h.base / "client-response-loss-observed.json").read_text()
+            )
+            self.assertEqual(intent["operation_id"], "prepared-operation")
+            self.assertEqual(intent["task_id"], "a" * 32)
+            self.assertEqual(observed["operation_id"], "prepared-operation")
+            self.assertEqual(
+                h.base / observed["helper_receipt"], child.directory / "completed.json"
+            )
+            self.assertEqual(
+                h.operations["prepared-operation"]["cancellation_id"], "b" * 32
+            )
+            value = json.loads(Path(child.argv[-1]).read_text())
+            self.assertIs(value["discard_tool_response"], True)
+            self.assertEqual(value["arguments"], {"operation_id": "prepared-operation"})
+            self.assertEqual(child.argv[1:3], ["mcp", "--input"])
+            with self.assertRaises(FileExistsError):
+                h.dispatch_with_response_loss("prepared-operation")
+            self.assertEqual(len(h.processes.entries), 1)
+
+    def test_ordinary_error_bad_marker_stdout_or_wrong_exit_never_confirms_loss(self):
+        cases = (
+            {"error": b'{"code":"fixture_failed"}\n'},
+            {"error": b'{"code":"fixture_response_discarded"}'},
+            {"error": b'{"code":"fixture_response_discarded"}\nextra'},
+            {"error": b"x" * 1024},
+            {"output": b"{}"},
+            {"code": 0},
+            {"code": 2},
+        )
+        for options in cases:
+            with self.subTest(options=options), self.harness(**options) as h:
+                with self.assertRaises((local.ProofFailure, RuntimeError)):
+                    h.dispatch_with_response_loss("prepared-operation")
+                self.assertTrue(h.processes.finished_naturally())
+                self.assertEqual(len(h.processes.entries), 1)
+                self.assertFalse(
+                    (h.base / "client-response-loss-observed.json").exists()
+                )
+                self.assertEqual(h.responses, [])
+
+    def test_cleanup_or_capture_failure_does_not_become_success_marker(self):
+        for failed in ("cleanup", "capture"):
+            with self.subTest(failed=failed), self.harness() as h:
+                run = h.processes.run
+
+                def failing(*args, **kwargs):
+                    child = run(*args, **kwargs)
+                    if failed == "cleanup":
+                        raise local.ProofFailure("injected cleanup failure")
+                    return SimpleNamespace(
+                        result={
+                            **child.result,
+                            "capture_error": "injected capture failure",
+                        },
+                        directory=child.directory,
+                        stdout_path=child.stdout_path,
+                        stderr_path=child.stderr_path,
+                    )
+
+                with patch.object(h.processes, "run", side_effect=failing):
+                    with self.assertRaises(local.ProofFailure):
+                        h.dispatch_with_response_loss("prepared-operation")
+                # The fault is a consumer-boundary double, never a mutation of
+                # Native's authoritative closure receipt or capture files.
+                self.assertTrue(h.processes.finished_naturally())
+                self.assertFalse(
+                    (h.base / "client-response-loss-observed.json").exists()
+                )
+
+    def test_unprepared_or_missing_cleanup_identity_fails_before_process_start(self):
+        with self.harness() as h:
+            for operation in ("unknown-operation", "prepared-operation"):
+                if operation == "prepared-operation":
+                    h.operations[operation].pop("cancellation_id")
+                with self.assertRaises(local.ProofFailure):
+                    h.dispatch_with_response_loss(operation)
+            self.assertEqual(h.processes.entries, [])
+            self.assertFalse((h.base / "client-response-loss-intent.json").exists())
+
+
 class MCPPairsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1876,16 +2240,21 @@ class MCPPairsTests(unittest.TestCase):
         helper = base / "helper"
         helper.write_text(
             "#!" + str(Path(sys.executable).resolve()) + "\n"
-            "import json,sys,time\nfrom pathlib import Path\n"
+            "import fcntl,json,sys,time\nfrom pathlib import Path\n"
             "v=json.loads(Path(sys.argv[-1]).read_text())\n"
             "i=v['arguments']['index']; base=Path.cwd()\n"
             "(base/('started-'+str(i))).write_text('started')\n"
             "mode=" + repr(mode) + "\n"
             "if i==0:\n"
-            " deadline=time.monotonic()+3\n"
-            " marker=base/('release' if mode=='timeout' else 'started-1')\n"
-            " while not marker.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
-            " if not marker.exists(): sys.exit(17)\n"
+            " if mode=='timeout':\n"
+            "  with (base/'release.lock').open('rb') as gate:\n"
+            "   (base/'waiting-0').write_text('waiting')\n"
+            "   fcntl.flock(gate.fileno(),fcntl.LOCK_SH)\n"
+            " else:\n"
+            "  deadline=time.monotonic()+3\n"
+            "  marker=base/'started-1'\n"
+            "  while not marker.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
+            "  if not marker.exists(): sys.exit(17)\n"
             "print(json.dumps({'structuredContent':{'data':{'index':i}},'isError':False}) if not (mode=='bad' and i==0) else '{}')\n"
         )
         helper.chmod(0o700)
@@ -1904,14 +2273,25 @@ class MCPPairsTests(unittest.TestCase):
         )
         h.peer_pump = lambda: None
         h._pumping = False
+        gate = None
         try:
+            if mode == "timeout":
+                gate = self.acceptance.leases.LockedReleaseGate.acquire(
+                    base / "release.lock"
+                )
+                h.timeout_gate = gate
             yield h
         finally:
-            (base / "release").touch()
-            if h.processes.drain(timeout=5):
-                owner.release()
-                raise AssertionError("MCP pair test retained unresolved owned child")
-            owner.rollback()
+            try:
+                if gate is not None:
+                    gate.release()
+            finally:
+                if h.processes.drain(timeout=5):
+                    owner.release()
+                    raise AssertionError(
+                        "MCP pair test retained unresolved owned child"
+                    )
+                owner.rollback()
 
     def requests(self):
         return (
@@ -2026,15 +2406,26 @@ class MCPPairsTests(unittest.TestCase):
         with self.harness("timeout") as h:
             start = h.processes.start
             waits = []
+            native_waits = {}
 
             def timing_start(*args, on_spawned, **kwargs):
                 def spawned(process):
                     index = len(h.processes.entries) - 1
                     wait = process.wait
+                    native_waits[index] = wait
 
                     def timed_wait(*args, **kwargs):
                         waits.append(index)
                         self.assertEqual(kwargs, {"timeout": 40})
+                        if index == 0:
+                            # A held Native release gate, rather than a short
+                            # child deadline, keeps this exact owner unresolved
+                            # through both production Wait attempts.
+                            self.acceptance.leases.wait_until(
+                                lambda: (h.base / "waiting-0").is_file(),
+                                timeout=5,
+                                description="first helper reached held gate",
+                            )
                         return wait(timeout=0 if index == 0 else 5)
 
                     process.wait = timed_wait
@@ -2047,11 +2438,20 @@ class MCPPairsTests(unittest.TestCase):
                     h.mcp_pair(self.requests())
             self.assertEqual(waits, [0, 1])
             self.assertFalse(h.processes.finished_naturally())
-            self.assertTrue(
-                (
-                    h.processes.entries[0].directory / "observation-expired.json"
-                ).is_file()
+            first, second = h.processes.entries
+            self.assertIsNone(first.result)
+            self.assertTrue(second.result["natural_wait"])
+            self.assertEqual(second.result["exit_code"], 0)
+            expired = json.loads(
+                (first.directory / "observation-expired.json").read_text()
             )
+            self.assertEqual(expired["timeout_seconds"], 0)
+            self.assertEqual(expired["termination"], "unknown")
+            self.assertEqual(expired["signals_sent"], 0)
+            h.timeout_gate.release()
+            self.assertEqual(native_waits[0](timeout=5), 0)
+            self.assertTrue(h.processes.finished_naturally())
+            self.assertEqual(first.result["exit_code"], 0)
 
     def test_pair_rejects_nonpair_before_resource_creation(self):
         for requests in (

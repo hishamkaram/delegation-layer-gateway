@@ -14,17 +14,21 @@ import (
 
 type (
 	callInput struct {
-		TrustMode  string          `json:"trust_mode,omitempty"`
-		Endpoint   string          `json:"endpoint"`
-		CA         string          `json:"ca_file"`
-		TokenFile  string          `json:"token_file"`
-		Tool       string          `json:"tool"`
-		Arguments  json.RawMessage `json:"arguments"`
-		AllowedIPs []string        `json:"allowed_ips,omitempty"`
+		DiscardToolResponse bool            `json:"discard_tool_response,omitempty"`
+		TrustMode           string          `json:"trust_mode,omitempty"`
+		Endpoint            string          `json:"endpoint"`
+		CA                  string          `json:"ca_file"`
+		TokenFile           string          `json:"token_file"`
+		Tool                string          `json:"tool"`
+		Arguments           json.RawMessage `json:"arguments"`
+		AllowedIPs          []string        `json:"allowed_ips,omitempty"`
 	}
 )
 
 func callMCP(ctx context.Context, input callInput) (result *mcp.CallToolResult, returned error) {
+	if input.DiscardToolResponse && input.Tool != "dispatch_task" {
+		return nil, errors.New("fixture response discard requires dispatch_task")
+	}
 	endpoint, err := callEndpoint(input)
 	if err != nil {
 		return nil, err
@@ -46,6 +50,6 @@ func callMCP(ctx context.Context, input callInput) (result *mcp.CallToolResult, 
 	if err != nil {
 		return nil, err
 	}
-	defer func() { returned = errors.Join(returned, session.Close()) }()
+	defer func() { returned = finishMCPCall(returned, session.Close()) }()
 	return session.CallTool(ctx, &mcp.CallToolParams{Name: input.Tool, Arguments: input.Arguments})
 }

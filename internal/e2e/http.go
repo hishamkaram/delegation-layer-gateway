@@ -99,5 +99,8 @@ func helperHTTPClient(input callInput, endpoint url.URL, token string) (*http.Cl
 	}
 	transport := &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots}, MaxConnsPerHost: 1, DisableCompression: true, ResponseHeaderTimeout: 35 * time.Second, MaxResponseHeaderBytes: 16 << 10}
 	client := &http.Client{Transport: bearerTransport{base: boundedTransport{base: transport}, endpoint: endpoint, token: token}, Timeout: 40 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if input.DiscardToolResponse {
+		client.Transport = discardResponseTransport{base: client.Transport}
+	}
 	return client, transport, nil
 }
