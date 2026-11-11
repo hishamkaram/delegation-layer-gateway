@@ -138,13 +138,22 @@ def install() -> None:
 
 def format_check() -> None:
     verify()
+    # Git owns source membership, including new contributor files. Ignored
+    # dependency checkouts must not inherit Gateway's formatting policy.
+    inventory = run(
+        [
+            "git",
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+            "--",
+            "*.go",
+        ]
+    )
     files = sorted(
-        str(path.relative_to(ROOT))
-        for path in ROOT.rglob("*.go")
-        if not any(
-            part in {"bin", ".git", ".local", "vendor"}
-            for part in path.relative_to(ROOT).parts
-        )
+        {name for name in inventory.split("\x00") if name and (ROOT / name).is_file()}
     )
     if not files:
         raise RuntimeError(

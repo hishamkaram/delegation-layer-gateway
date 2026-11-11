@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import os
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -69,21 +70,56 @@ class CompilerGuardTests(unittest.TestCase):
         self.assertFalse((self.root / "bin" / "golangci-lint").exists())
 
     def test_empty_format_selection_does_not_pass(self) -> None:
+        subprocess.run(["git", "init", "--quiet", str(self.root)], check=True)
         with patch.object(tools, "verify"):
             with self.assertRaisesRegex(RuntimeError, "No Go sources"):
                 tools.format_check()
+
+    def test_format_scope_includes_untracked_sources_but_not_ignored_dependencies(
+        self,
+    ) -> None:
+        subprocess.run(["git", "init", "--quiet", str(self.root)], check=True)
+        (self.root / ".gitignore").write_text("/.ci-native/\n")
+        (self.root / "tracked.go").write_text("package tracked\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "tracked.go"], check=True)
+        (self.root / "untracked.go").write_text("package untracked\n")
+        dependency = self.root / ".ci-native"
+        dependency.mkdir()
+        (dependency / "foreign.go").write_text("package foreign\n")
+        actual_run = tools.run
+        formatted = []
+
+        def command(args, **kwargs):
+            if args[:2] == ["git", "ls-files"]:
+                return actual_run(args, **kwargs)
+            formatted.extend(args[2:])
+            return ""
+
+        with patch.object(tools, "verify"), patch.object(tools, "run", command):
+            tools.format_check()
+        self.assertEqual(formatted, ["tracked.go", "untracked.go"])
 
     def test_checkout_ancestor_named_bin_does_not_hide_go_sources(self) -> None:
         checkout = self.root / "bin" / "checkout"
         checkout.mkdir(parents=True)
         (checkout / "example.go").write_text("package example\n")
+        subprocess.run(["git", "init", "--quiet", str(checkout)], check=True)
+        actual_run = tools.run
+        formatted = []
+
+        def command(args, **kwargs):
+            if args[:2] == ["git", "ls-files"]:
+                return actual_run(args, **kwargs)
+            formatted.extend(args[2:])
+            return ""
+
         with (
             patch.object(tools, "ROOT", checkout),
             patch.object(tools, "verify"),
-            patch.object(tools, "run", return_value="") as command,
+            patch.object(tools, "run", command),
         ):
             tools.format_check()
-        self.assertEqual(command.call_args.args[0][-1], "example.go")
+        self.assertEqual(formatted, ["example.go"])
 
     def test_empty_package_selection_does_not_pass_build_gate(self) -> None:
         with (

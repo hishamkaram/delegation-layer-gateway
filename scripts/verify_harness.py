@@ -33,6 +33,11 @@ SKILLS = (
 )
 LINK = re.compile(r"!?\[[^\]]*\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
 FRONTMATTER_KEY = re.compile(r"^([a-z][a-z_-]*):\s*(\S.*)$")
+# Generated trees and the separately validated Native test-source checkout do
+# not own Gateway instructions or documentation.
+EXCLUDED_TREES = frozenset(
+    {".git", "bin", ".local", ".ci-native", "node_modules", "__pycache__"}
+)
 
 
 def markdown_body(text: str) -> str:
@@ -227,10 +232,7 @@ def validate(root: Path, docs: bool = False) -> list[str]:
         paths = [
             path
             for path in root.rglob("*.md")
-            if not any(
-                part in {".git", "bin", ".local", "node_modules"}
-                for part in path.relative_to(root).parts
-            )
+            if not any(part in EXCLUDED_TREES for part in path.relative_to(root).parts)
         ]
     errors.extend(references(root, sorted({path for path in paths if path.is_file()})))
     return errors
@@ -243,11 +245,7 @@ def self_test(root: Path) -> list[str]:
         fixture = Path(directory)
         # Copy metadata only; referenced non-Markdown dependencies need existence, not content.
         for directory, children, filenames in os.walk(root):
-            children[:] = [
-                name
-                for name in children
-                if name not in {".git", "bin", ".local", "node_modules", "__pycache__"}
-            ]
+            children[:] = [name for name in children if name not in EXCLUDED_TREES]
             for filename in filenames:
                 source = Path(directory) / filename
                 if source.is_symlink() or source.suffix not in {".md", ".toml"}:
@@ -277,6 +275,13 @@ def self_test(root: Path) -> list[str]:
         baseline = validate(fixture)
         if baseline:
             return ["self-test baseline failed: " + error for error in baseline]
+        dependency = fixture / ".ci-native"
+        dependency.mkdir()
+        (dependency / "README.md").write_text("[Native-owned reference](absent.md)\n")
+        if validate(fixture, docs=True):
+            errors.append(
+                "self-test: external Native checkout entered Gateway docs scope"
+            )
         cases = (
             (
                 "legacy Codex registration",
@@ -364,7 +369,7 @@ def main() -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "Harness validation passed: Codex/Claude roles, skills, local references and 8 isolated rejection fixtures."
+        "Harness validation passed: Codex/Claude roles, skills, local references, 8 isolated rejection fixtures and Native dependency isolation."
     )
     print(
         "Scope: structural wiring only; no model behavior, native harness launch or live integration claim."

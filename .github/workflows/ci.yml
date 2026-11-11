@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+env:
+  NATIVE_ACCEPTANCE_REVISION: 62b11d347dbd7d524f5f5322f3c9c85ecdb3a7a9
+  DELEGATE_ACCEPTANCE_REPOSITORY: ${{ github.workspace }}/.ci-native
+
 jobs:
   harness:
     runs-on: ubuntu-24.04
@@ -19,6 +23,15 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Checkout pinned Native acceptance source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: hishamkaram/delegation-layer
+          ref: ${{ env.NATIVE_ACCEPTANCE_REVISION }}
+          path: .ci-native
+          persist-credentials: false
+      - name: Require Native acceptance source
+        run: test -f "$DELEGATE_ACCEPTANCE_REPOSITORY/scripts/acceptance/processes/operations.py"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
@@ -51,6 +64,15 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Checkout pinned Native acceptance source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: hishamkaram/delegation-layer
+          ref: ${{ env.NATIVE_ACCEPTANCE_REVISION }}
+          path: .ci-native
+          persist-credentials: false
+      - name: Require Native acceptance source
+        run: test -f "$DELEGATE_ACCEPTANCE_REPOSITORY/scripts/acceptance/processes/operations.py"
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
         with:
           go-version-file: .go-version
