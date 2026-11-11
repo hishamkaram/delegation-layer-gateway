@@ -31,6 +31,8 @@ import e2e_local as local
 
 
 MAX_LINE = 64 << 10
+MAX_OPERATIONS = 32
+REQUEST_FIELDS = frozenset({"request_id", "payload"})
 OUTPUT_TIMEOUT = 2.0
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 RUN_ID = re.compile(r"[0-9a-f]{16}\Z")
@@ -100,10 +102,16 @@ class Manifest:
     project_alias: str
     enrollment_url: str
     wss_url: str
+    capture_native: bool = False
 
     @classmethod
     def parse(cls, value):
-        exact(value, {"schema_version", *cls.__dataclass_fields__})
+        fields = {"schema_version", *cls.__dataclass_fields__}
+        if type(value) is dict and "capture_native" not in value:
+            fields.remove("capture_native")
+        exact(value, fields)
+        capture_native = value.get("capture_native", False)
+        local.require(type(capture_native) is bool, "capture_native must be a boolean")
         local.require(
             type(value["schema_version"]) is int and value["schema_version"] == 1,
             "unsupported peer schema",
@@ -130,7 +138,12 @@ class Manifest:
         local.require(
             public == device, "fixture listeners must use the same explicit host"
         )
-        fields = {key: value[key] for key in cls.__dataclass_fields__}
+        fields = {
+            key: value[key]
+            for key in cls.__dataclass_fields__
+            if key != "capture_native"
+        }
+        fields["capture_native"] = capture_native
         for key in (
             "gateway",
             "delegate",
@@ -300,7 +313,7 @@ class Peer:
                     "delegate_repository",
                 )
             },
-            capture_native=False,
+            capture_native=manifest.capture_native,
         )
         self.env = local.child_environment(
             self.home,
@@ -333,7 +346,7 @@ class Peer:
             )
         )
         root.start()
-        return {
+        result = {
             "base": str(self.base),
             "state": str(root.state),
             "workspace": str(root.workspace),
@@ -348,6 +361,9 @@ class Peer:
             ],
             "allocation": self.manifest.allocation,
         }
+        if self.manifest.capture_native:
+            result["native_control_variant"] = "diagnostic_capture"
+        return result
 
     def enroll(self, enrollment):
         local.require(
@@ -366,7 +382,7 @@ class Peer:
             "trust_ca_file": self.material["ca_file"],
             "device_ca_file": str(self.device_ca),
             "identity_directory": str(identity),
-            "delegate_executable": str(manifest.delegate),
+            "delegate_executable": str(root.connector_executable),
             "temporary_directory": str(root.temporary),
             "control_timeout": "30s",
             "network_timeout": "35s",
@@ -701,6 +717,36 @@ def emit(value, interruptions):
         os.set_blocking(descriptor, blocking)
 
 
+def request_payload(value, expected_id):
+    """The input stream owns one contiguous request sequence, including setup."""
+    exact(value, REQUEST_FIELDS)
+    request_id = value["request_id"]
+    local.require(
+        type(request_id) is int
+        and request_id == expected_id
+        and 1 <= request_id <= 1 + MAX_OPERATIONS,
+        "invalid peer request sequence",
+    )
+    payload = value["payload"]
+    local.require(
+        type(payload) is dict and not (REQUEST_FIELDS & payload.keys()),
+        "invalid peer request payload",
+    )
+    return payload
+
+
+def event_frame(event, result, request_id=None):
+    """Only this transport boundary writes event and correlation fields."""
+    local.require(
+        type(result) is dict and not ({"event", "request_id"} & result.keys()),
+        "peer response contains transport fields",
+    )
+    frame = {**result, "event": event}
+    if request_id is not None:
+        frame["request_id"] = request_id
+    return frame
+
+
 def main():
     os.umask(0o077)
     interruptions = local.Interruptions()
@@ -710,15 +756,16 @@ def main():
     failed = False
     try:
         inputs = lines(sys.stdin.buffer, interruptions)
-        manifest = Manifest.parse(next(inputs))
+        manifest = Manifest.parse(request_payload(next(inputs), 1))
         # Publish the owner before any initialization can launch children.
         peer = Peer.__new__(Peer)
         peer.__init__(manifest, interruptions)
-        emit({"event": "initialized", **peer.initialize()}, interruptions)
-        for index, value in enumerate(inputs):
-            local.require(index < 32, "peer operation budget exhausted")
+        emit(event_frame("initialized", peer.initialize(), 1), interruptions)
+        for request_id, envelope in enumerate(inputs, start=2):
+            value = request_payload(envelope, request_id)
+            # Every request re-observes the operation; no cached response is replayed.
             result = peer.operate(value)
-            emit({"event": value["operation"], **result}, interruptions)
+            emit(event_frame(value["operation"], result, request_id), interruptions)
             if peer.finished:
                 break
     except Exception as error:
@@ -734,7 +781,7 @@ def main():
             receipt = peer.finish()
             failed |= not receipt["cleanup_confirmed"]
             try:
-                emit({"event": "final", **receipt}, interruptions)
+                emit(event_frame("final", receipt), interruptions)
             except (OSError, local.ProofFailure):
                 failed = True
         elif peer is not None and hasattr(peer, "ownership"):

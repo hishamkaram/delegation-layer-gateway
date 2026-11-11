@@ -4,6 +4,7 @@ import base64
 import json
 import importlib
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 import os
 from pathlib import Path
 import sys
@@ -147,6 +148,7 @@ class PeerBoundaryTests(unittest.TestCase):
         base = {field: "unused" for field in peer.Manifest.__dataclass_fields__}
         base["schema_version"] = 1
         base["run_id"] = "0123456789abcdef"
+        base["capture_native"] = False
         for allocation in (True, 0, 3, 30, "2"):
             with (
                 self.subTest(allocation=allocation),
@@ -157,6 +159,61 @@ class PeerBoundaryTests(unittest.TestCase):
             path.assert_not_called()
         with self.assertRaises(peer.local.ProofFailure):
             peer.Manifest.parse({**base, "allocation": 1, "shell": "unexpected"})
+
+    def test_manifest_capture_option_is_optional_exact_bool_and_keeps_closed_fields(
+        self,
+    ):
+        value = {
+            **{
+                key: "/owned/" + key
+                for key in (
+                    "gateway",
+                    "delegate",
+                    "delegate_run",
+                    "pueue",
+                    "pueued",
+                    "delegate_repository",
+                )
+            },
+            "schema_version": 1,
+            "run_id": "0123456789abcdef",
+            "allocation": 1,
+            "ca_pem": "fixture public CA",
+            "device_ca_pem": "fixture public CA",
+            "gateway_id": "gateway-a",
+            "device_id": "device-a",
+            "project_alias": "project-a",
+            "enrollment_url": "https://127.0.0.1:9443/v1/enroll",
+            "wss_url": "wss://127.0.0.1:9444/device",
+        }
+        with (
+            mock.patch.object(
+                peer, "owned_path", side_effect=lambda path, **_: Path(path)
+            ),
+            mock.patch.object(peer, "validate_selected_pairs"),
+            mock.patch.object(peer.ssl, "PEM_cert_to_DER_cert"),
+        ):
+            self.assertIs(peer.Manifest.parse(value).capture_native, False)
+            for flag in (False, True):
+                self.assertIs(
+                    peer.Manifest.parse(
+                        {**value, "capture_native": flag}
+                    ).capture_native,
+                    flag,
+                )
+            for invalid in (0, 1, "true", None, [], {}):
+                with (
+                    self.subTest(invalid=invalid),
+                    self.assertRaises(peer.local.ProofFailure),
+                ):
+                    peer.Manifest.parse({**value, "capture_native": invalid})
+            with self.assertRaises(peer.local.ProofFailure):
+                peer.Manifest.parse(
+                    {**value, "capture_native": True, "shell": "unexpected"}
+                )
+        self.assertNotIn(
+            "capture_native", value, "parsing does not mutate caller input"
+        )
 
     def test_enrollment_is_exact_device_and_canonical_32_byte_token(self):
         enrollment = {
@@ -302,6 +359,127 @@ class PeerBoundaryTests(unittest.TestCase):
             timer.join()
             os.close(read_fd)
 
+    def test_request_envelope_enforces_exact_contiguous_bounded_ids(self):
+        payload = {"operation": "inspect_closure"}
+        self.assertIs(
+            peer.request_payload({"request_id": 1, "payload": payload}, 1), payload
+        )
+        self.assertIs(
+            peer.request_payload({"request_id": 33, "payload": payload}, 33), payload
+        )
+        for envelope, expected in (
+            ({"request_id": True, "payload": payload}, 1),
+            ({"request_id": 1.0, "payload": payload}, 1),
+            ({"request_id": "1", "payload": payload}, 1),
+            ({"request_id": 0, "payload": payload}, 1),
+            ({"request_id": -1, "payload": payload}, 1),
+            ({"request_id": 2, "payload": payload}, 1),
+            ({"request_id": 1, "payload": payload}, 2),
+            ({"request_id": 3, "payload": payload}, 2),
+            ({"request_id": 34, "payload": payload}, 34),
+            ({"request_id": 1}, 1),
+            ({"request_id": 1, "payload": payload, "extra": None}, 1),
+            ({"request_id": 1, "payload": []}, 1),
+            ({"request_id": 1, "payload": {"request_id": 1}}, 1),
+            ({"request_id": 1, "payload": {"payload": {}}}, 1),
+        ):
+            with self.subTest(envelope=envelope, expected=expected):
+                with self.assertRaises(peer.local.ProofFailure):
+                    peer.request_payload(envelope, expected)
+
+    def test_main_echoes_request_ids_without_changing_inner_payloads(self):
+        operation = {"operation": "inspect_closure"}
+        owner = SimpleNamespace(
+            initialize=mock.Mock(return_value={"base": "/owned"}),
+            operate=mock.Mock(return_value={"closure_confirmed": False}),
+            finished=False,
+            finish=mock.Mock(return_value={"cleanup_confirmed": True}),
+            processes=object(),
+            __init__=mock.Mock(),
+        )
+        inputs = [{"request_id": 1, "payload": {}}] + [
+            {"request_id": request_id, "payload": operation} for request_id in (2, 3)
+        ]
+        receipts = []
+        with (
+            mock.patch.object(peer, "lines", return_value=iter(inputs)),
+            mock.patch.object(peer.Manifest, "parse") as parse,
+            mock.patch.object(peer.Peer, "__new__", return_value=owner),
+            mock.patch.object(peer.signal, "signal"),
+            mock.patch.object(
+                peer, "emit", side_effect=lambda value, _: receipts.append(value)
+            ),
+        ):
+            self.assertEqual(peer.main(), 0)
+        parse.assert_called_once_with({})
+        self.assertEqual(
+            owner.operate.call_args_list, [mock.call(operation), mock.call(operation)]
+        )
+        self.assertEqual(
+            [(value["event"], value.get("request_id")) for value in receipts],
+            [
+                ("initialized", 1),
+                ("inspect_closure", 2),
+                ("inspect_closure", 3),
+                ("final", None),
+            ],
+        )
+
+    def test_main_invalid_request_sequence_has_no_operation_side_effect_and_cleans_up(
+        self,
+    ):
+        for invalid_id in (2, 4, True):
+            with self.subTest(invalid_id=invalid_id):
+                operation = {"operation": "inspect_closure"}
+                owner = SimpleNamespace(
+                    initialize=mock.Mock(return_value={}),
+                    operate=mock.Mock(return_value={"closure_confirmed": False}),
+                    finished=False,
+                    finish=mock.Mock(return_value={"cleanup_confirmed": True}),
+                    processes=object(),
+                    __init__=mock.Mock(),
+                )
+                inputs = [{"request_id": 1, "payload": {}}] + [
+                    {"request_id": request_id, "payload": operation}
+                    for request_id in (2, invalid_id)
+                ]
+                receipts = []
+                with (
+                    mock.patch.object(peer, "lines", return_value=iter(inputs)),
+                    mock.patch.object(peer.Manifest, "parse"),
+                    mock.patch.object(peer.Peer, "__new__", return_value=owner),
+                    mock.patch.object(peer.signal, "signal"),
+                    mock.patch.object(
+                        peer,
+                        "emit",
+                        side_effect=lambda value, _: receipts.append(value),
+                    ),
+                ):
+                    self.assertEqual(peer.main(), 1)
+                owner.operate.assert_called_once_with(operation)
+                owner.finish.assert_called_once()
+                self.assertEqual(
+                    [(value["event"], value.get("request_id")) for value in receipts],
+                    [
+                        ("initialized", 1),
+                        ("inspect_closure", 2),
+                        ("failed", None),
+                        ("final", None),
+                    ],
+                )
+
+    def test_response_body_cannot_override_transport_fields(self):
+        self.assertEqual(
+            peer.event_frame("initialized", {"base": "/owned"}, 1),
+            {"event": "initialized", "request_id": 1, "base": "/owned"},
+        )
+        for result in ({"event": "final"}, {"request_id": 99}, [], None):
+            with self.subTest(result=result):
+                with self.assertRaises(peer.local.ProofFailure):
+                    peer.event_frame("initialized", result, 1)
+                with self.assertRaises(peer.local.ProofFailure):
+                    peer.event_frame("final", result)
+
     def test_main_eof_always_runs_owned_cleanup_and_reports_separately(self):
         owner = SimpleNamespace(
             initialize=mock.Mock(return_value={"base": "/owned"}),
@@ -314,7 +492,9 @@ class PeerBoundaryTests(unittest.TestCase):
         )
         receipts = []
         with (
-            mock.patch.object(peer, "lines", return_value=iter([{}])),
+            mock.patch.object(
+                peer, "lines", return_value=iter([{"request_id": 1, "payload": {}}])
+            ),
             mock.patch.object(peer.Manifest, "parse"),
             mock.patch.object(peer.Peer, "__new__", return_value=owner),
             mock.patch.object(peer.signal, "signal"),
@@ -602,6 +782,101 @@ class OwnedProcessTests(unittest.TestCase):
             wss_url="wss://127.0.0.1:9444/device",
         )
 
+    def test_capture_opt_in_uses_existing_root_wrapper_for_enrollment_and_tags_receipt(
+        self,
+    ):
+        for capture_native in (False, True):
+            with (
+                self.subTest(capture_native=capture_native),
+                tempfile.TemporaryDirectory(dir=Path.home()) as temporary,
+            ):
+                home = Path(temporary).resolve()
+                manifest = replace(
+                    self.nonlaunching_manifest(),
+                    delegate=Path("/owned/delegate"),
+                    capture_native=capture_native,
+                )
+                with mock.patch.object(
+                    peer.pwd, "getpwuid", return_value=SimpleNamespace(pw_dir=str(home))
+                ):
+                    owner = peer.Peer(manifest, peer.local.Interruptions())
+                try:
+                    self.assertIs(owner.args.capture_native, capture_native)
+                    with (
+                        mock.patch.object(
+                            peer.local.DelegateRoot,
+                            "start",
+                            autospec=True,
+                            side_effect=lambda root: setattr(
+                                root,
+                                "context",
+                                {
+                                    "root_token": "fixture-root",
+                                    "project_token": "fixture-project",
+                                },
+                            ),
+                        ),
+                        mock.patch.object(
+                            peer.local,
+                            "native_capture_launcher",
+                            wraps=peer.local.native_capture_launcher,
+                        ) as launcher,
+                    ):
+                        receipt = owner.initialize()
+                    root = owner.root
+                    if capture_native:
+                        self.assertEqual(
+                            receipt["native_control_variant"], "diagnostic_capture"
+                        )
+                        self.assertEqual(
+                            root.connector_executable, root.base / "delegate-capture"
+                        )
+                        self.assertTrue(root.connector_executable.is_file())
+                        self.assertEqual(
+                            root.connector_executable.stat().st_mode & 0o777, 0o700
+                        )
+                        launcher.assert_called_once_with(
+                            manifest.delegate,
+                            manifest.delegate_repository,
+                            root.native_captures,
+                        )
+                    else:
+                        self.assertNotIn("native_control_variant", receipt)
+                        self.assertEqual(root.connector_executable, manifest.delegate)
+                        launcher.assert_not_called()
+                    self.assertNotIn("native_captures", receipt)
+                    self.assertNotIn("capture_native", receipt)
+                    self.assertNotIn("delegate_executable", receipt)
+                    enrollment = {
+                        "device_id": manifest.device_id,
+                        "token": base64.urlsafe_b64encode(bytes(32))
+                        .decode()
+                        .rstrip("="),
+                        "expires_at": "2030-01-01T00:00:00Z",
+                    }
+                    with mock.patch.object(owner, "command") as command:
+                        self.assertEqual(owner.enroll(enrollment), {"enrolled": True})
+                    config = json.loads(owner.connector_config.read_text())
+                    self.assertEqual(
+                        config["delegate_executable"], str(root.connector_executable)
+                    )
+                    self.assertEqual(owner.args.delegate, manifest.delegate)
+                    self.assertEqual(command.call_args.args[0], manifest.gateway)
+                    self.assertEqual(
+                        owner.processes.entries,
+                        [],
+                        "no process or provider was started",
+                    )
+                finally:
+                    owner.fixture_observers.close()
+                    pending = owner.processes.drain(timeout=5)
+                    if pending:
+                        owner.ownership.release()
+                        raise RuntimeError(
+                            "closure unconfirmed; retained " + str(owner.base)
+                        )
+                    owner.ownership.rollback()
+
     def test_known_root_is_exclusive_and_collision_never_adopts_existing_files(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             home = Path(temporary).resolve()
@@ -642,7 +917,9 @@ class OwnedProcessTests(unittest.TestCase):
                 mock.patch.object(
                     peer.pwd, "getpwuid", return_value=SimpleNamespace(pw_dir=str(home))
                 ),
-                mock.patch.object(peer, "lines", return_value=iter([{}])),
+                mock.patch.object(
+                    peer, "lines", return_value=iter([{"request_id": 1, "payload": {}}])
+                ),
                 mock.patch.object(peer.Manifest, "parse", return_value=manifest),
                 mock.patch.object(peer.Peer, "initialize", return_value={}),
                 mock.patch.object(peer.signal, "signal"),
@@ -765,7 +1042,11 @@ class OwnedProcessTests(unittest.TestCase):
 
             try:
                 with (
-                    mock.patch.object(peer, "lines", return_value=iter([{}])),
+                    mock.patch.object(
+                        peer,
+                        "lines",
+                        return_value=iter([{"request_id": 1, "payload": {}}]),
+                    ),
                     mock.patch.object(peer.Manifest, "parse"),
                     mock.patch.object(peer.Peer, "__new__", return_value=owner),
                     mock.patch.object(peer.signal, "signal"),
@@ -845,7 +1126,11 @@ class OwnedProcessTests(unittest.TestCase):
                     time.sleep(0.01)
                 receipts = []
                 with (
-                    mock.patch.object(peer, "lines", return_value=iter([{}])),
+                    mock.patch.object(
+                        peer,
+                        "lines",
+                        return_value=iter([{"request_id": 1, "payload": {}}]),
+                    ),
                     mock.patch.object(peer.Manifest, "parse"),
                     mock.patch.object(peer.Peer, "__new__", return_value=owner),
                     mock.patch.object(peer.Peer, "__init__", return_value=None),
