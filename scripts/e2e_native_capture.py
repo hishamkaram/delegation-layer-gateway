@@ -276,14 +276,21 @@ def validate_acceptance_origin(repository):
             raise ValueError("foreign scripts namespace supplies acceptance")
 
 
+def prepare_acceptance_imports(repository):
+    """Keep one explicit source entry and validate before importing owners."""
+    source = str(repository)
+    if source not in sys.path:
+        sys.path.insert(0, source)
+    validate_acceptance_origin(repository)
+
+
 def load_owners(repository):
     if not repository.is_absolute():
         raise ValueError("absolute repository required")
     expected = repository / "scripts/acceptance/processes/operations.py"
     if not expected.is_file():
         raise ValueError("maintained process owner unavailable")
-    sys.path.insert(0, str(repository))
-    validate_acceptance_origin(repository)
+    prepare_acceptance_imports(repository)
     directories = importlib.import_module("scripts.acceptance.directories.operations")
     processes = importlib.import_module("scripts.acceptance.processes.operations")
     validate_acceptance_origin(repository)

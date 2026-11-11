@@ -68,6 +68,26 @@ class OwnerOriginTests(unittest.TestCase):
                 capture.load_owners(self.repository)
             importing.assert_not_called()
 
+    def test_repeated_owner_loads_preserve_one_explicit_source_entry(self):
+        source = str(self.repository)
+        owners = SimpleNamespace(DirectoryOwner=object(), Processes=object())
+        with (
+            mock.patch.object(capture.sys, "modules", {"sys": sys}),
+            mock.patch.object(capture.sys, "path", [source, str(self.base)]),
+            mock.patch.object(
+                capture.importlib.util,
+                "find_spec",
+                return_value=self.namespace([self.repository / "scripts"]),
+            ),
+            mock.patch.object(capture.importlib, "import_module", return_value=owners),
+        ):
+            before = list(capture.sys.path)
+            first = capture.load_owners(self.repository)
+            second = capture.load_owners(self.repository)
+            self.assertEqual(first, second)
+            self.assertEqual(capture.sys.path, before)
+            self.assertEqual(capture.sys.path.count(source), 1)
+
     def test_foreign_namespace_acceptance_is_rejected_before_any_import(self):
         foreign = self.base / "foreign/scripts"
         (foreign / "acceptance").mkdir(parents=True)

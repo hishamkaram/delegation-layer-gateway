@@ -161,10 +161,12 @@ def load_acceptance(repository):
         == AUDITED_PI_FIXTURE_SHA256,
         "provider fixture source changed; audit before updating source pin",
     )
-    sys.path.insert(0, str(repository))
-    from e2e_native_capture import validate_acceptance_origin
+    from e2e_native_capture import (
+        prepare_acceptance_imports,
+        validate_acceptance_origin,
+    )
 
-    validate_acceptance_origin(repository)
+    prepare_acceptance_imports(repository)
     names = {
         "directories": "scripts.acceptance.directories.operations",
         "processes": "scripts.acceptance.processes.operations",
