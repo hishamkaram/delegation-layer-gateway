@@ -162,6 +162,9 @@ def load_acceptance(repository):
         "provider fixture source changed; audit before updating source pin",
     )
     sys.path.insert(0, str(repository))
+    from e2e_native_capture import validate_acceptance_origin
+
+    validate_acceptance_origin(repository)
     names = {
         "directories": "scripts.acceptance.directories.operations",
         "processes": "scripts.acceptance.processes.operations",
@@ -169,9 +172,11 @@ def load_acceptance(repository):
         "supervisor": "scripts.acceptance.private_cli.supervisor",
         "leases": "scripts.acceptance.private_cli.leases",
     }
-    return SimpleNamespace(
+    result = SimpleNamespace(
         **{key: importlib.import_module(value) for key, value in names.items()}
     )
+    validate_acceptance_origin(repository)
+    return result
 
 
 def fixture_listen_ip(value):

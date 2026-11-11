@@ -3,6 +3,8 @@
 
 import argparse
 import importlib
+import importlib.machinery
+import importlib.util
 import json
 import math
 import os
@@ -220,6 +222,60 @@ def private_directory(path):
         raise ValueError("private directory required")
 
 
+def validate_acceptance_origin(repository):
+    """Bind shared owner classes to one checkout without replacing live modules.
+
+    Gateway and Native both use a top-level scripts namespace. Other namespace
+    portions are harmless only when they cannot supply scripts.acceptance.
+    """
+    if not repository.is_absolute():
+        raise ValueError("absolute repository required")
+    repository = repository.resolve(strict=True)
+    boundary = repository / "scripts/acceptance"
+    initializer = boundary / "__init__.py"
+    if not initializer.is_file() or not initializer.resolve().is_relative_to(boundary):
+        raise ValueError("maintained acceptance package unavailable")
+    for name, module in tuple(sys.modules.items()):
+        if name != "scripts.acceptance" and not name.startswith("scripts.acceptance."):
+            continue
+        source = getattr(module, "__file__", None)
+        if not source or not Path(source).resolve(strict=True).is_relative_to(boundary):
+            raise ValueError("foreign cached acceptance module")
+        for portion in getattr(module, "__path__", ()):
+            if not Path(portion).resolve(strict=True).is_relative_to(boundary):
+                raise ValueError("foreign acceptance search path")
+    spec = importlib.util.find_spec("scripts")
+    if spec is None or spec.submodule_search_locations is None:
+        raise ValueError("maintained scripts namespace unavailable")
+    if spec.origin is not None and not Path(spec.origin).resolve(
+        strict=True
+    ).is_relative_to(repository / "scripts"):
+        raise ValueError("foreign scripts package shadows acceptance")
+    paths = list(spec.submodule_search_locations)
+    cached = sys.modules.get("scripts")
+    if cached is not None:
+        source = getattr(cached, "__file__", None)
+        if source is not None and not Path(source).resolve(strict=True).is_relative_to(
+            repository / "scripts"
+        ):
+            raise ValueError("foreign cached scripts package shadows acceptance")
+        actual_paths = getattr(cached, "__path__", None)
+        if actual_paths is None:
+            raise ValueError("cached scripts package has no search path")
+        # Imports use the live parent's __path__, which need not match its spec.
+        paths.extend(actual_paths)
+    for portion in paths:
+        path = Path(portion).resolve(strict=True)
+        if path == repository / "scripts":
+            continue
+        candidate = path / "acceptance"
+        # Only probe the filesystem provider. An unqualified name also handles
+        # namespace packages before the top-level scripts module is imported.
+        provider = importlib.machinery.PathFinder.find_spec("acceptance", [str(path)])
+        if provider is not None or candidate.is_symlink():
+            raise ValueError("foreign scripts namespace supplies acceptance")
+
+
 def load_owners(repository):
     if not repository.is_absolute():
         raise ValueError("absolute repository required")
@@ -227,8 +283,10 @@ def load_owners(repository):
     if not expected.is_file():
         raise ValueError("maintained process owner unavailable")
     sys.path.insert(0, str(repository))
+    validate_acceptance_origin(repository)
     directories = importlib.import_module("scripts.acceptance.directories.operations")
     processes = importlib.import_module("scripts.acceptance.processes.operations")
+    validate_acceptance_origin(repository)
     return directories.DirectoryOwner, processes.Processes
 
 
