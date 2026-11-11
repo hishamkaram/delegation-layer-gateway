@@ -44,10 +44,14 @@ trust. Omitting `device_ca_file` preserves existing configurations that use the
 same authority for both roles. Enrollment, stored credentials, renewal and
 reconnect use the device authority for client-certificate validation.
 
-Device IDs are stable opaque identities; names may collide. Online presence does
-not establish Delegate compatibility or provider authentication. Every operation
-requires current grants and the connector's local ceiling. Explicit device and
-project selection never silently falls back.
+Device IDs are stable opaque identities; names may collide. Online presence
+requires the completed authenticated wire handshake, including routing and
+capability exchange, and a session that is not closing. Transport's existing
+handshake-completion signal is authoritative; registering a candidate session
+alone does not make it online. Online still does not establish Delegate
+compatibility or provider authentication. Every operation requires current grants
+and the connector's local ceiling. Explicit device and project selection never
+silently falls back.
 
 ## Admission and recovery
 
@@ -101,6 +105,17 @@ results are not persisted by Gateway. Operators must protect storage/backups.
 Audit uses an explicit metadata allowlist, not redaction of arbitrary native
 output. No external telemetry is required. The local admin socket is not a
 public administration API.
+
+The `device_credential_denied` audit event records a fresh registration whose
+verified client-certificate identity Registry rejected with a sole policy
+denial. Its `credential` object contains only `device_id`, `epoch` and
+`generation`, copied from public certificate identity metadata. It includes no
+certificate bytes, keys, tokens or native error. Existing-session checks,
+duplicate connections and wrapped storage failures do not produce this event.
+Metrics count the fixed event code without identity labels. Recorder failures
+remain sticky on protected admin health and do not change authentication.
+This event establishes Registry rejection of that identity, not a unique
+certificate fingerprint or an exclusive reason for rejection.
 
 This is a single-instance MVP with SQLite, no broker, no offline paid-work queue,
 no arbitrary remote shell/filesystem tools and no duplicate execution engine.

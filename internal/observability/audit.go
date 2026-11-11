@@ -30,6 +30,7 @@ type Code string
 
 const (
 	AuthenticationDenied       Code = "authentication_denied"
+	DeviceCredentialDenied     Code = "device_credential_denied"
 	EnrollmentIssued           Code = "enrollment_issued"
 	DeviceConnected            Code = "device_connected"
 	DeviceDisconnected         Code = "device_disconnected"
@@ -65,13 +66,22 @@ func (c Code) valid() bool {
 	return false
 }
 
-// Event has only optional opaque handles. Code is a closed enum; no free-text
-// message or map can accidentally carry a prompt, payload or native diagnostic.
+// CredentialIdentity is public certificate identity metadata. Its audit-only
+// encoding is independent of the registry's persisted domain representation.
+type CredentialIdentity struct {
+	DeviceID   domain.DeviceID        `json:"device_id"`
+	Epoch      domain.CredentialEpoch `json:"epoch"`
+	Generation uint64                 `json:"generation"`
+}
+
+// Event contains only bounded identity metadata. Code is a closed enum; no
+// free-text message or map can carry a prompt, payload or native diagnostic.
 type Event struct {
-	Code      Code               `json:"code"`
-	Principal domain.PrincipalID `json:"principal,omitempty"`
-	Device    domain.DeviceID    `json:"device,omitempty"`
-	Operation domain.OperationID `json:"operation,omitempty"`
+	Code       Code               `json:"code"`
+	Credential CredentialIdentity `json:"credential,omitzero"`
+	Principal  domain.PrincipalID `json:"principal,omitempty"`
+	Device     domain.DeviceID    `json:"device,omitempty"`
+	Operation  domain.OperationID `json:"operation,omitempty"`
 }
 type record struct {
 	At time.Time `json:"at"`
@@ -87,7 +97,11 @@ func (e Event) validate() bool {
 			return false
 		}
 	}
-	return true
+	if e.Code == DeviceCredentialDenied {
+		ref := domain.CredentialRef{Device: e.Credential.DeviceID, Epoch: e.Credential.Epoch, Generation: e.Credential.Generation}
+		return ref.Validate() == nil && ref.Device == e.Device && e.Principal == "" && e.Operation == ""
+	}
+	return e.Credential == (CredentialIdentity{})
 }
 
 // Audit owns its private directory lease and serializes append/rotation. Record

@@ -223,7 +223,7 @@ func (r *Runtime) openBackend(cfg config.Gateway, bundle tlsconfig.Bundle, autho
 	if err != nil {
 		return failed(err)
 	}
-	hub, err := transport.NewHub(r.lifetime, transport.Config{Routing: store, GatewayID: r.gatewayID, BootEpoch: domain.BootEpoch(boot)}, store, r.now)
+	hub, err := transport.NewHub(r.lifetime, transport.Config{Routing: store, GatewayID: r.gatewayID, BootEpoch: domain.BootEpoch(boot), CredentialDenied: r.recordCredentialDenied}, store, r.now)
 	if err != nil {
 		return failed(err)
 	}
@@ -267,4 +267,14 @@ func (r *Runtime) bindAdmin(cfg config.Gateway, authority *adminapi.Authorizer) 
 	}
 	r.addresses.Admin = filepath.Join(parent, filepath.Base(cfg.AdminSocket))
 	return nil
+}
+
+// recordCredentialDenied projects transport metadata without changing registry
+// authority or the denied connection outcome. Recorder owns sink-failure health.
+func (r *Runtime) recordCredentialDenied(ref domain.CredentialRef) {
+	r.recorder.Record(observability.Event{
+		Code:       observability.DeviceCredentialDenied,
+		Device:     ref.Device,
+		Credential: observability.CredentialIdentity{DeviceID: ref.Device, Epoch: ref.Epoch, Generation: ref.Generation},
+	})
 }

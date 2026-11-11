@@ -8,10 +8,10 @@ import (
 
 // Fixed event names are the complete metric label vocabulary. Opaque IDs, URLs,
 // projects and provider names are deliberately absent from metric dimensions.
-const metricCodeCount = 25
+const metricCodeCount = 26
 
 func metricCodes() [metricCodeCount]Code {
-	return [metricCodeCount]Code{AuthenticationDenied, EnrollmentIssued, DeviceConnected, DeviceDisconnected, CredentialRevoked, OperationPrepared, ControlSent, ControlCompleted, ControlUnknown, AuthorizationDenied, ResourceDenied, RecoveryBlocked, ShutdownStarted, MCPRequestStarted, MCPRequestCompleted, MCPToolResponseReady, MCPToolErrorReady, EnrollmentRequestStarted, EnrollmentRequestCompleted, MetadataRequestStarted, MetadataRequestCompleted, DeviceRequestStarted, DeviceRequestCompleted, RenewalIssued, RenewalUnavailable}
+	return [metricCodeCount]Code{AuthenticationDenied, DeviceCredentialDenied, EnrollmentIssued, DeviceConnected, DeviceDisconnected, CredentialRevoked, OperationPrepared, ControlSent, ControlCompleted, ControlUnknown, AuthorizationDenied, ResourceDenied, RecoveryBlocked, ShutdownStarted, MCPRequestStarted, MCPRequestCompleted, MCPToolResponseReady, MCPToolErrorReady, EnrollmentRequestStarted, EnrollmentRequestCompleted, MetadataRequestStarted, MetadataRequestCompleted, DeviceRequestStarted, DeviceRequestCompleted, RenewalIssued, RenewalUnavailable}
 }
 
 type Metrics struct {

@@ -87,10 +87,13 @@ func settings(s Settings) (Settings, error) {
 
 type (
 	Config struct {
-		Routing   RoutingAuthority
-		GatewayID domain.GatewayID
-		BootEpoch domain.BootEpoch
-		Settings  Settings
+		// CredentialDenied observes only a verified new registration rejected by
+		// the registry with a sole policy denial. It never changes authorization.
+		CredentialDenied func(domain.CredentialRef)
+		Routing          RoutingAuthority
+		GatewayID        domain.GatewayID
+		BootEpoch        domain.BootEpoch
+		Settings         Settings
 	}
 	ClientConfig struct {
 		Routing      ConnectorRouting

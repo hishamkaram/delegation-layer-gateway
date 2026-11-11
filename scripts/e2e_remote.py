@@ -28,6 +28,7 @@ import time
 from types import SimpleNamespace
 import uuid
 
+import e2e_audit as audit
 import e2e_local as local
 import e2e_recovery as recovery
 import e2e_remote_bootstrap as bootstrap
@@ -781,7 +782,7 @@ def fixture_scenarios(h, roots):
         root.operate("release_fixture")
     h.check_canaries()
     # Device revocation occurs only after all four public operations closed.
-    h.admin("revoke-device", {"device_id": roots[0].device, "revoked": True})
+    h.observe_revoked_registration(roots[0])
     check_revoked_visibility(h, roots[0], roots[1])
     h.restart_gateway()
     h.until(
@@ -792,8 +793,9 @@ def fixture_scenarios(h, roots):
     check_revoked_visibility(h, roots[0], roots[1])
     h.summary["fixture_tasks_executed"] = 4
     h.summary["revocation_acceptance"] = "public_authorization_and_inventory_visibility"
-    # Public visibility does not observe a revoked certificate handshake attempt.
-    h.summary["revoked_certificate_reconnect_denial"] = "unverified"
+    h.summary["revoked_certificate_reconnect_denial"] = (
+        "fresh_verified_registration_registry_denial_after_explicit_revoke"
+    )
     h.summary["stages"].append(
         "two_mac_four_fixture_attempts_restart_cancel_authorization_visibility"
     )
@@ -839,6 +841,50 @@ class RemoteHarness(local.Harness):
     def mcp(self, tool, arguments, failure=False):
         with self._serviced():
             return super().mcp(tool, arguments, failure)
+
+    def observe_revoked_registration(self, root):
+        # This fixture owns the fresh private registry/admin writer. The only
+        # administrative mutation after the frozen reference is this revocation;
+        # reconnect and same-reference renewal remain connector-owned behavior.
+        with self._serviced():
+            audit.read_health(self.admin_socket)
+            target = self.admin("routing-drain-target", {"device_id": root.device})
+            require(
+                target.get("device_id") == root.device, "audit target device changed"
+            )
+            credential = audit.credential_identity(
+                target.get("credential"), root.device
+            )
+            cursor = audit.AuditCursor.capture(self.base / "audit")
+            durable_record(
+                self.base / "revoked-registration-cursor.json",
+                {
+                    "schema_version": 1,
+                    "credential": dict(
+                        zip(
+                            ("device_id", "epoch", "generation"),
+                            credential,
+                            strict=True,
+                        )
+                    ),
+                    "cursor": cursor.receipt(),
+                },
+            )
+            self.admin("revoke-device", {"device_id": root.device, "revoked": True})
+            match = self.until(
+                lambda: cursor.find_denial(credential),
+                15,
+                "fresh verified registration rejected after device revocation",
+            )
+            audit.read_health(self.admin_socket)
+            durable_record(
+                self.base / "revoked-registration-denial.json",
+                {
+                    "schema_version": 1,
+                    "cursor": "revoked-registration-cursor.json",
+                    "match": match,
+                },
+            )
 
     def mcp_pair(self, requests):
         """Start two fixed helpers before Wait; Native retains every child owner."""

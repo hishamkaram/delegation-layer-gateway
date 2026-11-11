@@ -955,6 +955,12 @@ class ScenarioHarness:
     def check_canaries(self):
         self.ledger.append(("canaries", "checked"))
 
+    def observe_revoked_registration(self, root):
+        # Scenario scheduling double; real audit/socket readers are tested in
+        # test_e2e_audit, and RemoteHarness wiring is checked separately.
+        self.admin("revoke-device", {"device_id": root.device, "revoked": True})
+        self.ledger.append(("registration_denial", "observed"))
+
     def admin(self, action, value):
         if action != "revoke-device" or value != {
             "device_id": "device-a",
@@ -1181,7 +1187,8 @@ class ScenarioTests(unittest.TestCase):
             "public_authorization_and_inventory_visibility",
         )
         self.assertEqual(
-            h.summary["revoked_certificate_reconnect_denial"], "unverified"
+            h.summary["revoked_certificate_reconnect_denial"],
+            "fresh_verified_registration_registry_denial_after_explicit_revoke",
         )
         self.assertEqual(h.summary["fixture_tasks_executed"], 4)
         self.assertEqual(
@@ -1534,6 +1541,82 @@ class PumpTests(unittest.TestCase):
                         else:
                             self.assertEqual(getattr(harness, method)(*args), "result")
                     self.assertEqual(events, ["pump", "control", "pump"])
+
+    def test_revocation_observation_freezes_identity_before_cursor_and_requires_health(
+        self,
+    ):
+        for failed_health in (None, 0, 1):
+            with self.subTest(failed_health=failed_health):
+                events = []
+                harness = self.harness(lambda: None)
+                harness.base = Path("/fixture")
+                harness.admin_socket = Path("/fixture/admin.sock")
+                root = SimpleNamespace(device="device-a")
+                ref = {
+                    "device_id": "device-a",
+                    "epoch": "epoch-before",
+                    "generation": 7,
+                }
+                checks = [0]
+
+                def health(_socket):
+                    call = checks[0]
+                    checks[0] += 1
+                    events.append("health")
+                    if call == failed_health:
+                        raise local.ProofFailure("sticky audit failure")
+
+                def admin(action, value):
+                    events.append(action)
+                    self.assertEqual(value["device_id"], "device-a")
+                    if action == "routing-drain-target":
+                        return {"device_id": "device-a", "credential": ref}
+                    self.assertEqual(action, "revoke-device")
+                    self.assertIs(value["revoked"], True)
+                    ref["generation"] = 8
+                    return {}
+
+                def contains(credential):
+                    events.append("denial")
+                    self.assertEqual(credential, ("device-a", "epoch-before", 7))
+                    return True
+
+                def capture(directory):
+                    events.append("cursor")
+                    self.assertEqual(directory, Path("/fixture/audit"))
+                    return SimpleNamespace(
+                        find_denial=contains, receipt=lambda: {"positions": []}
+                    )
+
+                with (
+                    patch.object(remote.audit, "read_health", side_effect=health),
+                    patch.object(
+                        remote.audit.AuditCursor, "capture", side_effect=capture
+                    ),
+                    patch.object(harness, "admin", side_effect=admin),
+                    patch.object(
+                        remote,
+                        "durable_record",
+                        side_effect=lambda path, value: events.append(path.name),
+                    ),
+                ):
+                    if failed_health is None:
+                        harness.observe_revoked_registration(root)
+                    else:
+                        with self.assertRaisesRegex(local.ProofFailure, "sticky"):
+                            harness.observe_revoked_registration(root)
+                expected = [
+                    "health",
+                    "routing-drain-target",
+                    "cursor",
+                    "revoked-registration-cursor.json",
+                    "revoke-device",
+                    "denial",
+                    "health",
+                ]
+                if failed_health is None:
+                    expected.append("revoked-registration-denial.json")
+                self.assertEqual(events, expected if failed_health != 0 else ["health"])
 
     def test_until_services_every_check_without_changing_original_timeout(self):
         events = []

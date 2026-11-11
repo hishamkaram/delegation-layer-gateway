@@ -118,6 +118,14 @@ func (h *Hub) register(ctx context.Context, r *http.Request) (*session, error) {
 	}
 	credential, err := h.store.CheckCredential(ctx, ref, h.now())
 	if err != nil {
+		// Wrapped or joined errors can include storage/cleanup failures, so
+		// only a sole registry policy denial is a credential observation.
+		switch denied := err.(type) { //nolint:errorlint // Unwrapping would misclassify joined storage failures as sole policy denials.
+		case *domain.Error:
+			if denied != nil && denied.Code == domain.Forbidden && h.config.CredentialDenied != nil {
+				h.config.CredentialDenied(ref)
+			}
+		}
 		return nil, fail(ErrForbidden, err)
 	}
 	return h.add(certificate, ref, credential)
