@@ -1,8 +1,11 @@
 # Verification and delivery gates
 
-The final configured `make check` passed in **439.666 seconds** on unchanged
-inputs using Go 1.27.4, `GOTOOLCHAIN=local`, `GOMAXPROCS=2`, `GOFLAGS=-p=2`
-and the pinned Native acceptance checkout. Its command was:
+The configured Linux `make check` passed in **439.666 seconds** before the
+first PR CI run, with unchanged recorded inputs during that invocation.
+Subsequent documentation/harness checks passed in **2.004 seconds** before
+candidate `352d156` was published. The compiler was Go 1.27.4 with
+`GOTOOLCHAIN=local`, `GOMAXPROCS=2`, `GOFLAGS=-p=2` and the pinned Native
+acceptance checkout. The full-gate command was:
 
 ```sh
 DELEGATE_ACCEPTANCE_REPOSITORY="$PWD/.ci-native" GOFLAGS=-p=2 make check
@@ -13,6 +16,25 @@ fixtures, six diagram bindings, formatting, both Go vet/lint scopes, the full
 Go race suite, tagged MCP helper race tests, build and tagged vulnerability
 analysis. Both Go lint scopes reported zero issues. The compiler was selected
 explicitly on `PATH` with matching `GOROOT`; an ambient compiler is not proof.
+
+The first [Gateway PR CI run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43045202667)
+passed its harness and Linux runtime jobs, but failed the macOS harness self-test
+before runtime checks. Temporary paths used lexical `/var/...` while resolved
+references used physical `/private/var/...`; valid links were falsely rejected.
+The correction canonicalizes repository and temporary fixture roots and retains
+physical source/destination containment. Four added tests reproduce the alias
+case and reject external sources and targets. All eight original negative
+fixtures remain. After that change, the invalidated Python/docs scope
+`make test-tooling lint-python verify-harness check-docs` passed in **79.887
+seconds**, including **342 tests without skips** in 70.709 seconds. Go, module,
+compiler, build and runtime fixture inputs were unchanged and their prior results
+are retained. A subsequent explicit canonical-root precondition adds one focused
+regression; all five harness tests passed in 1.211 seconds, with the eight
+negative fixtures and docs/binding checks still passing. That fifth test was not
+part of the earlier 342-test invocation. The corrected native macOS result is a
+separate CI gate; see the
+[PR checks](https://github.com/hishamkaram/delegation-layer-gateway/pull/2/checks).
+The earlier Linux gate alone does not establish that portability correction.
 
 The preceding final invocation failed in **56.921 seconds** on unchanged inputs:
 one of 335 tests incorrectly assumed a timeout-test helper would remain alive
@@ -81,6 +103,12 @@ existing validation classification; the canonical and plugin guides document
 that this does not imply malformed contents. The conservative summary-write gap
 after lease release is documented and cannot establish missing closure proof.
 
+The macOS root correction and explicit helper precondition subsequently received
+exact-session correction reviews from Sol `f901200ba2ad5a4244edad7d14c13a54` and
+Opus `c29c6157c960050d00b2bae5c683bc4e`. Both closed the precondition finding and
+reported no current actionable P0/P1/P2 in that inspected correction. The
+independent containment review also accepted the root/destination safeguards.
+
 These are scoped source-review conclusions. Reviewers did not run the final
 aggregate, inspect every descendant receipt or establish external acceptance.
 Their verdicts do not imply zero defects. Root separately verified the actual
@@ -127,10 +155,18 @@ The Native core candidate used by these fixtures is committed at
 `62b11d347dbd7d524f5f5322f3c9c85ecdb3a7a9`. A later independent CLI input-error
 repair is committed at `ad2555987a49a1f5e5dcb58d9392c5aed251d322` in the same
 dedicated worktree and PR. Its focused lifecycle/public-App regressions, lifecycle
-race package and final documentation checks passed; its full app-package race
-run and new-head CI remain pending. The installed CLI was not replaced. Independent Sol and Opus 5.5 reviews
-accepted the bounded core corrections after source-backed challenges. The committed remote-harness corrections also received scoped independent
-reviews; the normal physical-device execution path subsequently passed its
+race package and final documentation checks passed. Its full local app-package
+race run failed the 30-minute aggregate watchdog at **1800.137 seconds**. The
+last active test had run 45 seconds and its subtest eight seconds; the nonverbose
+output does not identify all earlier serial costs or prove a deadlock in that
+last test. Fatal timeout bypassed fixture cleanup, so descendant/resource closure
+is unverified. No uncertain resource was removed or signaled, and the unchanged
+suite was not retried. Separate exact-commit CI is recorded on the
+[Native PR checks](https://github.com/hishamkaram/delegation-layer/pull/179/checks);
+its result cannot erase the local failure or cleanup uncertainty. The installed
+CLI was not replaced. Independent Sol and Opus 5.5 reviews accepted the bounded
+core corrections after source-backed challenges. The committed remote-harness
+corrections also received scoped independent reviews; the normal physical-device execution path subsequently passed its
 bounded fixture flow. No installed-provider or release verdict is implied.
 The separate [Native prerequisite PR](https://github.com/hishamkaram/delegation-layer/pull/179) is open. Native CI passed and is recorded in
 [PR run 42998412645](https://github.com/hishamkaram/delegation-layer/actions/runs/42998412645),
@@ -142,7 +178,7 @@ manual run omitted distribution jobs and is separate evidence.
 | ID | Work | State |
 | --- | --- | --- |
 | M0 | Gateway engineering harness, contracts, architecture and instructions | Implemented; structural/workflow checks and source-backed review passed |
-| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; core Linux/macOS CI passed; latest caller-brief correction CI pending |
+| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; core Linux/macOS CI passed; later correction reviewed; local App timeout and cleanup gap retained; latest CI on PR checks |
 | M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; local/two-Mac fixtures and configured checks passed; public Auth0 proof open |
 | M3 | WSS connector, local ceilings and Delegate adapter | Local and two-Mac fixture flows passed; installed-provider accounts remain open |
 | M4 | MCP orchestration and recovery across real processes | Local recovery and physical restart/reconnect/dedupe/cancel/revocation passed; external proof open |

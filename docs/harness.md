@@ -58,6 +58,12 @@ local Markdown references/anchors. `--docs` extends reference checks to maintain
 repository Markdown. Metadata uses flat unquoted YAML fields; TOML uses stdlib
 `tomllib`. Extend the parser deliberately if introducing richer metadata.
 
+Containment uses one canonical physical repository root, including when the
+repository or temporary parent is reached through a symlink. Local source and
+destination paths must remain inside that root. Alias-path regressions protect
+macOS temporary-directory behavior while external file/symlink negatives keep
+the containment boundary intact.
+
 Eight isolated rejection fixtures exercise legacy registrations, missing role dependencies, Codex
 ineffective permission overrides, Claude write-tool exposure, undiscoverable skills,
 missing files, broken anchors and invalid metadata. A valid copied harness passes

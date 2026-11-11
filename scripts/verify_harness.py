@@ -72,8 +72,14 @@ def headings(path: Path) -> set[str]:
 
 
 def references(root: Path, paths: list[Path]) -> list[str]:
+    """Validate local links against the entry point's canonical repository root."""
+    if root != root.resolve():
+        raise ValueError("canonical repository root required")
     errors: list[str] = []
     for path in paths:
+        if not path.is_relative_to(root) or not path.resolve().is_relative_to(root):
+            errors.append(f"reference source escapes repository: {path.name}")
+            continue
         for target in LINK.findall(markdown_body(path.read_text())):
             parsed = urlsplit(target.strip("<>"))
             if parsed.scheme or parsed.netloc:
@@ -140,6 +146,7 @@ def required_file(root: Path, relative: str, errors: list[str]) -> Path | None:
 
 
 def validate(root: Path, docs: bool = False) -> list[str]:
+    root = root.resolve()
     errors: list[str] = []
     rules = required_file(root, "AGENTS.md", errors)
     claude = required_file(root, "CLAUDE.md", errors)
@@ -240,9 +247,10 @@ def validate(root: Path, docs: bool = False) -> list[str]:
 
 def self_test(root: Path) -> list[str]:
     """Challenge real validator boundaries in an isolated repository copy."""
+    root = root.resolve()
     errors: list[str] = []
     with tempfile.TemporaryDirectory(prefix="gateway-harness-") as directory:
-        fixture = Path(directory)
+        fixture = Path(directory).resolve()
         # Copy metadata only; referenced non-Markdown dependencies need existence, not content.
         for directory, children, filenames in os.walk(root):
             children[:] = [name for name in children if name not in EXCLUDED_TREES]
