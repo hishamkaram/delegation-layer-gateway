@@ -2,27 +2,32 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "TARGET DESIGN \u2014 Admission, fence, restore and revocation (not implemented)",
+    "title": "IMPLEMENTATION CANDIDATE — Admission and recovery gates",
     "output": "diagrams/operation-safety.html",
     "locale": "en",
-    "quality_profile": "showcase"
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
+      "revision": "96af53f7ca399d036c5b14461bd88d6ede5510c6",
+      "link_mode": "local-only"
+    }
   },
   "lanes": [
     {
       "id": "admission",
-      "label": "Admission \u2014 one immutable operation/task identity"
+      "label": "Admission — current rights, one immutable task identity"
     },
     {
       "id": "fence",
-      "label": "Uncertainty \u2014 explicit current authorization"
+      "label": "Uncertainty — no timeout inference or fresh identity"
     },
     {
       "id": "restore",
-      "label": "Supported restore \u2014 local admin only"
+      "label": "Restore — explicit local admin, barrier before inventory"
     },
     {
-      "id": "revoke",
-      "label": "Revocation \u2014 block sends, preserve uncertainty"
+      "id": "routing",
+      "label": "CLI routing ownership — independent of task execution closure"
     }
   ],
   "nodes": [
@@ -32,7 +37,14 @@
       "col": 0,
       "type": "backend",
       "label": "Prepare draft",
-      "sublabel": "Freeze target + task ID"
+      "sublabel": "Freeze identity; starts nothing",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 69,
+          "end_line": 109
+        }
+      ]
     },
     {
       "id": "confirm",
@@ -40,39 +52,99 @@
       "col": 1,
       "type": "security",
       "label": "Confirm + recheck",
-      "sublabel": "Auth, grants, size, ready"
+      "sublabel": "Current grants + live readiness",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 116,
+          "end_line": 146
+        },
+        {
+          "path": "internal/registry/authorization.go",
+          "line": 217,
+          "end_line": 250
+        }
+      ]
     },
     {
       "id": "reserve",
       "lane": "admission",
       "col": 2,
       "type": "database",
-      "label": "Possible-send commit",
-      "sublabel": "Durably reserve quota"
+      "label": "Atomic possible-send",
+      "sublabel": "Execution + routing permits",
+      "sources": [
+        {
+          "path": "internal/registry/operations.go",
+          "line": 301,
+          "end_line": 367
+        },
+        {
+          "path": "internal/registry/routing_admission.go",
+          "line": 12,
+          "end_line": 35
+        }
+      ]
     },
     {
       "id": "send",
       "lane": "admission",
       "col": 3,
       "type": "messagebus",
-      "label": "Typed WSS send",
-      "sublabel": "Current generation + TTL"
+      "label": "Guarded WSS write",
+      "sublabel": "Auth / credential / generation",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 147,
+          "end_line": 164
+        },
+        {
+          "path": "internal/registry/admission.go",
+          "line": 117,
+          "end_line": 164
+        }
+      ]
     },
     {
       "id": "create",
       "lane": "admission",
       "col": 4,
-      "type": "security",
-      "label": "Delegate create gate",
-      "sublabel": "Guards + generation + lease"
+      "type": "external",
+      "label": "Native CLI prerequisite",
+      "sublabel": "Local ceiling + frozen guards",
+      "sources": [
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 83,
+          "end_line": 136
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 219,
+          "end_line": 290
+        }
+      ]
     },
     {
       "id": "observe",
       "lane": "admission",
       "col": 5,
       "type": "database",
-      "label": "Canonical task / refusal",
-      "sublabel": "Same-ID observation"
+      "label": "Validate dated evidence",
+      "sublabel": "Canonical closure ≠ result",
+      "sources": [
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 16,
+          "end_line": 92
+        },
+        {
+          "path": "internal/registry/operations.go",
+          "line": 418,
+          "end_line": 482
+        }
+      ]
     },
     {
       "id": "unknown",
@@ -80,7 +152,14 @@
       "col": 0,
       "type": "messagebus",
       "label": "Lost ACK / timeout",
-      "sublabel": "Keep binding + quota"
+      "sublabel": "Retain execution reservation",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 159,
+          "end_line": 170
+        }
+      ]
     },
     {
       "id": "resolve",
@@ -88,31 +167,74 @@
       "col": 1,
       "type": "backend",
       "label": "Passive resolve",
-      "sublabel": "Never starts or fences"
+      "sublabel": "Frozen binding; no launch",
+      "sources": [
+        {
+          "path": "internal/gateway/control.go",
+          "line": 23,
+          "end_line": 47
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 253,
+          "end_line": 258
+        }
+      ]
     },
     {
       "id": "choice",
       "lane": "fence",
       "col": 2,
       "type": "security",
-      "label": "Explicit recovery",
-      "sublabel": "Current dispatch/cancel right"
+      "label": "Explicit authorized action",
+      "sublabel": "Existing resume or cancellation",
+      "sources": [
+        {
+          "path": "internal/gateway/control.go",
+          "line": 50,
+          "end_line": 120
+        }
+      ]
     },
     {
       "id": "fenceid",
       "lane": "fence",
       "col": 3,
-      "type": "security",
-      "label": "Absent-ID fence",
-      "sublabel": "Maintenance + namespace"
+      "type": "external",
+      "label": "Native absent fence",
+      "sublabel": "Original ID; required contract",
+      "sources": [
+        {
+          "path": "internal/connector/fence.go",
+          "line": 9,
+          "end_line": 41
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 219,
+          "end_line": 241
+        }
+      ]
     },
     {
       "id": "refusal",
       "lane": "fence",
       "col": 4,
       "type": "database",
-      "label": "Permanent refusal",
-      "sublabel": "Durable fsync + readback"
+      "label": "Validate permanent refusal",
+      "sublabel": "Release reserved execution",
+      "sources": [
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 40,
+          "end_line": 53
+        },
+        {
+          "path": "internal/registry/operations.go",
+          "line": 457,
+          "end_line": 482
+        }
+      ]
     },
     {
       "id": "existing",
@@ -120,31 +242,69 @@
       "col": 5,
       "type": "backend",
       "label": "Existing / unresolved",
-      "sublabel": "Resume existing or cancel"
+      "sublabel": "Cancel known task or retain",
+      "sources": [
+        {
+          "path": "internal/gateway/control.go",
+          "line": 110,
+          "end_line": 140
+        }
+      ]
     },
     {
       "id": "restore",
       "lane": "restore",
       "col": 0,
       "type": "security",
-      "label": "Recovery-only mode",
-      "sublabel": "Reset credentials + grants"
+      "label": "Begin supported restore",
+      "sublabel": "New epoch; grants cleared",
+      "sources": [
+        {
+          "path": "internal/registry/recovery.go",
+          "line": 52,
+          "end_line": 87
+        }
+      ]
     },
     {
       "id": "roster",
       "lane": "restore",
       "col": 1,
       "type": "security",
-      "label": "Complete prior roster",
-      "sublabel": "Hold all quota capacity"
+      "label": "Complete fleet coverage",
+      "sublabel": "Census + explicit join proofs",
+      "sources": [
+        {
+          "path": "internal/registry/routing_recovery.go",
+          "line": 66,
+          "end_line": 87
+        },
+        {
+          "path": "internal/registry/routing.go",
+          "line": 222,
+          "end_line": 231
+        },
+        {
+          "path": "internal/registry/routing_drain.go",
+          "line": 49,
+          "end_line": 84
+        }
+      ]
     },
     {
       "id": "barrier",
       "lane": "restore",
       "col": 2,
       "type": "security",
-      "label": "Barrier every root",
-      "sublabel": "EXCLUSIVE; fresh generation"
+      "label": "Durable root barrier",
+      "sublabel": "Freeze expected + new generation",
+      "sources": [
+        {
+          "path": "internal/recovery/service.go",
+          "line": 71,
+          "end_line": 103
+        }
+      ]
     },
     {
       "id": "inventory",
@@ -152,63 +312,164 @@
       "col": 3,
       "type": "database",
       "label": "Canonical inventory",
-      "sublabel": "All barriers must be durable"
+      "sublabel": "Exact per-entry receipt + options",
+      "sources": [
+        {
+          "path": "internal/recovery/service.go",
+          "line": 146,
+          "end_line": 177
+        },
+        {
+          "path": "internal/connector/inventory.go",
+          "line": 9,
+          "end_line": 46
+        },
+        {
+          "path": "internal/registry/import_inventory.go",
+          "line": 90,
+          "end_line": 155
+        }
+      ]
     },
     {
       "id": "reconcile",
       "lane": "restore",
       "col": 4,
       "type": "backend",
-      "label": "Reconstruct / drain",
-      "sublabel": "Complete proof on all roots"
+      "label": "Map / drain; approve",
+      "sublabel": "Complete coverage + regular cert",
+      "sources": [
+        {
+          "path": "internal/registry/recovery.go",
+          "line": 695,
+          "end_line": 721
+        },
+        {
+          "path": "internal/registry/recovery_progress.go",
+          "line": 165,
+          "end_line": 187
+        }
+      ]
     },
     {
       "id": "reopen",
       "lane": "restore",
       "col": 5,
       "type": "security",
-      "label": "Explicit admin reopen",
-      "sublabel": "Recheck proof EXCLUSIVE"
+      "label": "Explicit reopen + finish",
+      "sublabel": "Revision + root proof rechecked",
+      "sources": [
+        {
+          "path": "internal/recovery/service.go",
+          "line": 106,
+          "end_line": 135
+        },
+        {
+          "path": "internal/registry/recovery.go",
+          "line": 507,
+          "end_line": 551
+        }
+      ]
     },
     {
-      "id": "revocation",
-      "lane": "revoke",
+      "id": "census",
+      "lane": "routing",
       "col": 0,
       "type": "security",
-      "label": "Grant/device revoked",
-      "sublabel": "Deny new sends/responses"
+      "label": "Fence prior intake",
+      "sublabel": "Complete census + matching ACK",
+      "sources": [
+        {
+          "path": "internal/connector/service_routing.go",
+          "line": 141,
+          "end_line": 199
+        },
+        {
+          "path": "internal/registry/routing_reconcile.go",
+          "line": 65,
+          "end_line": 89
+        }
+      ]
     },
     {
-      "id": "close",
-      "lane": "revoke",
+      "id": "permit",
+      "lane": "routing",
       "col": 1,
-      "type": "messagebus",
-      "label": "Close + drop unsent",
-      "sublabel": "No admission replay"
+      "type": "database",
+      "label": "Acquire durable permit",
+      "sublabel": "Full fleet ready; bounded scans",
+      "sources": [
+        {
+          "path": "internal/registry/routing.go",
+          "line": 155,
+          "end_line": 231
+        }
+      ]
     },
     {
-      "id": "inflight",
-      "lane": "revoke",
+      "id": "wait",
+      "lane": "routing",
       "col": 2,
       "type": "backend",
-      "label": "Already transmitted",
-      "sublabel": "May still complete"
+      "label": "Actual CLI Wait",
+      "sublabel": "Network expiry cannot kill/join",
+      "sources": [
+        {
+          "path": "internal/connector/cli.go",
+          "line": 163,
+          "end_line": 207
+        }
+      ]
     },
     {
-      "id": "closure",
-      "lane": "revoke",
+      "id": "cleanup",
+      "lane": "routing",
       "col": 3,
-      "type": "security",
-      "label": "Authorized closure",
-      "sublabel": "Resolve / fence / cancel"
+      "type": "backend",
+      "label": "Join owned cleanup",
+      "sublabel": "Retain pending; reconcile later",
+      "sources": [
+        {
+          "path": "internal/connector/cli.go",
+          "line": 244,
+          "end_line": 289
+        },
+        {
+          "path": "internal/connector/service_routing.go",
+          "line": 202,
+          "end_line": 239
+        }
+      ]
     },
     {
-      "id": "hold",
-      "lane": "revoke",
+      "id": "settle",
+      "lane": "routing",
       "col": 4,
       "type": "database",
-      "label": "Hold unknown quota",
-      "sublabel": "No automatic cancellation"
+      "label": "Settle routing only",
+      "sublabel": "Exact call / credential / boot",
+      "sources": [
+        {
+          "path": "internal/registry/routing_reconcile.go",
+          "line": 243,
+          "end_line": 289
+        }
+      ]
+    },
+    {
+      "id": "retention",
+      "lane": "routing",
+      "col": 5,
+      "type": "database",
+      "label": "Compact closed old rows",
+      "sublabel": "Phase 4 ≠ task closure",
+      "sources": [
+        {
+          "path": "internal/registry/routing_reconcile.go",
+          "line": 292,
+          "end_line": 295
+        }
+      ]
     }
   ],
   "edges": [
@@ -297,27 +558,33 @@
       "variant": "default"
     },
     {
-      "id": "revocation-close",
-      "from": "revocation",
-      "to": "close",
+      "id": "census-permit",
+      "from": "census",
+      "to": "permit",
       "variant": "default"
     },
     {
-      "id": "close-inflight",
-      "from": "close",
-      "to": "inflight",
+      "id": "permit-wait",
+      "from": "permit",
+      "to": "wait",
       "variant": "default"
     },
     {
-      "id": "inflight-closure",
-      "from": "inflight",
-      "to": "closure",
+      "id": "wait-cleanup",
+      "from": "wait",
+      "to": "cleanup",
       "variant": "default"
     },
     {
-      "id": "closure-hold",
-      "from": "closure",
-      "to": "hold",
+      "id": "cleanup-settle",
+      "from": "cleanup",
+      "to": "settle",
+      "variant": "default"
+    },
+    {
+      "id": "settle-retention",
+      "from": "settle",
+      "to": "retention",
       "variant": "default"
     },
     {
@@ -340,49 +607,46 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "Admission and source of truth",
+      "title": "Source-backed Gateway; external Native contract",
       "items": [
-        "Prepare starts nothing. Actual frame encoding/size and queue checks precede possible-send; a failure remains definitely unsent. Duplicate confirmation observes the original operation.",
-        "Delegate creation compares active origin generation before any ordinary task-directory/prepared fragment, under maintenance SHARED + the per-ID namespace lease through durable commit. Refusal is checked before fragments.",
-        "A lost ACK enters the uncertainty row. No blind resend or new identity. Passive resolve cannot launch; explicit dispatch-authorized recovery may complete only the existing frozen prepared request."
+        "Every node cites committed Gateway source at 96af53f7. External Native nodes show the public capability/receipt boundary consumed by Gateway, not Native implementation verified in this repository.",
+        "Prepare starts nothing. Encoding and queue reservation precede the atomic possible-send decision. The actual write and response acceptance recheck current rights and immutable identity; duplicate confirmation observes the original operation.",
+        "New execution requires fresh live project context and current local ceilings. Passive task controls use frozen receipt guards; namespace operations use fresh root-only evidence without granting project readiness. Native CWD/barrier fixes remain prerequisite work."
       ]
     },
     {
       "dot": "rose",
-      "title": "Fence is not synthetic absence",
+      "title": "No synthetic task closure",
       "items": [
-        "Absent fence and create share one permanent per-ID namespace authority. Existing task returns existing; contention or uncertain evidence returns pending/unresolved. A late create must honor refusal.",
-        "Partial entries need full canonical no-launch proof under established admission/lifetime/run exclusion before the final nonblocking namespace check. Never call external recovery while holding namespace.",
-        "Unknown-origin fragments require explicit local operator selection/proof; never automatic MCP scan. Refusal proves no ordinary task admission/launch, not completed helper cleanup or zero cost."
+        "Rows are separate related procedures, not automatic transitions. Lost ACK, timeout, disconnect, accepted result bytes and cancellation requested do not prove task closure. Unknown transmitted work retains its execution reservation.",
+        "Explicit cancellation fences the original ID first, then cancels only a verified existing task. Release requires a validated canonical execution closure, exact requested-and-terminated stop, or permanent refusal. Partial/unresolved evidence stays blocked.",
+        "Revoked principal/grant/device or stale credential/connection blocks current sends and responses. Already-transmitted work can finish; revocation is not task cancellation."
       ]
     },
     {
       "dot": "amber",
-      "title": "Restore barrier before inventory and reopen",
+      "title": "Recovery conserves identity and visibility",
       "items": [
-        "Supported restore invalidates old certificates/tokens, clears effective restored grants/cloud authority and blocks admissions. Complete operator device/root roster includes destinations added after the snapshot.",
-        "Apply a fresh disabled admission generation durably on every destination before inventory. Old preparations cannot commit after the barrier. Missing roster/device/barrier/completeness keeps restore blocked.",
-        "Inventory covers immutable origin membership, refusals and partial entries. Reconstruct from canonical origin receipts or drain/cancel via Delegate; ownerless operations stay operator-only.",
-        "Reopen is local admin only, with regular re-enrolled credentials and explicit grant reapproval after all-destination reconciliation. Delegate revalidates membership/completeness under maintenance EXCLUSIVE immediately before enabling; changed membership requires refreshed inventory. No force-release shortcut."
+        "Full prior-fleet coverage precedes EVERY routed CLI. Out-of-band operator CLI-only join attestation is frozen to device, credential, boot and exact generation; it does not establish Native task closure.",
+        "Persist barriers before inventory. Import root-wide canonical receipts with each frozen project context and exact budget nanoseconds. Attributed and unattributed records share one honest ledger; unowned work stays admin-only and reserved until canonical drain.",
+        "Missing coverage, mapping, completeness, regular credential or reopen revision keeps recovery blocked. Recovery-only permits observation/cancel/fence/barrier/inventory after routing coverage, never admit/resume/reopen. Fresh root proof follows reopen before Registry finish."
       ]
     },
     {
       "dot": "violet",
-      "title": "Revocation and quota limits",
+      "title": "Two independent resource ledgers",
       "items": [
-        "Gateway rechecks rights before sends/responses and on cached views/chunks. Revocation closes sockets and removes unsent queued messages; already-transmitted work may finish.",
-        "Revocation, timeout, TTL or disconnect never proves task termination. Retain reservations through unknown; release only authoritative terminal/refused or proven never-sent expiry. Defaults: 2 per device, 32 global.",
-        "Recovery-only re-enrollment of the same device may permit observation/cancel/fence but never admission/resume/reopen. Unreachable retained evidence keeps accounting blocked.",
-        "All routed task controls may verify whole payloads: one scan/device, three ordinary scans fleet-wide plus one protected cancel/fence scan. Busy cancellation returns resource_limit without queuing or preemption. Routing permits remain held through actual CLI Wait/cleanup, independently of Delegate execution reservations."
+        "Execution reservations account for uncertain Native work. Routing permits account only for Gateway-routed CLI owners, not operator CLI/SSH/TUI or a local startup probe.",
+        "Routing completion is not task completion. Keep permits while CLI Wait/output copiers/owned cleanup remain unresolved. Same-process fenced census or protected explicit drain can settle prior controls; socket closure alone cannot.",
+        "Schema 7 phase-4 retention removes only closed routing rows older than the current generation. Active owners, execution reservations and canonical task evidence are not released by compaction."
       ]
     },
     {
       "dot": "slate",
-      "title": "Scope and review gate",
+      "title": "Candidate and evidence limits",
       "items": [
-        "Source: approved implementation contract v7, MCP / OPERATION CONTRACT; DELEGATE PUBLIC PREREQUISITE; RECOVERY OPERATIONS CLARIFICATIONS; FINAL INVARIANT CLARIFICATION.",
-        "Separate rows are related safety procedures, not automatic transitions. Request success is not task success; cancel acknowledgment is not confirmed closure. Planned controls are not implemented here.",
-        "Before PR: no known unresolved P0/P1/P2, independent reviews, and required checks. Separate Delegate work uses its dedicated worktree and own harness."
+        "This is a source-backed Gateway implementation candidate, not release approval. Native public CLI prerequisites are separate. Before PR, independent integrated reviews and no known unresolved P0/P1/P2 remain required.",
+        "Checkpoint docs record Go 1.27.4 full engineering gates plus 151 Python checks. Latest completed local fixture run used Go 1.27.3; current active-restart harness is not live-run proof. No physical devices, paid/installed provider account or Cloud acceptance is established here."
       ]
     }
   ]

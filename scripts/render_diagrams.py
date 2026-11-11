@@ -270,6 +270,8 @@ def render() -> None:
             f"diagrams/{stem}.html",
             "--quality",
             "showcase",
+            "--repo-root",
+            str(ROOT),
             "--out-dir",
             str(evidence),
             "--json",
@@ -371,7 +373,7 @@ def render() -> None:
             "validation.json",
             {
                 "schemaVersion": 1,
-                "scope": "Observed local source-candidate Archify checks; target design only",
+                "scope": "Observed local source-candidate Archify checks; Gateway implementation candidate",
                 "pathBase": "Directory containing this file",
                 "recipe": "../scripts/render_diagrams.py",
                 "limitations": [

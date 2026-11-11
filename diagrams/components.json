@@ -2,16 +2,21 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "TARGET DESIGN \u2014 Gateway ownership (not implemented)",
+    "title": "IMPLEMENTATION CANDIDATE — Gateway ownership",
     "output": "diagrams/components.html",
     "locale": "en",
-    "quality_profile": "showcase"
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
+      "revision": "96af53f7ca399d036c5b14461bd88d6ede5510c6",
+      "link_mode": "local-only"
+    }
   },
   "components": [
     {
       "id": "client",
       "type": "external",
-      "label": "ChatGPT / MCP client",
+      "label": "HTTPS MCP client",
       "sublabel": "OAuth access token",
       "pos": [
         40,
@@ -20,6 +25,13 @@
       "size": [
         210,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/server/new.go",
+          "line": 93,
+          "end_line": 121
+        }
       ]
     },
     {
@@ -34,6 +46,18 @@
       "size": [
         210,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/identity/authenticate.go",
+          "line": 70,
+          "end_line": 85
+        },
+        {
+          "path": "internal/identity/authenticate.go",
+          "line": 126,
+          "end_line": 164
+        }
       ]
     },
     {
@@ -48,13 +72,25 @@
       "size": [
         210,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/server/new.go",
+          "line": 234,
+          "end_line": 263
+        },
+        {
+          "path": "internal/registry/routing_drain.go",
+          "line": 35,
+          "end_line": 59
+        }
       ]
     },
     {
       "id": "gateway",
       "type": "backend",
       "label": "Trusted Gateway",
-      "sublabel": "HTTPS MCP :443 / WSS :8443",
+      "sublabel": "HTTPS public / mTLS device WSS",
       "pos": [
         410,
         270
@@ -62,13 +98,30 @@
       "size": [
         230,
         82
+      ],
+      "sources": [
+        {
+          "path": "internal/server/new.go",
+          "line": 93,
+          "end_line": 152
+        },
+        {
+          "path": "internal/tlsconfig/tls.go",
+          "line": 26,
+          "end_line": 58
+        },
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 116,
+          "end_line": 170
+        }
       ]
     },
     {
       "id": "registry",
       "type": "database",
       "label": "Gateway SQLite",
-      "sublabel": "Grants, correlations, quotas",
+      "sublabel": "Schema 7 · grants + two quotas",
       "pos": [
         410,
         525
@@ -76,6 +129,23 @@
       "size": [
         230,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/registry/store.go",
+          "line": 90,
+          "end_line": 117
+        },
+        {
+          "path": "internal/registry/routing.go",
+          "line": 155,
+          "end_line": 231
+        },
+        {
+          "path": "internal/registry/operations.go",
+          "line": 301,
+          "end_line": 367
+        }
       ]
     },
     {
@@ -90,13 +160,30 @@
       "size": [
         220,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/config.go",
+          "line": 65,
+          "end_line": 88
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 169,
+          "end_line": 187
+        },
+        {
+          "path": "internal/connector/cli.go",
+          "line": 163,
+          "end_line": 207
+        }
       ]
     },
     {
       "id": "delegateA",
-      "type": "backend",
-      "label": "Public Delegate CLI",
-      "sublabel": "Sole task lifecycle owner",
+      "type": "external",
+      "label": "Native public CLI",
+      "sublabel": "EXTERNAL prerequisite contract",
       "pos": [
         1190,
         100
@@ -104,13 +191,25 @@
       "size": [
         220,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/command.go",
+          "line": 206,
+          "end_line": 272
+        },
+        {
+          "path": "internal/connector/cli.go",
+          "line": 163,
+          "end_line": 192
+        }
       ]
     },
     {
       "id": "storeA",
-      "type": "database",
-      "label": "Delegate A root",
-      "sublabel": "Tasks, refusals, accepted bytes",
+      "type": "external",
+      "label": "Native canonical evidence",
+      "sublabel": "Task / refusal / closure / result",
       "pos": [
         1190,
         255
@@ -118,6 +217,18 @@
       "size": [
         220,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/inventory.go",
+          "line": 9,
+          "end_line": 46
+        },
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 40,
+          "end_line": 92
+        }
       ]
     },
     {
@@ -132,13 +243,30 @@
       "size": [
         220,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/config.go",
+          "line": 131,
+          "end_line": 168
+        },
+        {
+          "path": "internal/connector/service_routing.go",
+          "line": 141,
+          "end_line": 199
+        },
+        {
+          "path": "internal/deviceruntime/run.go",
+          "line": 163,
+          "end_line": 190
+        }
       ]
     },
     {
       "id": "delegateB",
-      "type": "backend",
-      "label": "Public Delegate CLI",
-      "sublabel": "Sole task lifecycle owner",
+      "type": "external",
+      "label": "Native public CLI",
+      "sublabel": "EXTERNAL prerequisite contract",
       "pos": [
         1190,
         450
@@ -146,13 +274,25 @@
       "size": [
         220,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/command.go",
+          "line": 244,
+          "end_line": 290
+        },
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 100,
+          "end_line": 136
+        }
       ]
     },
     {
       "id": "storeB",
-      "type": "database",
-      "label": "Delegate B root",
-      "sublabel": "Tasks, refusals, accepted bytes",
+      "type": "external",
+      "label": "Native canonical evidence",
+      "sublabel": "Task / refusal / closure / result",
       "pos": [
         1190,
         605
@@ -160,13 +300,25 @@
       "size": [
         220,
         68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/inventory.go",
+          "line": 9,
+          "end_line": 46
+        },
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 40,
+          "end_line": 92
+        }
       ]
     }
   ],
   "boundaries": [
     {
       "kind": "security-group",
-      "label": "Gateway trust boundary \u2014 plaintext visible",
+      "label": "Gateway trust boundary — plaintext visible",
       "wraps": [
         "gateway",
         "registry"
@@ -175,7 +327,7 @@
     },
     {
       "kind": "region",
-      "label": "Device A \u2014 shared OS account boundary",
+      "label": "Device A role — shared OS account boundary",
       "wraps": [
         "connectorA",
         "delegateA",
@@ -185,7 +337,7 @@
     },
     {
       "kind": "region",
-      "label": "Device B \u2014 separate network, shared OS account boundary",
+      "label": "Device B role — shared OS account boundary",
       "wraps": [
         "connectorB",
         "delegateB",
@@ -240,54 +392,56 @@
       "id": "cliA",
       "from": "connectorA",
       "to": "delegateA",
-      "label": "Typed argv/stdin"
+      "label": "Fixed argv / files"
     },
     {
       "id": "cliB",
       "from": "connectorB",
       "to": "delegateB",
-      "label": "Typed argv/stdin"
+      "label": "Fixed argv / files"
     },
     {
       "id": "authorityA",
       "from": "delegateA",
       "to": "storeA",
-      "label": "Canonical authority"
+      "label": "Required evidence",
+      "variant": "dashed"
     },
     {
       "id": "authorityB",
       "from": "delegateB",
       "to": "storeB",
-      "label": "Canonical authority"
+      "label": "Required evidence",
+      "variant": "dashed"
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Authority, not a second engine",
+      "title": "Separate authoritative owners",
       "items": [
-        "Gateway owns registry, grants, operation correlation, task reservations, durable CLI-routing permits and connection generations. Observations are dated caches; results are not persisted.",
-        "Connector owns local alias \u2192 pinned root/project mapping and its stricter ceiling. Effective permission is the intersection.",
-        "Delegate alone owns admission/refusal, creation, launch, supervision, cancellation and accepted outcomes. Local CLI/SSH/TUI share this authority.",
-        "CLI-routing permits survive lost replies and Gateway restart. Only actual CLI cleanup or a fenced same-process complete census releases them; a changed connector process needs local-admin CLI-only drain attestation. Delegate task reservations remain separate."
+        "Gateway Registry owns grants, immutable operation correlation, execution reservations and durable CLI-routing permits. Observations are dated caches; Native alone owns task admission, launch, supervision and accepted outcomes.",
+        "Connector owns immutable local alias pins and a stricter provider/permission/budget ceiling. Effective execution rights require both current Gateway grants and the local ceiling; no automatic repin or failover.",
+        "Schema 7 keeps routing permits separate from task reservations. CLI Wait/cleanup, definite non-publication or fenced same-process census can settle routing; only canonical task closure, matching confirmed stop or permanent refusal settles transmitted execution uncertainty."
       ]
     },
     {
       "dot": "rose",
-      "title": "Trust and transport",
+      "title": "Trust, fleet coverage and joins",
       "items": [
-        "OAuth authenticates every MCP call; no user mTLS certificate or token forwarding. Gateway is trusted and sees plaintext; end-to-end encryption is deferred.",
-        "Devices initiate WSS. Sessions carry generation-bound requests and responses. Same device account is one trust boundary; project grants are routing, not OS sandboxing.",
-        "Only public installed Delegate CLI; no shell, provider adapter, private task-file access, executor queue or automatic failover."
+        "Separate TLS 1.3 listeners: public HTTPS OAuth/JWKS MCP and device mTLS WSS. Each connector initiates outbound WSS; Gateway sees plaintext. Two device roles illustrate topology, not physical-device/network acceptance.",
+        "Complete prior-fleet routing coverage precedes ANY routed CLI, including protected recovery controls. Changed process identity needs explicit out-of-band frozen local CLI-join attestation bound to current credential, process boot and exact connection generation.",
+        "Connector census/ACK gates claims. Accepted controls retain ownership through actual Wait and cleanup; timeout/socket closure never proves task closure. Phase-4 schema-7 compaction deletes only closed older routing rows, never active controls or task evidence.",
+        "Same account is a trusted device boundary. Project grants route requests; they are not an OS sandbox. Native CLI is a separately reviewed prerequisite, not an embedded second engine."
       ]
     },
     {
       "dot": "amber",
-      "title": "Planning source and implementation gate",
+      "title": "Source-backed candidate, bounded evidence",
       "items": [
-        "Source: approved implementation contract v7, OWNERS / COMPONENTS; DELEGATE PUBLIC PREREQUISITE; IDENTITY / ENROLLMENT / DEVICE TRANSPORT.",
-        "This is a target design, not source-backed implementation evidence. Proposed connector commands require a separately reviewed Delegate change in its dedicated worktree, using its own harness.",
-        "Before PR: independent integrated review and no known unresolved P0/P1/P2. Plan approval is not cloud acceptance or release readiness."
+        "Gateway source is pinned to commit 96af53f7 (full revision in metadata). All node references resolve against committed Gateway bytes with local-only links. External Native nodes cite the Gateway consumer contract, not foreign implementation.",
+        "Gateway enforces frozen task guards, root-only namespace probes and live project checks for new execution. This diagram does not establish future Native CWD/barrier corrections or compatibility of an arbitrary installed CLI.",
+        "Checkpoint verification records Go 1.27.4 make check and 151 Python tests. Latest completed local fixture flow used Go 1.27.3; the newer active-restart harness has not run live. No release, real-provider, Cloud or physical-device proof follows from these diagrams."
       ]
     }
   ]

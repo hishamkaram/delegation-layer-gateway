@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-11T07:03:46.088572+00:00",
+  "repositoryRevision": "96af53f7ca399d036c5b14461bd88d6ede5510c6",
+  "reviewer": "Image-capable repository agent",
+  "method": "Fresh strict-provenance Archify visual-check HTML captures; standalone canonical SVG opened in Chrome with emulated prefers-color-scheme light/dark; every listed image inspected with view_image",
+  "captureStorage": "Raw captures/contact sheets/receipts retained as ignored private evidence; no unpublished capture paths linked from maintained documentation",
+  "findings": [
+    "Main figures: no clipped labels or route-through-node collisions observed in either theme at reviewed sizes.",
+    "Component figure: HTTPS MCP entrance, JWT/JWKS and admin paths, outbound mTLS WSS from both connector roles, external Native prerequisite labels and canonical-evidence branches are readable.",
+    "Workflow figure: admission and restore rows, explicit fence present/uncertain branch and separate CLI-routing ownership/phase-4 retention row are readable; arrowheads and branch label remain distinct in light/dark.",
+    "Canonical Auto SVG exports render both themes with the same labels/routes as the corresponding HTML figure."
+  ],
+  "limitations": [
+    "Perceptual judgment covers only the listed browser captures; it is not an accessibility audit or proof on other screens/browsers.",
+    "Supporting cards continue below the captured viewport and require ordinary page scrolling; not all supporting card text is included in these captures.",
+    "Standalone SVG exports contain the main diagram and legend, not the HTML title/cards/source explorer. Preserve HTML/JSON alongside SVG so candidate status and source/contract limits stay available.",
+    "No Gateway runtime, Native implementation, installed-provider, physical-device/network, Cloud or release acceptance is established by this visual review."
+  ],
+  "diagrams": [
+    {
+      "id": "components",
+      "source": {
+        "path": "components.json",
+        "sha256": "1142d1f28996d2356cad3a3ab0110df5efbb6070440fa5e7878e74bacc8f4fa6",
+        "bytes": 11304
+      },
+      "html": {
+        "path": "components.html",
+        "sha256": "6de0df6c82cb08c8826e03c20d44886ae990106857eadc315af3a24211df1dc2",
+        "bytes": 836092
+      },
+      "svg": {
+        "path": "components.svg",
+        "sha256": "060e39d98dfb943e03796395b9955b8b56542caba7f5253d37f2f13a70e95fa9",
+        "bytes": 181864
+      },
+      "htmlCaptureGate": {
+        "status": "pass",
+        "provenance": "current",
+        "checks": {
+          "containment": "pass",
+          "readability": "pass",
+          "viewerChrome": "pass",
+          "themeStates": "pass",
+          "captures": "pass"
+        }
+      },
+      "captures": [
+        {
+          "id": "html-1440x900-light",
+          "theme": "light",
+          "width": 1440,
+          "height": 900,
+          "sha256": "295732a58ee02fb48a42dcc12ca3f2383e152acf6f0ac6428738886efc921743",
+          "bytes": 127825,
+          "imageInspected": true
+        },
+        {
+          "id": "html-1440x900-dark",
+          "theme": "dark",
+          "width": 1440,
+          "height": 900,
+          "sha256": "9823f61931b13c876e882c9dd1c45b12a10da0427d1bb6f4d133a4756477f8b9",
+          "bytes": 139861,
+          "imageInspected": true
+        },
+        {
+          "id": "html-2048x1320-light",
+          "theme": "light",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "18e8a9520f454410a02fb5f78540498c40b9228cc54a763f87be3206ab1ac5aa",
+          "bytes": 222986,
+          "imageInspected": true
+        },
+        {
+          "id": "html-2048x1320-dark",
+          "theme": "dark",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "a138b0e0cd814d391a3fd1032883c4eb6ea6b8568950078aa238a62a8d4c6dad",
+          "bytes": 245913,
+          "imageInspected": true
+        },
+        {
+          "id": "svg-auto-light",
+          "theme": "light",
+          "sha256": "d550191d32ca941fd4a43e39158aa22906d8a7449bbe40e954263e8fb09b3baa",
+          "bytes": 90113,
+          "imageInspected": true
+        },
+        {
+          "id": "svg-auto-dark",
+          "theme": "dark",
+          "sha256": "bfc5a3f658f95f4b4761430c4b25eb2a991546480d831a782c62001e61759785",
+          "bytes": 90569,
+          "imageInspected": true
+        }
+      ]
+    },
+    {
+      "id": "operation-safety",
+      "source": {
+        "path": "operation-safety.json",
+        "sha256": "78e10a7455aa72554f26dd6c5feb789fc268d52ebe6d6ae5b811c440a6e77a3a",
+        "bytes": 17534
+      },
+      "html": {
+        "path": "operation-safety.html",
+        "sha256": "6fadd99f420c706a1eef74ea00b7ed60421fc87bb3632767ceee05b0ff48c491",
+        "bytes": 853740
+      },
+      "svg": {
+        "path": "operation-safety.svg",
+        "sha256": "64c406fe74d74cdcb4c0a47fdc694d64d82db04f398de98e76f69fbc95d25aa6",
+        "bytes": 209109
+      },
+      "htmlCaptureGate": {
+        "status": "pass",
+        "provenance": "current",
+        "checks": {
+          "containment": "pass",
+          "readability": "pass",
+          "viewerChrome": "pass",
+          "themeStates": "pass",
+          "captures": "pass"
+        }
+      },
+      "captures": [
+        {
+          "id": "html-1440x900-light",
+          "theme": "light",
+          "width": 1440,
+          "height": 900,
+          "sha256": "94529f0c78d8ff6edc19eaa8bd48392376d58fb66afe06a6b1e45a01f8c0b105",
+          "bytes": 190353,
+          "imageInspected": true
+        },
+        {
+          "id": "html-1440x900-dark",
+          "theme": "dark",
+          "width": 1440,
+          "height": 900,
+          "sha256": "7057d48d857f54c1203a4b7946c1313e8b730d2f966d2c9da7e3c8bcb0082273",
+          "bytes": 213036,
+          "imageInspected": true
+        },
+        {
+          "id": "html-2048x1320-light",
+          "theme": "light",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "8fba30ad7efeb5269b9e2c05ef3c53d84500c0f4335af731819a266ee1c835dc",
+          "bytes": 302547,
+          "imageInspected": true
+        },
+        {
+          "id": "html-2048x1320-dark",
+          "theme": "dark",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "caafcc6c9b0924ac5294bfb2747e045d8a14a10fd60b4bba81d712b3aadb06d3",
+          "bytes": 340446,
+          "imageInspected": true
+        },
+        {
+          "id": "svg-auto-light",
+          "theme": "light",
+          "sha256": "79cce419d810af0308f6f09ebaa72d171d9cc4fce69d817075a8d44735a73b89",
+          "bytes": 116742,
+          "imageInspected": true
+        },
+        {
+          "id": "svg-auto-dark",
+          "theme": "dark",
+          "sha256": "a40cc61819e1b99630c14ab27ce34d47f7904fe3c0ce8b3388542a065f50c5c6",
+          "bytes": 118950,
+          "imageInspected": true
+        }
+      ]
+    }
+  ]
+}
