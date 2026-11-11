@@ -272,7 +272,15 @@ func (h *Hub) Snapshot(device domain.DeviceID) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	s.mu.Lock()
-	result := Snapshot{CredentialMode: s.mode, ProcessBoot: s.processBoot, RoutingReady: s.routingReady && s.mode == domain.Regular && !s.closing, Credential: s.ref, Generation: s.generation, LastSeen: s.lastSeen, Online: !s.closing, CapabilitiesObservedAt: s.capabilitiesObservedAt}
+	// Registration precedes the handshake; ready is the handshake owner's
+	// authority for whether this session can accept wire reservations.
+	online := false
+	select {
+	case <-s.ready:
+		online = !s.closing
+	default:
+	}
+	result := Snapshot{CredentialMode: s.mode, ProcessBoot: s.processBoot, RoutingReady: s.routingReady && s.mode == domain.Regular && online, Credential: s.ref, Generation: s.generation, LastSeen: s.lastSeen, Online: online, CapabilitiesObservedAt: s.capabilitiesObservedAt}
 	data := bytes.Clone(s.capabilities)
 	s.mu.Unlock()
 	if len(data) != 0 {
