@@ -44,7 +44,7 @@ func configureRecovery(t *testing.T, f *fixture) {
 	drainer, err := recovery.NewDrainer(f.store, namespace, func() time.Time { return f.now })
 	check(t, err)
 	inspector := projectInspectorFunc(func(_ context.Context, route domain.Destination, binding domain.ContextBinding) (protocol.ProjectCapability, domain.Transmission, error) {
-		return protocol.ProjectCapability{Alias: string(route.Project), Context: protocol.ContextBinding{Root: string(binding.Root), Project: string(binding.Project)}, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1"}}, domain.Transmission{Credential: domain.CredentialRef{Epoch: "credential-must-stay-private"}}, nil
+		return protocol.ProjectCapability{Alias: string(route.Project), Context: protocol.ContextBinding{Root: string(binding.Root), Project: string(binding.Project)}, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}}, domain.Transmission{Credential: domain.CredentialRef{Epoch: "credential-must-stay-private"}}, nil
 	})
 	f.handler, err = adminapi.NewHandler(adminapi.Options{Store: f.store, Authority: f.authority, Disconnector: disconnectFunc(func(context.Context, domain.DeviceID) error { return nil }), Random: rand.Reader, Now: func() time.Time { return f.now }, Recoveries: restorer, Tasks: drainer, Permits: f.store, Projects: inspector})
 	check(t, err)

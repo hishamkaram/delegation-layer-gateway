@@ -18,6 +18,9 @@ func (a *Adapter) resolveOrFence(ctx context.Context, r request, owner *controlO
 	if partialFenceProbe(response, r.task.TaskID) {
 		// This failed observation supplies no evidence. In particular, ignore any
 		// receipt left in it and send only the original request's frozen guards.
+		if _, err := a.verifiedRoot(ctx, r, owner); err != nil {
+			return failed(r.command.Operation, err)
+		}
 		return a.invokeReply(ctx, r, owner)
 	}
 	if response.exitCode != 0 || response.Error != "" || response.Failure != nil {

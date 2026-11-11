@@ -35,6 +35,7 @@ type (
 		Closure             bool
 		Closed              bool
 		Disabled            bool
+		Features            []string
 		Brief               string
 		OriginGeneration    string
 		LiveProjectMismatch bool
@@ -43,6 +44,7 @@ type (
 		Partial             bool
 		LiveOwner           bool
 		ProbeFault          string
+		ContextFault        string
 		Refused             bool
 		CancelTaskFault     string
 		CancelRootFault     string
@@ -91,6 +93,9 @@ func helper(args []string) int {
 // Native unsuccessful connector envelopes scrub attestations. Incomplete passive
 // preparation has no error string but is still exit 3, never successful proof.
 func helperControlExit(flags map[string]string, command string, state helperState, response map[string]any) int {
+	if command == "context" {
+		return helperContextExit(state.ContextFault, response)
+	}
 	if command != "resolve" {
 		return 0
 	}
@@ -119,6 +124,20 @@ func helperControlExit(flags map[string]string, command string, state helperStat
 		}
 	}
 	return code
+}
+
+func helperContextExit(fault string, response map[string]any) int {
+	switch fault {
+	case "failed":
+		response["error"] = "PRIVATE-CANARY inspect failure"
+		return 1
+	case "busy":
+		response["error"] = "PRIVATE-CANARY lock busy"
+		return 3
+	case "failure":
+		response["failure"] = map[string]string{"code": "pending"}
+	}
+	return 0
 }
 
 func helperPartialFault(fault string, response, connector map[string]any, code int) int {
@@ -275,7 +294,10 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 }
 
 func helperResponse(flags map[string]string, command, task, action string, state helperState) map[string]any {
-	features := []string{"namespace-admission-v1"}
+	features := []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}
+	if state.Features != nil {
+		features = state.Features
+	}
 	if state.Disabled {
 		features = []string{}
 	}
@@ -369,6 +391,9 @@ func helperContextResponse(flags map[string]string, state helperState, response,
 		}
 	} else {
 		delete(connector, "project_token")
+		if state.ContextFault == "project" {
+			connector["project_token"] = "unexpected-project"
+		}
 	}
 	connector["origin_registered"] = true
 	connector["origin_barrier"] = map[string]any{"gateway_id": "gateway-one", "recovery_id": "recovery-one", "generation": helperOriginGeneration(state), "admission_open": !state.Closed}

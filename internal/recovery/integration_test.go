@@ -129,7 +129,7 @@ func newRecoveryTLS(t *testing.T) *recoveryTLS {
 	owned.TLSClientConfig = base.TLSClientConfig.Clone()
 	owned.TLSClientConfig.Certificates = []tls.Certificate{cert}
 	t.Cleanup(owned.CloseIdleConnections)
-	caps := protocol.CapabilityReport{ObservedAt: f.now, Projects: []protocol.ProjectCapability{{Alias: "project-one", Context: binding, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1"}}}}
+	caps := protocol.CapabilityReport{ObservedAt: f.now, Projects: []protocol.ProjectCapability{{Alias: "project-one", Context: binding, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}}}}
 	f.peer, err = transport.Dial(t.Context(), transport.ClientConfig{URL: "wss" + strings.TrimPrefix(server.URL, "https"), GatewayID: f.id, Certificate: cert.Leaf, Capabilities: caps, Routing: recoveryCensus{}}, &http.Client{Transport: owned}, func() time.Time { return f.now })
 	recoveryOK(t, err)
 	t.Cleanup(func() { recoveryOK(t, f.peer.Close()) })
@@ -315,9 +315,9 @@ func (f *recoveryTLS) inspectionResponse(t *testing.T, c protocol.Command, p dom
 		t.Fatal("namespace recovery required a live project inspection")
 	}
 	if !input.RootOnly {
-		return protocol.ProjectCapability{Alias: string(f.lookup.Route.Project), Context: protocol.ContextBinding{Root: string(f.lookup.ExpectedContext.Root), Project: string(f.lookup.ExpectedContext.Project)}, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1"}, AdmissionGeneration: f.peerGeneration, AdmissionOpen: f.peerOpen && !f.stalePostReopen, Ready: f.peerOpen && !f.stalePostReopen}
+		return protocol.ProjectCapability{Alias: string(f.lookup.Route.Project), Context: protocol.ContextBinding{Root: string(f.lookup.ExpectedContext.Root), Project: string(f.lookup.ExpectedContext.Project)}, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}, AdmissionGeneration: f.peerGeneration, AdmissionOpen: f.peerOpen && !f.stalePostReopen, Ready: f.peerOpen && !f.stalePostReopen}
 	}
-	report := protocol.RootCapability{Root: string(f.lookup.ExpectedContext.Root), ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1"}, OriginRegistered: f.peerGeneration != ""}
+	report := protocol.RootCapability{Root: string(f.lookup.ExpectedContext.Root), ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}, OriginRegistered: f.peerGeneration != ""}
 	if report.OriginRegistered {
 		report.Origin = &protocol.OriginStateReport{GatewayID: string(f.id), RecoveryID: string(p.RecoveryID), Generation: f.peerGeneration, AdmissionOpen: f.peerOpen && !f.stalePostReopen}
 	}

@@ -112,7 +112,7 @@ func newBridgeFixture(t *testing.T) *bridgeFixture {
 	owned.TLSClientConfig = base.TLSClientConfig.Clone()
 	owned.TLSClientConfig.Certificates = []tls.Certificate{cert}
 	t.Cleanup(owned.CloseIdleConnections)
-	caps := protocol.CapabilityReport{ObservedAt: now, Projects: []protocol.ProjectCapability{{Alias: "project-one", Context: contextBinding, AdmissionGeneration: string(root.Generation), AdmissionOpen: true, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1"}, Providers: []protocol.ProviderCapability{{Provider: "provider", Permissions: []string{"read-only"}, MaxBudgetSeconds: 300, Authentication: "unknown"}}, Ready: true}}}
+	caps := protocol.CapabilityReport{ObservedAt: now, Projects: []protocol.ProjectCapability{{Alias: "project-one", Context: contextBinding, AdmissionGeneration: string(root.Generation), AdmissionOpen: true, ContractVersion: protocol.Version, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}, Providers: []protocol.ProviderCapability{{Provider: "provider", Permissions: []string{"read-only"}, MaxBudgetSeconds: 300, Authentication: "unknown"}}, Ready: true}}}
 	client, err := transport.Dial(t.Context(), transport.ClientConfig{URL: "wss" + strings.TrimPrefix(server.URL, "https"), GatewayID: generatedID, Certificate: cert.Leaf, Capabilities: caps, Routing: censusPeer{}}, &http.Client{Transport: owned}, func() time.Time { return now })
 	mustOK(t, err)
 	t.Cleanup(func() { mustOK(t, client.Close()) })

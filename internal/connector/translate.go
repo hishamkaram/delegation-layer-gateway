@@ -1,8 +1,6 @@
 package connector
 
 import (
-	"slices"
-
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
@@ -11,7 +9,7 @@ import (
 // Project attestation requires the matching frozen receipt below.
 func (r request) rootTaskProof(response cliResponse) bool {
 	c := response.Connector
-	return c != nil && c.ContractVersion == 1 && slices.Contains(c.Features, "namespace-admission-v1") && c.RootToken == r.project.RootToken && response.TaskID == r.task.TaskID
+	return c != nil && c.ContractVersion == 1 && protocol.NativeFeaturesCompatible(c.Features) && c.RootToken == r.project.RootToken && response.TaskID == r.task.TaskID
 }
 
 func (r request) receipt(response cliResponse) error {
@@ -122,7 +120,7 @@ func (r request) translateRange(response cliResponse) protocol.Reply {
 
 func (r request) translateOrigin(response cliResponse) protocol.Reply {
 	c := response.Connector
-	if c == nil || c.ContractVersion != 1 || c.RootToken != r.project.RootToken || !slices.Contains(c.Features, "namespace-admission-v1") {
+	if c == nil || c.ContractVersion != 1 || c.RootToken != r.project.RootToken || !protocol.NativeFeaturesCompatible(c.Features) {
 		return failed(r.command.Operation, ErrEvidence)
 	}
 	if r.inventory != nil {
@@ -161,7 +159,7 @@ func (r request) rootReport(response cliResponse) (protocol.RootCapability, erro
 	if c == nil || c.RootToken != r.project.RootToken || c.ProjectToken != "" || c.OriginRegistered == nil {
 		return protocol.RootCapability{}, ErrEvidence
 	}
-	result := protocol.RootCapability{Root: protocol.WireContextGuard(c.RootToken), ContractVersion: c.ContractVersion, Features: slices.Clone(c.Features), OriginRegistered: *c.OriginRegistered}
+	result := protocol.RootCapability{Root: protocol.WireContextGuard(c.RootToken), ContractVersion: c.ContractVersion, Features: protocol.RecognizedNativeFeatures(c.Features), OriginRegistered: *c.OriginRegistered}
 	if state := c.OriginBarrier; state != nil {
 		if state.GatewayID != string(r.config.GatewayID) {
 			return protocol.RootCapability{}, ErrEvidence

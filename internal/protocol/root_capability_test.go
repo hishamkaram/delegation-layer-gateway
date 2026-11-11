@@ -3,7 +3,7 @@ package protocol
 import "testing"
 
 func TestRootCapabilityKeepsNamespaceAndProjectEvidenceDistinct(t *testing.T) {
-	base := RootCapability{Root: WireContextGuard("private-root"), ContractVersion: Version, Features: []string{"namespace-admission-v1"}}
+	base := RootCapability{Root: WireContextGuard("private-root"), ContractVersion: Version, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}}
 	if base.Validate() != nil {
 		t.Fatal("supported root without registered namespace rejected")
 	}

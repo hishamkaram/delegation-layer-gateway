@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -44,6 +45,9 @@ func TestActiveOwnerCancellationDoesNotRequireRefusalExclusion(t *testing.T) {
 
 func TestPartialProbeNeverLearnsPoisonedReceipt(t *testing.T) {
 	f := newFixture(t)
+	if err := os.RemoveAll(f.config.Projects[0].Directory); err != nil {
+		t.Fatal(err)
+	}
 	f.state.Partial, f.state.ProbeFault = true, "receipt"
 	f.writeState()
 	task := f.task()
@@ -54,12 +58,59 @@ func TestPartialProbeNeverLearnsPoisonedReceipt(t *testing.T) {
 		t.Fatal("partial receipt became identity or closure evidence")
 	}
 	calls := f.calls()
-	if len(calls) != 2 {
+	if len(calls) != 3 {
 		t.Fatal("partial probe did not reach independently guarded fence")
 	}
-	flags, commandName, taskID, _ := helperArguments(calls[1].Args)
-	if commandName != "resolve" || flags["fence-if-absent"] != "true" || flags["expected-spec-sha256"] != "" || taskID != task.TaskID || flags["expected-root"] != f.config.Projects[0].RootToken || flags["expected-project"] != f.config.Projects[0].ProjectToken || calls[1].ExpectedOrigin != task.Origin {
-		t.Fatal("partial probe changed original fence guards")
+	if calls[1].Command != "context" {
+		t.Fatal("partial fallback did not inspect root before fencing")
+	}
+	for _, call := range calls {
+		if slicesContains(call.Args, "--cwd") {
+			t.Fatal("historical partial fencing accessed the removed project")
+		}
+	}
+	assertOriginalPartialFenceGuards(t, f, calls[2], task)
+}
+
+func TestPartialFenceRequiresSuccessfulCompatibleRootInspection(t *testing.T) {
+	for _, fault := range []string{"old-features", "failed", "busy", "failure", "root", "project"} {
+		t.Run(fault, func(t *testing.T) {
+			f := newFixture(t)
+			f.state.Partial = true
+			switch fault {
+			case "old-features":
+				f.state.Features = []string{"namespace-admission-v1"}
+			case "root":
+				f.state.ReceiptFault = "root-header"
+			default:
+				f.state.ContextFault = fault
+			}
+			f.writeState()
+			if reply := f.adapter.Execute(t.Context(), f.command(protocol.FenceAbsent)); reply.Error == nil {
+				t.Error("invalid root inspection authorized partial fence")
+			}
+			calls := f.calls()
+			if len(calls) != 2 || calls[0].Command != "resolve" || calls[1].Command != "context" {
+				t.Fatalf("expected passive lookup and root inspection only, got %+v", calls)
+			}
+			for _, call := range calls {
+				if slicesContains(call.Args, "--fence-if-absent") || slicesContains(call.Args, "--cwd") {
+					t.Error("invalid root inspection reached fence or project path")
+				}
+			}
+		})
+	}
+}
+
+func TestAbsentResolveWithOldFeaturesNeverFences(t *testing.T) {
+	f := newFixture(t)
+	f.state.Absent = true
+	f.state.Features = []string{"namespace-admission-v1"}
+	f.writeState()
+	assertCode(t, f.adapter.Execute(t.Context(), f.command(protocol.FenceAbsent)), "evidence_invalid")
+	calls := f.calls()
+	if len(calls) != 1 || calls[0].Command != "resolve" || slicesContains(calls[0].Args, "--fence-if-absent") {
+		t.Fatal("unsupported absent proof reached mutation")
 	}
 }
 
@@ -206,5 +257,13 @@ func TestCancellationRejectsStopReceiptForWrongOrMissingNativeRoot(t *testing.T)
 			}
 			assertCode(t, reply, "evidence_invalid")
 		})
+	}
+}
+
+func assertOriginalPartialFenceGuards(t *testing.T, f *fixture, call helperCall, task protocol.TaskBinding) {
+	t.Helper()
+	flags, commandName, taskID, _ := helperArguments(call.Args)
+	if commandName != "resolve" || flags["fence-if-absent"] != "true" || flags["expected-spec-sha256"] != "" || taskID != task.TaskID || flags["expected-root"] != f.config.Projects[0].RootToken || flags["expected-project"] != f.config.Projects[0].ProjectToken || call.ExpectedOrigin != task.Origin {
+		t.Fatal("partial probe changed original fence guards")
 	}
 }

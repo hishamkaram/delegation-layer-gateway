@@ -3,7 +3,6 @@ package recovery
 import (
 	"context"
 	"encoding/hex"
-	"slices"
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
@@ -44,7 +43,7 @@ func (s *Service) Inspect(ctx context.Context, route domain.Destination, expecte
 	if protocol.DecodeStrict(reply.Body, &report, protocol.MaxFrameBytes) != nil || report.Validate() != nil || report.Alias != string(route.Project) || report.Context.Root != string(expected.Root) || report.Context.Project != string(expected.Project) {
 		return protocol.ProjectCapability{}, tx, domain.Reject(domain.EvidenceInvalid)
 	}
-	if report.ContractVersion != protocol.Version || !slices.Contains(report.Features, "namespace-admission-v1") {
+	if report.ContractVersion != protocol.Version || !protocol.NativeFeaturesCompatible(report.Features) {
 		return protocol.ProjectCapability{}, tx, domain.Reject(domain.EvidenceInvalid)
 	}
 	return report, tx, nil

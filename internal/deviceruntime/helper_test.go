@@ -75,7 +75,7 @@ func runtimeCLI(args []string) int {
 			time.Sleep(5 * time.Millisecond)
 		}
 	}
-	response := helperResponse{Version: 1, Command: "context", Admission: "unknown", Liveness: "undetermined", Publication: "unknown", Connector: helperConnector{Version: 1, Features: []string{"namespace-admission-v1"}, Root: strings.Repeat("a", 64), Project: "private-local-canary", Registered: true, Barrier: helperBarrier{Gateway: gatewayID, Recovery: "recovery", Generation: "generation", Open: true}}}
+	response := helperResponse{Version: 1, Command: "context", Admission: "unknown", Liveness: "undetermined", Publication: "unknown", Connector: helperConnector{Version: 1, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}, Root: strings.Repeat("a", 64), Project: "private-local-canary", Registered: true, Barrier: helperBarrier{Gateway: gatewayID, Recovery: "recovery", Generation: "generation", Open: true}}}
 	if err = json.NewEncoder(os.Stdout).Encode(response); err != nil {
 		return 96
 	}

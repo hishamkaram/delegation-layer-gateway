@@ -161,7 +161,7 @@ func TestAbsentResolutionDoesNotAttestProjectOrReadiness(t *testing.T) {
 	}
 }
 
-func TestPartialPreparationUsesDirectGuardedFence(t *testing.T) {
+func TestPartialPreparationVerifiesRootBeforeGuardedFence(t *testing.T) {
 	f := newFixture(t)
 	f.state.Partial = true
 	f.writeState()
@@ -170,11 +170,11 @@ func TestPartialPreparationUsesDirectGuardedFence(t *testing.T) {
 		t.Fatal("partial preparation did not reach native refusal proof")
 	}
 	calls := f.calls()
-	if len(calls) != 2 || calls[0].Command != "resolve" || calls[1].Command != "resolve" {
-		t.Fatal("partial preparation did not reach guarded native fence after passive lookup")
+	if len(calls) != 3 || calls[0].Command != "resolve" || calls[1].Command != "context" || calls[2].Command != "resolve" {
+		t.Fatal("partial preparation did not verify root before guarded native fence")
 	}
-	flags, _, _, _ := helperArguments(calls[1].Args)
-	if flags["fence-if-absent"] != "true" || flags["expected-root"] != f.config.Projects[0].RootToken || flags["expected-project"] != f.config.Projects[0].ProjectToken || flags["expected-spec-sha256"] != f.task().SpecSHA256 || calls[1].OriginMode != 0o600 {
+	flags, _, _, _ := helperArguments(calls[2].Args)
+	if flags["fence-if-absent"] != "true" || flags["expected-root"] != f.config.Projects[0].RootToken || flags["expected-project"] != f.config.Projects[0].ProjectToken || flags["expected-spec-sha256"] != f.task().SpecSHA256 || calls[2].OriginMode != 0o600 {
 		t.Fatal("partial fence lost immutable guards")
 	}
 }

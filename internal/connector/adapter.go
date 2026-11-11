@@ -3,7 +3,6 @@ package connector
 import (
 	"context"
 	"errors"
-	"slices"
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
@@ -143,7 +142,7 @@ func (a *Adapter) inspect(ctx context.Context, r request, owner *controlOwner) (
 	if err != nil {
 		return cliResponse{}, err
 	}
-	if response.exitCode != 0 || response.Error != "" {
+	if response.exitCode != 0 || response.Error != "" || response.Failure != nil {
 		return cliResponse{}, ErrConfiguration
 	}
 	return response, nil
@@ -151,7 +150,7 @@ func (a *Adapter) inspect(ctx context.Context, r request, owner *controlOwner) (
 
 func compatible(r request, response cliResponse) bool {
 	c := response.Connector
-	return c != nil && c.ContractVersion == 1 && slices.Contains(c.Features, "namespace-admission-v1") && c.RootToken == r.project.RootToken && c.ProjectToken == r.project.ProjectToken
+	return c != nil && c.ContractVersion == 1 && protocol.NativeFeaturesCompatible(c.Features) && c.RootToken == r.project.RootToken && c.ProjectToken == r.project.ProjectToken
 }
 
 func registeredOrigin(r request, response cliResponse) bool {
@@ -284,9 +283,7 @@ func (a *Adapter) projectReport(r request, response cliResponse) protocol.Projec
 	result := protocol.ProjectCapability{Alias: r.project.Alias, Context: r.project.wireContext()}
 	if c := response.Connector; c != nil {
 		result.ContractVersion = c.ContractVersion
-		if slices.Contains(c.Features, "namespace-admission-v1") {
-			result.Features = []string{"namespace-admission-v1"}
-		}
+		result.Features = protocol.RecognizedNativeFeatures(c.Features)
 		if c.OriginBarrier != nil {
 			result.AdmissionGeneration = c.OriginBarrier.Generation
 			result.AdmissionOpen = c.OriginBarrier.AdmissionOpen
@@ -422,14 +419,19 @@ func (a *Adapter) executeTaskControl(ctx context.Context, r request, owner *cont
 	}
 }
 
-func (a *Adapter) executeRootControl(ctx context.Context, r request, owner *controlOwner) protocol.Reply {
+// verifiedRoot validates the expected root without accessing a live project.
+func (a *Adapter) verifiedRoot(ctx context.Context, r request, owner *controlOwner) (protocol.RootCapability, error) {
 	probe := r
 	probe.rootOnly = true
 	response, err := a.inspect(ctx, probe, owner)
 	if err != nil {
-		return failed(r.command.Operation, err)
+		return protocol.RootCapability{}, err
 	}
-	report, err := r.rootReport(response)
+	return r.rootReport(response)
+}
+
+func (a *Adapter) executeRootControl(ctx context.Context, r request, owner *controlOwner) protocol.Reply {
+	report, err := a.verifiedRoot(ctx, r, owner)
 	if err != nil {
 		return failed(r.command.Operation, err)
 	}

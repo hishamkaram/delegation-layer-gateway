@@ -5,6 +5,14 @@ Delegate installation. Gateway must refuse execution readiness without the
 required version/features. No import of Delegate `internal/` packages or use of
 its private SSH server is allowed.
 
+This candidate requires both `namespace-admission-v1` and
+`namespace-mutation-lease-v1` on the selected Native root. Interface version 1
+alone is insufficient. Upgrade with a compatible Delegate and an explicit
+offline connector cutover before retrying; Gateway never enables a root or
+selects another installation automatically. The same minimum applies to
+historical task controls, without requiring the saved project directory to
+remain present. Capability checks do not establish provider or cloud acceptance.
+
 ## MCP tools
 
 | Tools | Required behavior |
@@ -80,6 +88,10 @@ the independently guarded native refusal fence. The exact native partial
 `unresolved` response may also select that fence, but supplies no identity,
 spec, refusal or closure evidence itself. Malformed responses, mismatched
 receipts and ordinary read errors do not trigger a fallback fence.
+That partial fallback also requires a successful root-only inspection of the
+expected root and both required features before sending any refusal mutation.
+The inspection does not require the saved project path, and its response never
+replaces the original task guards.
 
 `cancel` validates the canonical frozen receipt before issuing guarded native
 cancellation with the stable cancellation ID. A post-cancel canonical read and
@@ -123,6 +135,10 @@ calls retain capacity and may exhaust an entire operation class.
 TTL is not a task-completion deadline. Subprocess capacity stays owned through
 `Wait` and cleanup. Outer HTTP/client deadlines must accommodate inner deadlines.
 Large-result verification may time out repeatedly; return no unverified bytes.
+Partial refusal recovery can run three sequential native controls: passive
+lookup, root inspection and refusal. A caller deadline bounds the sequence and
+each control uses its remaining time. Without a caller deadline, the sequence
+can consume up to three configured native control timeouts.
 
 Return bounded typed errors, never native error strings or paths. OAuth HTTP
 challenges and tool authentication metadata remain protocol fields outside the

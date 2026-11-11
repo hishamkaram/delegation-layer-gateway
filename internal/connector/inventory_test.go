@@ -30,7 +30,7 @@ func TestInventoryNormalizesEachFrozenProjectWithoutQueryAttributionOrLeaks(t *t
 	oldToken := base64.RawURLEncoding.EncodeToString([]byte(oldPath))
 	otherToken := "different-frozen-project-token"
 	local := localInventory(localInventoryEntry("1", oldToken), localInventoryEntry("2", otherToken))
-	response := cliResponse{Connector: &cliConnector{ContractVersion: 1, Features: []string{"namespace-admission-v1"}, RootToken: r.project.RootToken, Inventory: local}}
+	response := cliResponse{Connector: &cliConnector{ContractVersion: 1, Features: []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}, RootToken: r.project.RootToken, Inventory: local}}
 	reply := r.translateOrigin(response)
 	if reply.Error != nil {
 		t.Fatal("canonical multiproject inventory rejected")
@@ -110,7 +110,7 @@ func TestDecodePublicInventoryReceiptStrictlyBeforeNormalization(t *testing.T) {
 	entry := localInventoryEntry("1", "frozen-project")
 	// Field names follow inspected Delegate taskdir.OriginInventoryEntry and
 	// ConnectorReceipt; this explicit public envelope also catches DTO drift.
-	fixture := `{"schema_version":1,"command":"origin","admission":"unknown","liveness":"unknown","publication":"unknown","connector":{"contract_version":1,"features":["namespace-admission-v1"],"root_token":"` + r.project.RootToken + `","inventory":{"entries":[{"task_id":"` + entry.TaskID + `","resolution":"existing","origin":ORIGIN,"spec_sha256":"` + entry.SpecSHA256 + `","brief_sha256":"` + entry.BriefSHA256 + `","receipt":RECEIPT}],"complete":true,"membership_sha256":"` + strings.Repeat("e", 64) + `","completeness_receipt":"` + strings.Repeat("f", 64) + `"}}}`
+	fixture := `{"schema_version":1,"command":"origin","admission":"unknown","liveness":"unknown","publication":"unknown","connector":{"contract_version":1,"features":["namespace-admission-v1","namespace-mutation-lease-v1"],"root_token":"` + r.project.RootToken + `","inventory":{"entries":[{"task_id":"` + entry.TaskID + `","resolution":"existing","origin":ORIGIN,"spec_sha256":"` + entry.SpecSHA256 + `","brief_sha256":"` + entry.BriefSHA256 + `","receipt":RECEIPT}],"complete":true,"membership_sha256":"` + strings.Repeat("e", 64) + `","completeness_receipt":"` + strings.Repeat("f", 64) + `"}}}`
 	origin, originErr := json.Marshal(entry.Origin)
 	if originErr != nil {
 		t.Fatal(originErr)

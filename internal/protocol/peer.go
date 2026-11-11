@@ -64,16 +64,12 @@ func (p ProjectCapability) Validate() error {
 	if !p.validContext() || (p.AdmissionGeneration != "" && !identifier(p.AdmissionGeneration)) {
 		return ErrInvalid
 	}
-	compatible := false
 	for _, feature := range p.Features {
 		if !identifier(feature) {
 			return ErrInvalid
 		}
-		if feature == "namespace-admission-v1" {
-			compatible = true
-		}
 	}
-	if p.Ready && !p.executionReady(compatible) {
+	if p.Ready && !p.executionReady(NativeFeaturesCompatible(p.Features)) {
 		return ErrInvalid
 	}
 	seen := make(map[string]bool)
@@ -265,16 +261,12 @@ func (r RootCapability) Validate() error {
 	if !guardToken(r.Root) || r.ContractVersion != Version || len(r.Features) > 100 || r.OriginRegistered != (r.Origin != nil) {
 		return ErrInvalid
 	}
-	compatible := false
 	for _, feature := range r.Features {
 		if !identifier(feature) {
 			return ErrInvalid
 		}
-		if feature == "namespace-admission-v1" {
-			compatible = true
-		}
 	}
-	if !compatible {
+	if !NativeFeaturesCompatible(r.Features) {
 		return ErrInvalid
 	}
 	if r.Origin != nil {
