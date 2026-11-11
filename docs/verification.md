@@ -62,6 +62,63 @@ directory owner confirmed cleanup of that run. Ruff/harness/docs and all six
 bindings then passed in **2.515 seconds**. This is integrated alias-path and
 bounded-drain evidence; corrected native macOS CI remains a separate gate.
 
+The [third CI run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43053460392)
+passed Linux and the harness job. macOS ran 347 Python tests in 21.761 seconds
+and reported two errors in diagram-renderer descendant cleanup and three skips.
+The earlier path/channel failures did not recur. Process-group permission denial
+(`EPERM`) escaped the renderer cleanup and its test finalizers. This run remains
+failed; it did not reach the macOS Go checks. The nonverbose summary does not
+identify the skipped cases, so their identities are not asserted here.
+
+The renderer correction retains the direct child unreaped until the final
+process-group signal. Linux uses nonreaping `waitid`; Darwin uses kqueue with
+explicit fast-exit registration handling. The standalone contributor process
+owns the SIGCHLD policy, captures through private temporary files, and enters
+cleanup once. A separate five-second cleanup deadline includes TERM, the
+one-second grace, KILL, exact Wait and passive group-absence observation. The
+uniform grace adds about one second per command, including normal exit. Group
+mutation is forbidden after Wait, group ESRCH or identity loss. A prior EPERM
+is resolved only by exact Wait plus ESRCH; persistent permission denial remains
+unknown closure. This does not contain descendants deliberately escaping with
+`setsid`, and changes no Gateway or Delegate task ownership.
+
+The focused command passed **25 tests in 11.226 seconds** on Linux:
+
+```sh
+PYTHONPATH="$PWD/scripts" python3 -m unittest scripts/test_render_diagrams.py -v
+```
+
+The same frozen source pair then passed all **25 tests without skips in 9.571
+seconds** on an authorized physical Mac, Python 3.12.11 / Darwin 27.2. Its SSH
+process returned zero and the test-owned directory cleanup was confirmed. This
+includes real stubborn descendants, Start interruption, termination and text
+behavior, alongside deterministic identity-loss/error/order regressions. This
+Mac result is distinct from the separate GitHub macOS 15 gate.
+
+The affected integrated command passed all **361 Python tests without skips in
+66.108 seconds**, plus Ruff, harness and six diagram bindings in **73.718 seconds**
+total:
+
+```sh
+DELEGATE_ACCEPTANCE_REPOSITORY="$PWD/.ci-native" GOFLAGS=-p=2 \
+  make test-tooling lint-python verify-harness check-docs
+```
+
+Code, tests and fixtures stayed unchanged during that invocation; two documentation
+files changed. The runtime result is retained for that unchanged source scope,
+while documentation checks are rerun after prose reconciliation. The earlier Go
+checks cover unchanged Go inputs. Fresh complete CI results belong to the
+[PR checks](https://github.com/hishamkaram/delegation-layer-gateway/pull/2/checks).
+
+After the failure-retention correction, the final focused module passed **27 tests
+in 11.042 seconds** on Linux, then **27 tests without skips in 9.542 seconds** on
+the same physical Mac with confirmed cleanup and SSH exit zero. The final
+`make test-tooling lint-python` with the pinned Native source passed all **363
+Python tests without skips in 58.540 seconds**, plus lint/format in **60.177
+seconds** total. Its recorded inputs stayed unchanged and its actual Wait returned
+zero. These results supersede the earlier 25/361-test scopes for the corrected
+test file; the renderer helper stayed unchanged.
+
 The preceding final invocation failed in **56.921 seconds** on unchanged inputs:
 one of 335 tests incorrectly assumed a timeout-test helper would remain alive
 until an assertion after another child's Wait. Its three-second self-exit could
@@ -143,6 +200,29 @@ invalid path cases remain invalid and the channel's independent byte, drain,
 fault and cleanup oracles are preserved. Neither review executed the tests or
 established corrected native macOS CI.
 
+The renderer correction then received actual-code reviews from Sol
+`9ddd9d3e46207cfdfcd98fff71e05800` and Opus
+`5c87f3adf95f3b3d9fe8028711570330`, plus an independent native reviewer. Both
+named reviewers closed the two renderer P2s and found no actionable P0/P1/P2 in
+the frozen pair. Their full committed payloads were validated and read. Sol also
+identified a lower-severity test failure path that deleted unresolved actor
+markers; the subsequent test-only correction retains failed scopes for diagnosis.
+Sol `7c12e0c3ba41e7bd7eee761ccc31dad7` and Opus
+`1003e0a4ece01172b239a9c4bd5fcc8b` reviewed that actual correction and closed the
+retention finding, with no actionable P0/P1/P2 in the delta. An independent native
+review reached the same scoped conclusion. Root separately verified the final
+27-test Mac and 363-test integrated receipts; reviewers did not execute them.
+
+Lower-severity limitations remain explicit: this standalone contributor helper
+requires sole-waiter ownership; it does not defend against a competing process
+waiter violating that precondition. Aggregated ordinary errors may print a
+traceback rather than the single-error CLI message. The uniform grace cost is
+accepted to preserve straightforward cleanup ordering. One failed fixture
+finalizer may make a closure error the top-level exception while preserving its
+primary assertion in Python's exception context; retained evidence is unaffected.
+None of these verdicts establishes a new whole-system or external acceptance
+result.
+
 These are scoped source-review conclusions. Reviewers did not run the final
 aggregate, inspect every descendant receipt or establish external acceptance.
 Their verdicts do not imply zero defects. Root separately verified the actual
@@ -153,7 +233,10 @@ themes and two viewport sizes; Root additionally inspected two full-diagram
 export captures. Both diagrams were reconciled against the production source
 checkpoint `5e065e84`, including conditional absence-fencing semantics and the
 Native prerequisite. Later acceptance-driver and caller-brief corrections do
-not change the displayed state ownership or topology. Integrity checks passed;
+not change the displayed state ownership or topology. The contributor renderer
+cleanup repair also leaves the maintained diagram specifications and artifacts
+unchanged, so regeneration would supply no changed system semantics. The binding
+checks remain mandatory. Integrity checks passed;
 visual inspection and source reconciliation are separate evidence.
 
 ## Local process fixture evidence

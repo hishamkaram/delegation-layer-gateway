@@ -3,16 +3,23 @@
 
 from __future__ import annotations
 
+from builtins import BaseExceptionGroup
+
 import fcntl
 import ctypes
 import hashlib
+import errno
+import io
 import json
 import os
 from pathlib import Path
 import signal
+import select
 import subprocess
 import sys
 import time
+import tempfile
+import threading
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,10 +60,121 @@ def adopt_owned_orphans() -> None:
             raise OSError(ctypes.get_errno(), "cannot own browser descendant cleanup")
 
 
-def reap_group(group: int, *, wait: bool) -> None:
-    while True:
+RUN_SECONDS = 300
+CLEANUP_SECONDS = 5
+TERM_GRACE_SECONDS = 1
+
+
+class IdentityLost(RuntimeError):
+    """The direct-child identity no longer authorizes numeric group mutation."""
+
+
+def raise_faults(faults: list[BaseException]) -> None:
+    if len(faults) == 1:
+        raise faults[0]
+    if faults:
+        raise BaseExceptionGroup("renderer ownership failures", faults)
+
+
+class ExitObserver:
+    """Observe a private, sole-waiter child without releasing its PID."""
+
+    def __init__(self) -> None:
+        self.watcher = None
+        if sys.platform == "linux":
+            for name in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT"):
+                if not hasattr(os, name):
+                    raise RuntimeError(
+                        "nonreaping Linux observation unavailable: " + name
+                    )
+        elif sys.platform == "darwin":
+            for name in (
+                "kqueue",
+                "kevent",
+                "KQ_FILTER_PROC",
+                "KQ_NOTE_EXIT",
+                "KQ_EV_ADD",
+                "KQ_EV_ONESHOT",
+                "KQ_EV_ERROR",
+            ):
+                if not hasattr(select, name):
+                    raise RuntimeError(
+                        "nonreaping Darwin observation unavailable: " + name
+                    )
+            self.watcher = select.kqueue()
+        else:
+            raise RuntimeError(
+                "nonreaping child observation unsupported on this platform"
+            )
+
+    def wait(self, child: subprocess.Popen[str], timeout: float) -> None:
+        if child.returncode is not None:
+            raise IdentityLost("child reaped before exit observation; closure unknown")
+        deadline = time.monotonic() + timeout
+        if self.watcher is not None:
+            change = select.kevent(
+                child.pid,
+                filter=select.KQ_FILTER_PROC,
+                flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT,
+                fflags=select.KQ_NOTE_EXIT,
+            )
+            try:
+                self.watcher.control([change], 0, 0)
+            except ProcessLookupError:
+                # Registration ESRCH is an exited, unreaped owned child, NOT
+                # group absence. SIGCHLD/default and sole Wait are preconditions.
+                return
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(child.args, timeout)
+                events = self.watcher.control(None, 1, remaining)
+                if not events:
+                    continue
+                event = events[0]
+                if (
+                    event.ident != child.pid
+                    or event.filter != select.KQ_FILTER_PROC
+                    or event.flags & select.KQ_EV_ERROR
+                    or not event.fflags & select.KQ_NOTE_EXIT
+                ):
+                    raise RuntimeError(
+                        "invalid child exit observation; closure unknown"
+                    )
+                return
+        while True:
+            try:
+                observed = os.waitid(
+                    os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT
+                )
+            except ChildProcessError as error:
+                raise IdentityLost(
+                    "owned child is no longer waitable; closure unknown"
+                ) from error
+            if observed is not None:
+                if observed.si_pid != child.pid or observed.si_code not in (
+                    os.CLD_EXITED,
+                    os.CLD_KILLED,
+                    os.CLD_DUMPED,
+                ):
+                    raise IdentityLost(
+                        "unexpected child wait identity; closure unknown"
+                    )
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(child.args, timeout)
+            time.sleep(min(0.01, remaining))
+
+    def close(self) -> None:
+        if self.watcher is not None:
+            self.watcher.close()
+
+
+def reap_group(group: int, *, deadline: float | None = None) -> None:
+    while deadline is None or time.monotonic() < deadline:
         try:
-            pid, _status = os.waitpid(-group, 0 if wait else os.WNOHANG)
+            pid, _status = os.waitpid(-group, os.WNOHANG)
         except ChildProcessError:
             return
         if pid == 0:
@@ -71,30 +189,94 @@ def group_exists(group: int) -> bool:
     return True
 
 
-def stop_owned_group(child: subprocess.Popen[str]) -> None:
-    """Escalate independently of pipe/direct-child exit, then join the child."""
+def stop_owned_group(
+    child: subprocess.Popen[str],
+    *,
+    identity_lost: bool = False,
+) -> tuple[PermissionError, ...]:
+    """One cleanup entry: mutate while anchored, exact Wait, then passive checks.
+
+    Returned EPERM diagnostics are superseded only by exact Wait and ESRCH.
+    No competing waiter or native SIGCHLD-policy changes are permitted while
+    this standalone contributor helper owns the strongly referenced child.
+    """
+    deadline = time.monotonic() + CLEANUP_SECONDS
+    faults: list[BaseException] = []
+    permissions: list[PermissionError] = []
+    absent = False
+    joined = False
     blocked = {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
-    previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked)
+    previous = None
     try:
         try:
-            os.killpg(child.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass  # No members remain in the owned group.
-        # Do not reap the leader during the grace period: its PID keeps the
-        # group identity reserved while descendants close their own resources.
-        time.sleep(1)
+            previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked)
+        except BaseException as error:
+            faults.append(error)
+        if child.returncode is not None:
+            identity_lost = True
+            faults.append(IdentityLost("child reaped before cleanup; closure unknown"))
+        if not identity_lost:
+            for number in (signal.SIGTERM, signal.SIGKILL):
+                if absent:
+                    break
+                if child.returncode is not None:
+                    identity_lost = True
+                    faults.append(
+                        IdentityLost("child reaped during cleanup; closure unknown")
+                    )
+                    break
+                try:
+                    os.killpg(child.pid, number)
+                except ProcessLookupError:
+                    absent = True
+                except PermissionError as error:
+                    permissions.append(error)
+                except BaseException as error:
+                    faults.append(error)
+                if number == signal.SIGTERM and not absent:
+                    try:
+                        time.sleep(
+                            min(TERM_GRACE_SECONDS, max(0, deadline - time.monotonic()))
+                        )
+                    except BaseException as error:
+                        faults.append(error)
+        # Always attempt the exact join, including signal/observer failures.
+        # No group mutations are allowed below this point, even if Wait fails.
         try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass  # No members remain in the owned group.
-        child.communicate()
-        reap_group(child.pid, wait=True)
-        # A non-Linux init may need a scheduling turn to reap its descendants.
-        # Keep the lease and interruption mask until no group members remain.
-        while group_exists(child.pid):
-            time.sleep(0.01)
+            child.wait(timeout=max(0, deadline - time.monotonic()))
+            joined = True
+        except BaseException as error:
+            faults.append(error)
+        if joined and not identity_lost:
+            while True:
+                try:
+                    if sys.platform == "linux":
+                        reap_group(child.pid, deadline=deadline)
+                    if absent or not group_exists(child.pid):
+                        absent = True
+                        break
+                except PermissionError as error:
+                    permissions.append(error)
+                except BaseException as error:
+                    faults.append(error)
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                time.sleep(min(0.01, remaining))
+        if not joined or not absent or identity_lost:
+            faults.extend(permissions)
+            faults.append(RuntimeError("owned process-group closure unknown"))
+    except BaseException as error:
+        faults.append(error)
     finally:
-        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+        if previous is not None:
+            try:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+            except BaseException as error:
+                faults.append(error)
+    raise_faults(faults)
+    return tuple(permissions)
 
 
 # Exercise the production Export menu; intercept only the download boundary.
@@ -145,6 +327,12 @@ try {
 
 
 def run(args: list[str], *, cwd: Path = ROOT, stdin: str | None = None) -> str:
+    # No other thread, waiter or SIGCHLD-policy writer may share this owner.
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("renderer child ownership requires the main thread")
+    if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+        raise RuntimeError("renderer requires default SIGCHLD policy")
+    signal.signal(signal.SIGCHLD, signal.SIG_DFL)  # Also clears SA_NOCLDWAIT.
     adopt_owned_orphans()
     previous = {
         number: signal.getsignal(number)
@@ -152,47 +340,109 @@ def run(args: list[str], *, cwd: Path = ROOT, stdin: str | None = None) -> str:
     }
     pending = False
     child: subprocess.Popen[str] | None = None
+    observer = None
+    files = []
+    faults: list[BaseException] = []
+    stdout = stderr = ""
+    identity_lost = False
+    observed_exit = False
 
     def defer_interruption(_signal: int, _frame: object) -> None:
-        # Do not raise between fork/exec and the caller receiving its handle.
-        # Unlike a blocked signal mask, this does not alter the child's mask.
         nonlocal pending
         pending = True
 
     try:
+        observer = ExitObserver()  # Preflight before a child can exist.
+        for _ in range(3):
+            files.append(tempfile.TemporaryFile(mode="w+b"))
+        input_file, output_file, error_file = files
+        if stdin is not None:
+            # Match subprocess text=True's locale encoding and newline policy.
+            text = io.TextIOWrapper(input_file, encoding=None, newline=None)
+            try:
+                text.write(stdin)
+                text.flush()
+            finally:
+                text.detach()
+            input_file.seek(0)
         for number in previous:
             signal.signal(number, defer_interruption)
         child = subprocess.Popen(
             args,
             cwd=cwd,
             text=True,
-            stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdin=input_file if stdin is not None else subprocess.DEVNULL,
+            stdout=output_file,
+            stderr=error_file,
             start_new_session=True,
         )
-        # Handle acquisition is now inside guaranteed cleanup. Restore the
-        # caller's policy, then deliver any interruption recorded at Start.
         for number, handler in previous.items():
             signal.signal(number, handler)
         if pending:
             raise KeyboardInterrupt
-        stdout, stderr = child.communicate(stdin, timeout=300)
-        reap_group(child.pid, wait=False)
-        if group_exists(child.pid):
-            stop_owned_group(child)
-    except BaseException:
-        if child is not None:
-            stop_owned_group(child)
-        raise
-    finally:
-        for number, handler in previous.items():
-            signal.signal(number, handler)
-    if child.returncode:
-        raise RuntimeError(
-            f"{args[0]} {args[1:4]} failed ({child.returncode}): "
-            f"{stderr[-6000:]} {stdout[-6000:]}"
+        observer.wait(child, RUN_SECONDS)
+        observed_exit = True
+    except BaseException as error:
+        identity_lost = isinstance(error, IdentityLost) or (
+            isinstance(error, OSError) and error.errno == errno.ECHILD
         )
+        faults.append(error)
+    finally:
+        if child is not None:
+            try:
+                resolved_permissions = stop_owned_group(
+                    child, identity_lost=identity_lost
+                )
+                for error in faults:
+                    for permission in resolved_permissions:
+                        error.add_note(
+                            "EPERM superseded by exact Wait and group ESRCH: "
+                            + str(permission)
+                        )
+            except BaseException as error:
+                faults.append(error)
+        if observer is not None:
+            try:
+                observer.close()
+            except BaseException as error:
+                faults.append(error)
+        # Finite snapshots: deliberately escaped writers cannot hold a pipe or
+        # extend this read indefinitely. Group closure does not contain setsid.
+        if child is not None and child.returncode is not None:
+            for index in (1, 2):
+                try:
+                    file = files[index]
+                    size = os.fstat(file.fileno()).st_size
+                    file.seek(0)
+                    data = file.read(size)
+                    with io.TextIOWrapper(
+                        io.BytesIO(data), encoding=None, newline=None
+                    ) as text:
+                        value = text.read()
+                    if index == 1:
+                        stdout = value
+                    else:
+                        stderr = value
+                except BaseException as error:
+                    faults.append(error)
+        for file in files:
+            try:
+                file.close()
+            except BaseException as error:
+                faults.append(error)
+        for number, handler in previous.items():
+            try:
+                signal.signal(number, handler)
+            except BaseException as error:
+                faults.append(error)
+    if observed_exit and child is not None and child.returncode:
+        faults.append(
+            RuntimeError(
+                f"{args[0]} {args[1:4]} failed ({child.returncode}): "
+                f"{stderr[-6000:]} {stdout[-6000:]}"
+            )
+        )
+    raise_faults(faults)
     return stdout
 
 

@@ -44,6 +44,18 @@ where appropriate. Regenerate changed diagrams from their maintained source and
 inspect readable rendered/exported output; link/checksum checks alone do not
 prove semantic freshness or visual quality.
 
+## Diagram regeneration
+
+`scripts/render_diagrams.py` owns its contributor child processes and requires
+main-thread execution with default SIGCHLD policy. It observes child exit without
+reaping until group cleanup signals finish, then joins the child and checks group
+absence within a finite deadline. Cleanup failures are explicit; permission denial
+alone is never absence. Private file capture prevents an inherited pipe writer
+from extending the join. Deliberately escaped process sessions are outside this
+process-group guarantee. Failed actor-test scopes retain their markers and add
+the locator to the error; remove retained evidence only after resolving cleanup.
+This helper is separate from Gateway task execution.
+
 ## Live acceptance
 
 `make e2e-local` is reserved for built Gateway/connector and actual compatible
