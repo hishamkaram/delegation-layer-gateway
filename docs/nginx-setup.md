@@ -12,6 +12,18 @@ bundle and the public hostname, using TLS 1.3 and SNI. Gateway therefore needs a
 valid certificate for that hostname too. No TLS verification bypass is offered.
 The connector's device mTLS listener remains direct on port 8443.
 
+Connector `trust_ca_file` pins the CA certificates that verify the HTTPS/WSS
+server. Configure `device_ca_file` separately with the Gateway device issuer's
+public CA certificate. Each connector CA file must be an owned regular 0600 PEM
+file, at most 128 KiB, containing at most 32 signing CA certificates. Keep the
+device CA private key on Gateway. A public HTTPS certificate and its private
+device issuer have separate trust files. The HTTPS leaf/fullchain file used by
+Nginx is unsuitable as a connector CA bundle because that bundle accepts only
+signing CA certificates. Omitting `device_ca_file` reuses `trust_ca_file` for
+existing same-authority configurations.
+Connector trust bundles are loaded at startup. Restart the connector after
+changing either bundle, including a device CA rotation.
+
 ## Run
 
 Replace `gateway.example.com` with your own hostname. No operator hostname is

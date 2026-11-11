@@ -63,6 +63,11 @@ check:
 	$(MAKE) verify-harness check-docs test-tooling lint-python
 	$(MAKE) fmt-check vet lint test-race build vuln
 
-e2e-local e2e-provider e2e-external:
+e2e-local: compiler
+	go build -o bin/gateway-e2e ./cmd/gateway
+	go build -tags=e2e -o bin/gateway-e2e-fixture ./internal/e2e
+	python3 scripts/e2e_local.py --gateway "$(CURDIR)/bin/gateway-e2e" --fixture-tool "$(CURDIR)/bin/gateway-e2e-fixture" $(E2E_ARGS)
+
+e2e-provider e2e-external:
 	@echo "$@: implementation/authorized environment is not available yet; no acceptance claimed" >&2
 	@exit 1

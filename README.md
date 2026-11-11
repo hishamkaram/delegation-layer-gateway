@@ -4,9 +4,10 @@ A trusted, self-hosted gateway connecting remote MCP clients to explicitly selec
 devices running [Delegation Layer](https://github.com/hishamkaram/delegation-layer).
 Clients use MCP over HTTPS; device connectors initiate outbound WSS connections.
 
-**Implementation is in progress.** The engineering harness and public Delegate
-prerequisites come first. No Gateway execution, cloud compatibility, or release
-readiness is claimed by this repository scaffold.
+**Implementation and verification are in progress.** Gateway, connector and
+Delegate prerequisite code are being integrated. The bounded loopback fixture
+flow passed; Native corrections, physical-device and cloud-client proof remain
+open. See the [evidence and remaining gates](docs/verification.md).
 
 ## Ownership and trust
 
@@ -36,3 +37,5 @@ Track delivery and evidence in [Issue #1](https://github.com/hishamkaram/delegat
 
 For this host's isolated reverse proxy setup, see [Nginx setup](docs/nginx-setup.md).
 The helper does not start Gateway or establish live MCP acceptance.
+Runtime configuration and enrollment are described in
+[candidate deployment](docs/deployment.md).

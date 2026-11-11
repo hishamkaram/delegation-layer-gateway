@@ -11,8 +11,9 @@ paths, a shell, provider APIs or Pueue.
 
 Identity, registry, routing, contracts/policy, transport, MCP and connector have
 separate responsibilities. Root freezes shared contracts before dependent work.
-Public future connector commands remain planned until compatible installed
-Delegate capability tests prove them. M0 scaffolding does not implement them.
+The connector requires the public CLI capabilities implemented by the separate
+Delegate prerequisite candidate. Validate the selected executable's capabilities
+before use. Candidate tests establish compatibility for that tested build.
 
 ## Installed executables
 

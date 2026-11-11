@@ -1,6 +1,6 @@
 # Architecture
 
-Status: approved target design; implementation and live acceptance remain pending.
+Status: implementation in progress; integrated and live acceptance remain open.
 
 See the maintained [component and operation-safety diagrams](../diagrams/README.md).
 
@@ -37,6 +37,13 @@ WSS listener. Devices need outbound connectivity only. User OAuth and device
 certificates have independent trust and revocation paths. Auth0 is the first
 documented reference issuer; live interoperability must be demonstrated.
 
+Connector configuration pins the HTTPS/WSS server authority in `trust_ca_file`
+and the issued device-certificate authority in `device_ca_file`. Both files are
+operator-owned CA bundles. Device credential validation never expands server
+trust. Omitting `device_ca_file` preserves existing configurations that use the
+same authority for both roles. Enrollment, stored credentials, renewal and
+reconnect use the device authority for client-certificate validation.
+
 Device IDs are stable opaque identities; names may collide. Online presence does
 not establish Delegate compatibility or provider authentication. Every operation
 requires current grants and the connector's local ceiling. Explicit device and
@@ -44,8 +51,32 @@ project selection never silently falls back.
 
 ## Admission and recovery
 
+Registry creation is explicit: `gateway init --database ABS` creates a new private
+database and generates its Gateway identity and credential epoch. Serving opens
+an existing database and requires its expected Gateway identity; missing or
+incomplete storage never silently becomes a fresh instance. `gateway identity
+--database ABS` reads only the persisted identity while the instance is stopped.
+
+Registering a project binds its alias and exact context guards. It cannot choose
+an admission generation or make a root execution-ready. Registry owns eligibility
+once per device/root, shared by its aliases. New-root initialization records a
+durable session and generation before sending an expected-absent Delegate
+barrier. Complete canonical inventory, approval and guarded reopen must finish
+before admission opens. Adding a root does not reset fleet credentials or grants.
+
+An interrupted initialization resumes its recorded phase and identity. An
+unexpected existing namespace requires explicit recovery; it is never adopted.
+Administrative abandonment retains evidence and reservations and requires an
+explicit fleet restore. Queued barrier and reopen sends revalidate the active
+session and exact durable plan before writing. An already-sent conflicting
+barrier can require a fresh explicit restore after a routing census or drain;
+there is no automatic rebase or replacement task submission.
+See [operator recovery and its availability limits](recovery.md).
+
 Preparation freezes the brief, selected provider/model/effort/permissions/budget,
 context guards and random operation/task identities. It launches nothing.
+The versioned request digest binds these immutable fields and the brief's SHA-256;
+restored attribution can verify the digest without recovering brief plaintext.
 Confirmation checks the encoded frame before persisting possible-send, then
 sends to the selected connected device. An uncertain response never permits a
 replacement identity or blind redispatch.

@@ -73,6 +73,21 @@ Recovery-only credentials cannot admit, resume or reopen. Admin operations are
 never MCP-callable. Superseded generations and stale completeness receipts fail
 closed.
 
+Within its protected control owner, `fence_absent` first performs a guarded
+passive lookup. Complete matching existing evidence returns without acquiring
+Delegate's partial-preparation refusal exclusion. Validated absence triggers
+the independently guarded native refusal fence. The exact native partial
+`unresolved` response may also select that fence, but supplies no identity,
+spec, refusal or closure evidence itself. Malformed responses, mismatched
+receipts and ordinary read errors do not trigger a fallback fence.
+
+`cancel` validates the canonical frozen receipt before issuing guarded native
+cancellation with the stable cancellation ID. A post-cancel canonical read and
+matching stop evidence remain required. Running workers retain their execution
+ownership while receiving stop requests; a refusal fence is not a prerequisite
+for stopping complete existing work. All sequential native controls retain the
+same protected permit through actual Wait and cleanup.
+
 ## Limits and errors
 
 | Limit | Default |
@@ -101,7 +116,9 @@ The fleet ceilings cover Gateway-routed CLI controls. Locally initiated connecto
 startup metadata probes and operator CLI/SSH/TUI calls remain under their local
 owners and are outside those fleet counts. Startup probes use the connector
 local limits and finite context; they are never periodic execution work.
-These routing contracts remain a target until implementation and live checks.
+The routing contracts are implemented; integrated process and live acceptance
+remain separate gates. See [recovery limits](recovery.md): uncertain accepted
+calls retain capacity and may exhaust an entire operation class.
 
 TTL is not a task-completion deadline. Subprocess capacity stays owned through
 `Wait` and cleanup. Outer HTTP/client deadlines must accommodate inner deadlines.

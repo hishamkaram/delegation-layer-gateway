@@ -6,7 +6,7 @@ files rather than assuming the host compiler is compatible. Use
 `GOTOOLCHAIN=local`; a missing required compiler is an actionable blocker,
 never permission for an ambient toolchain download.
 
-The module minimum is Go 1.27.0; the exact compiler pin is Go 1.27.3.
+The module minimum is Go 1.27.0; the exact compiler pin is Go 1.27.4.
 The approved tool pins are gofumpt v0.12.0,
 golangci-lint v2.14.0 and govulncheck v1.8.0. Python 3.12+ runs the
 stdlib-only harness validator. Contributor tools remain repository-local;

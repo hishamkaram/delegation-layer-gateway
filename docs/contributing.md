@@ -1,8 +1,8 @@
 # Contributing
 
 Read [AGENTS](../AGENTS.md) for rules and [architecture](architecture.md) for
-milestone scope. M0 is contracts, engineering scaffolding and harness adaptation;
-future Delegate connector commands are not implemented Gateway behavior.
+milestone scope. The connector depends on the separately reviewed Delegate
+prerequisite candidate and validates the selected executable's public capabilities.
 
 ## Development setup
 
