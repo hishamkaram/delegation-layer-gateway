@@ -99,14 +99,23 @@ func TestRuntimeEnrollmentMutualTLSHostAndRevocation(t *testing.T) {
 	report := protocol.CapabilityReport{ObservedAt: time.Now()}
 	connected := diagnosticDeviceDial(t, transport.ClientConfig{URL: strings.Replace(endpoint, "https://", "wss://", 1), GatewayID: f.runtime.gatewayID, Certificate: certificate.Leaf, Capabilities: report, Routing: &emptyCensus{boot: strings.Repeat("a", 32)}}, authenticated)
 	t.Cleanup(func() { require(t, connected.Close()) })
+	// Dial sends capabilities; Hub owns when the full handshake is processed.
+	readyCtx, cancelReady := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancelReady()
+	require(t, f.runtime.hub.WaitReady(readyCtx, "device"))
 	snapshot, err := f.runtime.hub.Snapshot("device")
 	if got := checked(t, snapshot, err); !got.Online || !got.RoutingReady || got.CredentialMode != domain.Regular {
 		t.Fatal("actual enrolled mutualTLS device did not authenticate/reconcile")
 	}
 	revoked := true
 	f.adminCall(t, "/v1/devices/revocation", adminapi.DeviceRevocationInput{DeviceID: "device", Revoked: &revoked}, nil)
-	if _, err = f.runtime.hub.Snapshot("device"); err == nil {
-		t.Fatal("durable device revocation retained current WSS socket")
+	// Disconnect joins socket workers; the stopped session may await retirement.
+	snapshot, err = f.runtime.hub.Snapshot("device")
+	if err != nil && !errors.Is(err, transport.ErrOffline) {
+		t.Fatalf("revoked session snapshot failed unexpectedly: %v", err)
+	}
+	if err == nil && (snapshot.Online || snapshot.RoutingReady) {
+		t.Fatal("durable device revocation retained an online or routing-ready WSS session")
 	}
 	_, err = transport.Dial(t.Context(), transport.ClientConfig{URL: strings.Replace(endpoint, "https://", "wss://", 1), GatewayID: f.runtime.gatewayID, Certificate: certificate.Leaf, Capabilities: report, Routing: &emptyCensus{boot: strings.Repeat("b", 32)}}, authenticated, time.Now)
 	if err == nil {
