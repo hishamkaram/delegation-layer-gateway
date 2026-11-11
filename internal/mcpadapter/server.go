@@ -56,12 +56,15 @@ func New(options Options) (*Adapter, error) {
 	// SDK diagnostics may include protocol values. Only the separately owned
 	// allowlisted audit/metrics path may write application observability.
 	quiet := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	server := mcp.NewServer(&mcp.Implementation{Name: "delegation-layer-gateway", Version: "0.0.0-dev"}, &mcp.ServerOptions{Logger: quiet, Instructions: "Select a device and project explicitly. Prepare a dispatch, retain its operation ID, then confirm it. Retry by the same handle; never create a replacement after an unknown admission. Accepted results and confirmed execution closure are separate. A project grant does not provide an OS sandbox.", SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25"}})
+	// Older versions require batches; this boundary admits one RPC per HTTP request.
+	server := mcp.NewServer(&mcp.Implementation{Name: "delegation-layer-gateway", Version: "0.0.0-dev"}, &mcp.ServerOptions{Logger: quiet, Instructions: "Select a device and project explicitly. Prepare a dispatch, retain its operation ID, then confirm it. Retry by the same handle; never create a replacement after an unknown admission. Accepted results and confirmed execution closure are separate. A project grant does not provide an OS sandbox.", SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18"}})
 	adapter := &Adapter{options: options, server: server, metadataURL: resource.Scheme + "://" + resource.Host + "/.well-known/oauth-protected-resource/mcp", limits: limits}
 	if err = adapter.registerTools(); err != nil {
 		return nil, err
 	}
-	transport := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: quiet, MaxRequestBodyBytes: 1 << 20, PropagateRequestCancellation: true})
+	// The composition guard owns exact public Host/Origin checks, including behind
+	// a loopback reverse proxy. See Handler's required security precondition.
+	transport := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, Logger: quiet, MaxRequestBodyBytes: maxRequestBodyBytes, PropagateRequestCancellation: true, DisableLocalhostProtection: true})
 	adapter.handler = auth.RequireBearerToken(adapter.verifyToken, &auth.RequireBearerTokenOptions{ResourceMetadataURL: adapter.metadataURL})(adapter.limitHTTP(transport))
 	return adapter, nil
 }
@@ -92,6 +95,9 @@ func (a *Adapter) limitHTTP(next http.Handler) http.Handler {
 		if info == nil || !a.limits.Allow(info.UserID) {
 			writer.Header().Set("Retry-After", "1")
 			http.Error(writer, "resource_limit", http.StatusTooManyRequests)
+			return
+		}
+		if !singleMessage(writer, request) {
 			return
 		}
 		next.ServeHTTP(writer, request)

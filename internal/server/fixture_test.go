@@ -76,12 +76,15 @@ func writePair(t *testing.T, parent, name string, der []byte, key *ecdsa.Private
 	return files
 }
 
-func serverPair(t *testing.T, parent string, ca authority) config.TLSFiles {
+func serverPair(t *testing.T, parent string, ca authority, names ...string) config.TLSFiles {
 	t.Helper()
+	if len(names) == 0 {
+		names = []string{"localhost"}
+	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	private := checked(t, key, err)
 	now := time.Now()
-	template := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "localhost"}, NotBefore: now.Add(-40 * 24 * time.Hour), NotAfter: now.AddDate(1, 0, 0), DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	template := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: names[0]}, NotBefore: now.Add(-40 * 24 * time.Hour), NotAfter: now.AddDate(1, 0, 0), DNSNames: names, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, template, ca.certificate, &private.PublicKey, ca.key)
 	return writePair(t, parent, "server", checked(t, der, err), private)
 }

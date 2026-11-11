@@ -37,6 +37,20 @@ WSS listener. Devices need outbound connectivity only. User OAuth and device
 certificates have independent trust and revocation paths. Auth0 is the first
 documented reference issuer; live interoperability must be demonstrated.
 
+The server composition owns TLS and exact public Host/Origin validation before
+authentication. The MCP SDK's additional loopback-host heuristic is disabled:
+the supported reverse proxy connects over loopback while preserving that public
+Host. The existing composition guard remains mandatory for the MCP adapter.
+The transport supports protocol versions `2026-07-28`, `2025-11-25` and
+`2025-06-18`. It admits one JSON-RPC message per authenticated HTTP request.
+Arrays sent as `application/json` receive HTTP 400 before SDK dispatch. Older batch-requiring versions
+are excluded. JSON request bodies are bounded to 1 MiB, including whitespace.
+This keeps one HTTP rate/concurrency admission from fanning out into a batch of
+tool executions. The SDK still owns message parsing and version negotiation.
+Gateway and SDK each buffer the bounded body. Operators should allow roughly
+256 MiB plus allocation overhead for both copies at the maximum 128 concurrent
+requests; normal request bodies consume less.
+
 Connector configuration pins the HTTPS/WSS server authority in `trust_ca_file`
 and the issued device-certificate authority in `device_ca_file`. Both files are
 operator-owned CA bundles. Device credential validation never expands server

@@ -69,6 +69,12 @@ custody. Protect its private key and the database together. The admin socket is
 local and private. Route HTTPS through the [Nginx setup](nginx-setup.md) and make
 the direct device listener reachable from authorized devices.
 
+The Nginx proxy preserves the public Host while connecting to the loopback TLS
+listener. Gateway validates TLS, that exact Host and any supplied Origin before
+authentication; the MCP SDK defers its loopback-host check to this guard.
+Supported MCP versions and the single-message HTTP policy are specified in
+[architecture](architecture.md#connectivity-and-identity).
+
 ```sh
 gateway serve --config /absolute/private/gateway.json
 ```

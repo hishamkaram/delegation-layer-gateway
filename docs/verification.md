@@ -1,5 +1,64 @@
 # Verification and delivery gates
 
+## Public proxy discovery correction
+
+An actual ChatGPT connection completed authentication but reported action
+discovery failure. Its HTTP method, protocol version and response status remain
+unverified. A focused regression independently reproduced HTTP 403 with the
+documented TLS loopback upstream and public Host: the SDK's default loopback-host
+heuristic conflicted with Gateway's existing exact Host/Origin guard. A separate
+baseline request proved that a headerless two-item read-only batch executed two
+tools under one HTTP admission. Neither experiment uniquely attributes the
+reported Cloud failure.
+
+The correction keeps TLS/Host/Origin checks in server composition, disables the
+conflicting SDK heuristic, supports the three modern versions documented in
+[architecture](architecture.md#connectivity-and-identity), and rejects batches
+after authentication and HTTP rate admission. Seven focused race tests passed
+in **14.935 seconds**, covering initialization/discovery, legacy headers, batch
+rejection with zero tool executions, invalid non-JSON prefixes, and exact/overflow body limits. Their test
+authentication is an opaque fixture token. A separate composed-server race test
+passed in **9.062 seconds** using verified public-host TLS, a signed JWT and JWKS
+retrieval. It also checks forbidden Host/Origin before key retrieval, absent and
+invalid bearer tokens, and plaintext HTTP rejection.
+
+The corrected local Go gate passed in **697.331 seconds** with Go 1.27.4,
+`GOTOOLCHAIN=local`, `GOMAXPROCS=2` and `GOFLAGS=-p=1`:
+
+```sh
+make fmt-check vet lint test-race test-e2e-helper build vuln
+```
+
+Both lint scopes reported zero issues. The full race suite, tagged helper and
+build passed. Vulnerability analysis found zero affected or imported-package
+vulnerabilities; three module-level findings were outside the reachable code.
+Only architecture/verification prose changed during that invocation; all Go,
+test, fixture, dependency and compiler inputs were unchanged.
+
+The first `make check` attempt failed on an unchecked type assertion in the new
+test hook. That assertion was corrected. Its Python invocation also omitted the
+Native harness prerequisite, so eight skips did not satisfy that gate. The
+corrected invocation passed **363 tests without skips** in **70.580 seconds**
+(71.085 seconds including the runner), with unchanged inputs:
+
+```sh
+DELEGATE_ACCEPTANCE_REPOSITORY="$PWD/.ci-native" make test-tooling
+```
+
+The earlier invocation's Ruff checks passed with unchanged Python/tool inputs.
+Documentation/harness validation remains required on the final text.
+Sol, Opus 5.5 and the independent native reviewer inspected the production
+correction. Both named reviewers inspected the final fixes and reported no
+remaining actionable P0–P3 within this correction's scope.
+
+These are local engineering/protocol/security results. The CI results below
+precede this correction. Current native-platform CI, deployment and an actual
+ChatGPT retry remain separate gates. The component/operation
+diagrams retain the same owners and connections; no execution, persistence or
+recovery boundary changes in this correction.
+
+## Earlier integrated verification
+
 The configured Linux `make check` passed in **439.666 seconds** before the
 first PR CI run, with unchanged recorded inputs during that invocation.
 Subsequent documentation/harness checks passed in **2.004 seconds** before
