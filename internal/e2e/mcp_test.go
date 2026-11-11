@@ -6,6 +6,8 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -74,6 +76,27 @@ func TestMCPRejectsDestinationBeforeCredentialAccess(t *testing.T) {
 		if _, err := callMCP(t.Context(), input); err == nil || !strings.HasPrefix(err.Error(), "fixture ") {
 			t.Fatal("invalid destination reached credential access")
 		}
+	}
+}
+
+func TestMCPRejectsOversizedHTTPResponseBeforeSDKDecoding(t *testing.T) {
+	fixture, input := newMCPFixture(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		// A flushed response uses chunked transfer rather than a trusted length.
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Error("fixture writer cannot flush")
+			return
+		}
+		flusher.Flush()
+		if _, err := io.WriteString(w, strings.Repeat("x", expectedResponseLimit+1)); err != nil {
+			return // Client may close the oversized response before the server finishes.
+		}
+	}))
+	input.Endpoint = fixture.URL + "/mcp"
+	if _, err := callMCP(t.Context(), input); !errors.Is(err, errResponseLimit) {
+		t.Fatalf("SDK decoded an oversized streamed response: %v", err)
 	}
 }
 

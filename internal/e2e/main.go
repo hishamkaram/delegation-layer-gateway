@@ -48,7 +48,7 @@ func run(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(out).Encode(result)
+		return writeOutput(out, result)
 	case "mcp":
 		var request callInput
 		if err := readPrivate(*input, &request); err != nil {
@@ -60,7 +60,19 @@ func run(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(out).Encode(result)
+		return writeOutput(out, result)
+	case "metadata":
+		var request callInput
+		if err := readPrivate(*input, &request); err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+		defer cancel()
+		result, err := readMetadata(ctx, request)
+		if err != nil {
+			return err
+		}
+		return writeOutput(out, result)
 	default:
 		return errors.New("unknown fixture command")
 	}
@@ -104,4 +116,22 @@ func privateWrite(path string, data []byte) error {
 	}
 	_, writeErr := file.Write(data)
 	return errors.Join(writeErr, file.Close())
+}
+
+// Bound the entire serialized stdout before writing any bytes to the capture.
+// The newline is included in the fixed 2 MiB output budget.
+func writeOutput(out io.Writer, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	if len(data) >= maxOutputBytes {
+		return errors.New("fixture output limit exceeded")
+	}
+	data = append(data, '\n')
+	n, err := out.Write(data)
+	if err == nil && n != len(data) {
+		return io.ErrShortWrite
+	}
+	return err
 }

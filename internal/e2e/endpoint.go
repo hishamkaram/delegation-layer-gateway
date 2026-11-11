@@ -70,3 +70,82 @@ func fixtureEndpoint(value string, allowed []netip.Addr) (*url.URL, error) {
 	}
 	return endpoint, nil
 }
+
+// System trust validates a DNS endpoint, not Internet reachability. A single
+// label is valid; the TLS verifier still owns trust and hostname authentication.
+func systemEndpoint(value string) (*url.URL, error) {
+	endpoint, err := fixtureURL(value)
+	if err != nil {
+		return nil, err
+	}
+	host := endpoint.Hostname()
+	if !canonicalDNS(host) || endpoint.Path != "/mcp" {
+		return nil, errors.New("fixture system endpoint requires canonical DNS and /mcp")
+	}
+	if port := endpoint.Port(); port != "" {
+		number, parseErr := strconv.ParseUint(port, 10, 16)
+		if parseErr != nil || number == 0 || strconv.FormatUint(number, 10) != port {
+			return nil, errors.New("fixture system endpoint requires a canonical port")
+		}
+	}
+	if endpoint.Host != host && endpoint.Host != host+":"+endpoint.Port() {
+		return nil, errors.New("fixture system endpoint has a noncanonical authority")
+	}
+	if strings.HasSuffix(endpoint.Host, ":") {
+		return nil, errors.New("fixture system endpoint port is empty")
+	}
+	return endpoint, nil
+}
+
+func canonicalDNS(host string) bool {
+	if host == "" || len(host) > 253 || host != strings.ToLower(host) {
+		return false
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return false
+	}
+	for _, label := range strings.Split(host, ".") {
+		if !canonicalDNSLabel(label) {
+			return false
+		}
+	}
+	return true
+}
+
+func canonicalDNSLabel(label string) bool {
+	if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+		return false
+	}
+	for _, character := range label {
+		if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') || character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func callEndpoint(input callInput) (*url.URL, error) {
+	switch input.TrustMode {
+	case "", "fixture":
+		addresses, err := fixtureIPs(input.AllowedIPs)
+		if err != nil {
+			return nil, err
+		}
+		endpoint, err := fixtureEndpoint(input.Endpoint, addresses)
+		if err != nil {
+			return nil, err
+		}
+		if endpoint.Path != "/mcp" {
+			return nil, errors.New("fixture MCP endpoint path must be /mcp")
+		}
+		return endpoint, nil
+	case "system":
+		if input.CA != "" || input.AllowedIPs != nil {
+			return nil, errors.New("fixture system trust cannot accept CA or IP overrides")
+		}
+		return systemEndpoint(input.Endpoint)
+	default:
+		return nil, errors.New("fixture trust mode is invalid")
+	}
+}
