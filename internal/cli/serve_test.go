@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
 type boundOutput struct {
@@ -77,7 +78,7 @@ func writeCLIPair(t *testing.T, parent, name string, der []byte, key *ecdsa.Priv
 }
 
 func TestServeActualTLSLifecycleReportsBoundAndReleasesLeases(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	require(t, os.Chmod(parent, 0o700))
 	audit := filepath.Join(parent, "audit")
 	require(t, os.Mkdir(audit, 0o700))

@@ -15,12 +15,13 @@ import (
 	"testing"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
 func TestAdminMalformedOversizedAndRedirectResponsesAreRedacted(t *testing.T) {
 	for _, mode := range []string{"unknown", "oversize", "redirect", "empty", "plaintext"} {
 		t.Run(mode, func(t *testing.T) {
-			parent := t.TempDir()
+			parent := testsupport.PrivateSocketDirectory(t)
 			socket := filepath.Join(parent, "admin.sock")
 			var calls atomic.Int64
 			startAdminResponseServer(t, socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +38,7 @@ func TestAdminMalformedOversizedAndRedirectResponsesAreRedacted(t *testing.T) {
 }
 
 func TestOutputPreparationFailureCausesNoMutation(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	require(t, os.Chmod(parent, 0o700))
 	socket := filepath.Join(parent, "admin.sock")
 
@@ -79,7 +80,7 @@ func TestCanceledUnixAwaitAndCommittedFailureStayExplicit(t *testing.T) {
 }
 
 func TestLostEnrollmentResponseNeverReplaysOrPrintsCredential(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	require(t, os.Chmod(parent, 0o700))
 	socket := filepath.Join(parent, "admin.sock")
 

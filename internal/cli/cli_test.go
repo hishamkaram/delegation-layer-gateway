@@ -18,6 +18,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
 func require(t *testing.T, err error) {
@@ -100,7 +101,7 @@ type adminFixture struct {
 
 func newAdminFixture(t *testing.T) *adminFixture {
 	t.Helper()
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	require(t, os.Chmod(parent, 0o700))
 	authority := adminapi.NewAuthorizer()
 	store, err := registry.Create(t.Context(), filepath.Join(parent, "registry.sqlite"), registry.CreateOptions{Admin: authority})
@@ -191,7 +192,7 @@ func TestReplacementRequiresValidInputsAndCancelledCommandsHaveNoSideEffects(t *
 }
 
 func TestCredentialOutputPreparedBeforeMutationAndForeignNamespacePreserved(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	require(t, os.Chmod(parent, 0o700))
 	socket := filepath.Join(parent, "fixture.sock")
 	output := filepath.Join(parent, "token.json")

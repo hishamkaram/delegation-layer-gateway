@@ -22,6 +22,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
 type disconnectFunc func(context.Context, domain.DeviceID) error
@@ -56,7 +57,7 @@ func newFixture(t *testing.T, disconnect disconnectFunc) *fixture {
 
 func newFixtureOptions(t *testing.T, disconnect disconnectFunc, configure func(*adminapi.Options)) *fixture {
 	t.Helper()
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	check(t, os.Chmod(parent, 0o700))
 	f := &fixture{socket: filepath.Join(parent, "admin.sock"), now: time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC), authority: adminapi.NewAuthorizer()}
 	var err error

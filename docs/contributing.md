@@ -44,6 +44,15 @@ where appropriate. Regenerate changed diagrams from their maintained source and
 inspect readable rendered/exported output; link/checksum checks alone do not
 prove semantic freshness or visual quality.
 
+## Unix-socket fixtures
+
+Unix-socket fixtures use `testsupport.PrivateSocketDirectory` so macOS endpoint
+limits do not depend on test names or `TMPDIR`. Call it before registering
+listener/store cleanups; their joins must finish before directory removal.
+Failed tests retain private `gw-sock-*` evidence beneath physical `/tmp`; resolve
+cleanup before manually removing it. Retained fixtures can contain test-only
+keys, stores and token files, so keep their mode-0700 protection.
+
 ## Diagram regeneration
 
 `scripts/render_diagrams.py` owns its contributor child processes and requires

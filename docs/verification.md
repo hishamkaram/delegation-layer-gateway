@@ -119,6 +119,47 @@ seconds** total. Its recorded inputs stayed unchanged and its actual Wait return
 zero. These results supersede the earlier 25/361-test scopes for the corrected
 test file; the renderer helper stayed unchanged.
 
+The [fourth CI run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43062276506)
+on `4355161` passed harness and Linux. macOS passed its 363-test Python invocation
+in 31.560 seconds with three existing skips, both Go lint scopes with zero issues,
+and then failed Go race tests in admin API, CLI and server fixtures. The CLI
+errors showed Unix socket paths lengthened by `t.TempDir()` test names and the
+ambient macOS temporary prefix. The shared server/admin fixture setup used the
+same pattern. The run remains failed; the renderer failure did not recur.
+
+The correction changes test fixtures only: one shared
+`testsupport.PrivateSocketDirectory` creates a random mode-0700 directory under
+physical `/tmp`, independently of test-name length and `TMPDIR`. Existing
+listener/store joins run before successful directory removal. Failed tests retain
+the directory and report its locator. Two shared fixture roots and nine CLI bind
+roots use it. Insecure-parent, cancelled/missing-socket inputs and all existing
+assertions remain unchanged; production socket validation is untouched. New
+regressions prove the overlong-path counterexample, real short-path binding,
+canonical/private location, success removal and retained evidence from an exactly
+joined intentional-failure child that creates only ordinary files.
+
+Focused Linux race results on Go 1.27.4 were admin API **9.343 seconds**, CLI
+**8.621 seconds** and server **17.902 seconds**. The final testsupport race run
+passed in **1.411 seconds**. Commands used `go test -race -count=1` for the
+affected packages with `GOTOOLCHAIN=local`, `GOMAXPROCS=2` and `GOFLAGS=-p=2`.
+Full `make fmt-check vet lint`, including both tagged-helper scopes, passed in
+**12.989 seconds** with unchanged
+recorded inputs. A preceding invocation failed in **42.014 seconds** on a new
+test's shadowed error variable; renaming it fixed the cause without changing the
+lint rule or assertion.
+
+Actual Darwin arm64 execution then reproduced the original CLI fixture's
+`bind: invalid argument` using its `4355161` test preimage. All four corrected
+package binaries (testsupport, admin API, CLI and server) passed without skips.
+All five child Waits completed (the preimage intentionally exited one), SSH Wait
+returned zero, source inputs stayed unchanged and the owned directory cleanup
+was confirmed. The remote cases took **6.038 seconds**, or **40.813 seconds**
+including candidate transfer and SSH. These were owned Go 1.27.4 binaries built
+on Linux for Darwin arm64 with `CGO_ENABLED=0`, then executed on the physical Mac
+(Darwin 27.2). This proves native non-race execution, not a native compiler build
+or the required GitHub macOS 15 race gate. Current CI results remain linked in the
+PR checks.
+
 The preceding final invocation failed in **56.921 seconds** on unchanged inputs:
 one of 335 tests incorrectly assumed a timeout-test helper would remain alive
 until an assertion after another child's Wait. Its three-second self-exit could
@@ -212,6 +253,14 @@ Sol `7c12e0c3ba41e7bd7eee761ccc31dad7` and Opus
 retention finding, with no actionable P0/P1/P2 in the delta. An independent native
 review reached the same scoped conclusion. Root separately verified the final
 27-test Mac and 363-test integrated receipts; reviewers did not execute them.
+
+The Unix-socket fixture correction received actual-source reviews from Sol
+`d5e3b801f48d3624c82ad9a5121eb8b3`, Opus
+`4516025f05800e4bf7ef43cd7fa5289b` and an independent native reviewer. Both named
+reviewers reported no actionable P0/P1/P2, inspected the new shared helper and
+all six consumer files, and confirmed existing negative cases and cleanup joins
+remain intact. They did not run the native Mac or Linux checks. Root validated
+and read both full accepted review payloads.
 
 Lower-severity limitations remain explicit: this standalone contributor helper
 requires sole-waiter ownership; it does not defend against a competing process

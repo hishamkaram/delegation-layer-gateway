@@ -30,6 +30,7 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
 func require(t *testing.T, err error) {
@@ -125,7 +126,7 @@ type (
 
 func configFixture(t *testing.T) *fixture {
 	t.Helper()
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	require(t, os.Chmod(parent, 0o700))
 	audit := filepath.Join(parent, "audit")
 	require(t, os.Mkdir(audit, 0o700))

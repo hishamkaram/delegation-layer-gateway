@@ -12,10 +12,11 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
 func TestRecoveryCLIRejectsInvalidInputsBeforeNetwork(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	socket := filepath.Join(parent, "admin.sock")
 	var calls atomic.Int64
 	startAdminResponseServer(t, socket, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { calls.Add(1); w.WriteHeader(500) }))
@@ -45,7 +46,7 @@ func TestRecoveryCLIRejectsInvalidInputsBeforeNetwork(t *testing.T) {
 }
 
 func TestRecoveryCLIBindsValidSessionAndRejectsWrongResponse(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	socket := filepath.Join(parent, "admin.sock")
 	var calls atomic.Int64
 	startAdminResponseServer(t, socket, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +74,7 @@ func TestRecoveryCLIBindsValidSessionAndRejectsWrongResponse(t *testing.T) {
 }
 
 func TestAdminRejectsDuplicateActionBeforeNetwork(t *testing.T) {
-	parent := t.TempDir()
+	parent := testsupport.PrivateSocketDirectory(t)
 	socket := filepath.Join(parent, "admin.sock")
 	var calls atomic.Int64
 	startAdminResponseServer(t, socket, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
