@@ -117,9 +117,36 @@ func TestRuntimeEnrollmentMutualTLSHostAndRevocation(t *testing.T) {
 	if err == nil && (snapshot.Online || snapshot.RoutingReady) {
 		t.Fatal("durable device revocation retained an online or routing-ready WSS session")
 	}
+	waitRevokedDeviceRetirement(t, f)
 	_, err = transport.Dial(t.Context(), transport.ClientConfig{URL: strings.Replace(endpoint, "https://", "wss://", 1), GatewayID: f.runtime.gatewayID, Certificate: certificate.Leaf, Capabilities: report, Routing: &emptyCensus{boot: strings.Repeat("b", 32)}}, authenticated, time.Now)
 	if err == nil {
 		t.Fatal("revoked certificate reconnected")
+	}
+}
+
+func waitRevokedDeviceRetirement(t *testing.T, f *fixture) {
+	t.Helper()
+	// Remove duplicate-session refusal as a possible cause of reconnect denial.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		snapshot, err := f.runtime.hub.Snapshot("device")
+		if errors.Is(err, transport.ErrOffline) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("revoked session retirement snapshot failed unexpectedly: %v", err)
+		}
+		if snapshot.Online || snapshot.RoutingReady {
+			t.Fatal("revoked session became online or routing ready before retirement")
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("revoked session was not retired before reconnect check")
+		case <-ticker.C:
+		}
 	}
 }
 
