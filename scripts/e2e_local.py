@@ -826,13 +826,15 @@ class Harness:
             return value
         return self.command(self.args.gateway, args)
 
-    def mcp(self, tool, arguments, failure=False):
+    def pace_mcp(self):
         # Each one-shot SDK session also authenticates initialization traffic.
         # Space sessions within the server's 10/s, burst-20 authority limit.
         delay = 0.5 - (time.monotonic() - self.last_mcp_started)
         if delay > 0:
             time.sleep(delay)
         self.last_mcp_started = time.monotonic()
+
+    def mcp_input(self, tool, arguments):
         value = {
             "endpoint": self.public + "/mcp",
             "ca_file": self.material["ca_file"],
@@ -842,7 +844,9 @@ class Harness:
         }
         if allowed_ips := getattr(self, "fixture_allowed_ips", ()):
             value["allowed_ips"] = list(allowed_ips)
-        result = self.helper("mcp", value)
+        return value
+
+    def consume_mcp(self, result, failure=False):
         self.responses.append(result)
         envelope = result.get("structuredContent")
         require(isinstance(envelope, dict), "MCP structured response missing")
@@ -857,6 +861,11 @@ class Harness:
             "MCP operation failed",
         )
         return envelope["data"]
+
+    def mcp(self, tool, arguments, failure=False):
+        self.pace_mcp()
+        result = self.helper("mcp", self.mcp_input(tool, arguments))
+        return self.consume_mcp(result, failure)
 
     def until(self, check, seconds, description):
         deadline = time.monotonic() + seconds

@@ -1,6 +1,6 @@
 """Controller contract tests. Actors are doubles except finite Native-owned Python."""
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 import dataclasses
 import hashlib
 import io
@@ -851,6 +851,7 @@ class ScenarioHarness:
         self.revoked = False
         self.revocation_error = "not_found"
         self.restarts = 0
+        self.paired = []
 
     def prepare(self, root, brief):
         operation = str(len(self.prepared))
@@ -933,6 +934,10 @@ class ScenarioHarness:
             }
         }
 
+    def mcp_pair(self, requests):
+        self.paired.append(requests)
+        return tuple(self.mcp(tool, arguments) for tool, arguments in requests)
+
     def restart_gateway(self):
         self.restarts += 1
         if self.restarts == 1 and not all(r.started for r in self.roots):
@@ -961,7 +966,168 @@ class ScenarioHarness:
         self.revoked = True
 
 
+class TimedScenarioRoot(ScenarioRoot):
+    def __init__(self, device, harness):
+        super().__init__(device, harness.ledger)
+        self.harness = harness
+
+    def operate(self, operation, **fields):
+        h = self.harness
+        if operation == "hold_fixture":
+            h.clock += 10
+        elif operation == "wait_fixture_started":
+            h.clock += h.proof_cost(self) if h.restarts else 1
+            if h.restarts and h.boundary == (self.device, "send"):
+                h.clock += 3 if self.device == "device-a" else 2
+        h.events.append((operation, self.device, h.clock))
+        return super().operate(operation, **fields)
+
+
+class TimedScenarioHarness(ScenarioHarness):
+    """Synthetic costs distinguish setup, each admission and retry phases."""
+
+    def __init__(self, boundary=None):
+        super().__init__()
+        self.roots = [
+            TimedScenarioRoot(device, self) for device in ("device-a", "device-b")
+        ]
+        self.clock = 0
+        self.events = []
+        self.boundary = boundary
+        self.cancels = {"device-a": 0, "device-b": 0}
+        self.dispatched = set()
+
+    def proof_cost(self, root):
+        return 1 if root.device == "device-a" else 2
+
+    def prepare(self, root, brief):
+        if brief == "DELEGATE_PRIVATE_SILENCE_WAIT":
+            self.clock += 10
+            self.events.append(("prepare_held", root.device, self.clock))
+        return super().prepare(root, brief)
+
+    def mcp(self, tool, value, failure=False):
+        if tool == "get_capabilities" and self.restarts == 1:
+            root = next(r for r in self.roots if r.device == value["device_id"])
+            self.clock += self.proof_cost(root)
+            self.events.append(("reconnect", root.device, self.clock))
+        operation = value.get("operation_id")
+        if operation in self.prepared:
+            root, _, brief = self.prepared[operation]
+            if brief == "DELEGATE_PRIVATE_SILENCE_WAIT":
+                event = tool
+                if tool == "dispatch_task":
+                    if operation not in self.dispatched:
+                        self.dispatched.add(operation)
+                        self.events.append(("dispatch_start", root.device, self.clock))
+                        self.clock += 2
+                    else:
+                        self.clock += self.proof_cost(root)
+                elif tool == "resolve_operation":
+                    self.clock += self.proof_cost(root)
+                elif tool == "cancel_task":
+                    self.cancels[root.device] += 1
+                    first = self.cancels[root.device] == 1
+                    event = "first_cancel" if first else "cancel_retry"
+                    self.clock += 1 if first else 10
+                    if first and self.boundary == (root.device, "ack"):
+                        self.clock += 2 if root.device == "device-a" else 1
+                self.events.append((event, root.device, self.clock))
+        return super().mcp(tool, value, failure)
+
+    def mcp_pair(self, requests):
+        # Explicit synthetic pair cost includes both starts, pacing and waits.
+        self.clock += 3
+        replies = []
+        for tool, arguments in requests:
+            root, _, _ = self.prepared[arguments["operation_id"]]
+            self.events.append((tool, root.device, self.clock))
+            replies.append(ScenarioHarness.mcp(self, tool, arguments))
+        return tuple(replies)
+
+    def restart_gateway(self):
+        super().restart_gateway()
+        if self.restarts == 1:
+            self.clock += 1
+
+
 class ScenarioTests(unittest.TestCase):
+    def test_paired_recovery_rejects_a_reply_bound_to_the_other_root(self):
+        h = ScenarioHarness()
+        pair = h.mcp_pair
+
+        def swapped(requests):
+            return tuple(reversed(pair(requests)))
+
+        with patch.object(h, "mcp_pair", side_effect=swapped):
+            with self.assertRaisesRegex(local.ProofFailure, "binding"):
+                remote.fixture_scenarios(h, h.roots)
+        self.assertFalse(any(tool == "cancel_task" for tool, _, _ in h.calls))
+        self.assertFalse(h.revoked)
+        self.assertNotIn("fixture_tasks_executed", h.summary)
+
+    def test_setup_is_outside_each_task_window_and_retries_follow_both_closures(self):
+        h = TimedScenarioHarness()
+        with patch.object(remote.time, "monotonic", side_effect=lambda: h.clock):
+            remote.fixture_scenarios(h, h.roots)
+        starts = [event for event in h.events if event[0] == "dispatch_start"]
+        cancels = [event for event in h.events if event[0] == "first_cancel"]
+        self.assertEqual(
+            starts,
+            [("dispatch_start", "device-a", 40), ("dispatch_start", "device-b", 42)],
+        )
+        self.assertEqual(
+            cancels,
+            [("first_cancel", "device-a", 63), ("first_cancel", "device-b", 66)],
+        )
+        self.assertEqual(
+            [end[2] - start[2] for start, end in zip(starts, cancels)], [23, 24]
+        )
+        ordered = [(kind, device) for kind, device, _ in h.events]
+        self.assertLess(
+            ordered.index(("first_cancel", "device-a")),
+            max(
+                index
+                for index, event in enumerate(ordered)
+                if event == ("wait_fixture_started", "device-b")
+            ),
+        )
+        for device in ("device-a", "device-b"):
+            self.assertLess(
+                ordered.index(("prepare_held", device)),
+                ordered.index(("dispatch_start", "device-a")),
+            )
+            for retry_device in ("device-a", "device-b"):
+                self.assertLess(
+                    ordered.index(("first_cancel", retry_device)),
+                    ordered.index(("inspect_closure", device)),
+                )
+                self.assertLess(
+                    ordered.index(("inspect_closure", device)),
+                    ordered.index(("cancel_retry", retry_device)),
+                )
+            self.assertLess(
+                ordered.index(("cancel_retry", "device-b")),
+                ordered.index(("release_fixture", device)),
+            )
+        self.assertEqual(h.summary["fixture_tasks_executed"], 4)
+
+    def test_each_task_rejects_exact_window_boundary_before_send_or_at_ack(self):
+        for device, phase in product(("device-a", "device-b"), ("send", "ack")):
+            with self.subTest(device=device, phase=phase):
+                h = TimedScenarioHarness((device, phase))
+                with patch.object(
+                    remote.time, "monotonic", side_effect=lambda: h.clock
+                ):
+                    message = "schedule" if phase == "send" else "acknowledgement"
+                    with self.assertRaisesRegex(local.ProofFailure, message):
+                        remote.fixture_scenarios(h, h.roots)
+                self.assertEqual(h.clock, 65 if device == "device-a" else 67)
+                self.assertEqual(h.cancels[device], 0 if phase == "send" else 1)
+                self.assertFalse(any(kind == "cancel_retry" for kind, _, _ in h.events))
+                self.assertFalse(h.revoked)
+                self.assertNotIn("fixture_tasks_executed", h.summary)
+
     def test_fixed_four_attempt_schedule_restart_same_bindings_and_revoke_after_closure(
         self,
     ):
@@ -976,13 +1142,20 @@ class ScenarioTests(unittest.TestCase):
             if tool == "dispatch_task"
         ]
         self.assertEqual(dispatches, ["0", "1", "2", "3", "2", "3"])
+        self.assertEqual(
+            h.paired,
+            [
+                ((tool, {"operation_id": "2"}), (tool, {"operation_id": "3"}))
+                for tool in ("resolve_operation", "dispatch_task", "resolve_operation")
+            ],
+        )
         cancellations = [value for tool, value, _ in h.calls if tool == "cancel_task"]
         self.assertEqual(
             cancellations,
             [
                 {"operation_id": "2", "cancellation_id": "cancel-2"},
-                {"operation_id": "2", "cancellation_id": "cancel-2"},
                 {"operation_id": "3", "cancellation_id": "cancel-3"},
+                {"operation_id": "2", "cancellation_id": "cancel-2"},
                 {"operation_id": "3", "cancellation_id": "cancel-3"},
             ],
         )
@@ -1061,7 +1234,7 @@ class ScenarioTests(unittest.TestCase):
 
     def test_overrun_never_claims_cancellation_or_revokes_authority(self):
         h = ScenarioHarness()
-        with patch.object(remote.time, "monotonic", side_effect=[0, 26]):
+        with patch.object(remote.time, "monotonic", side_effect=[0, 0, 26]):
             with self.assertRaisesRegex(local.ProofFailure, "finite budget"):
                 remote.fixture_scenarios(h, h.roots)
         self.assertFalse(h.revoked)
@@ -1602,6 +1775,214 @@ class PumpTests(unittest.TestCase):
                 for before, after in zip([(0.0, "start"), *requests], requests)
             )
         )
+
+
+class MCPPairsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        repository = os.environ.get("DELEGATE_ACCEPTANCE_REPOSITORY")
+        if repository is None:
+            raise unittest.SkipTest("Native source required for MCP pair process tests")
+        cls.acceptance = local.load_acceptance(Path(repository))
+
+    @contextmanager
+    def harness(self, mode="barrier"):
+        owner = self.acceptance.directories.DirectoryOwner()
+        base = Path(tempfile.mkdtemp(prefix="mcp-pair-")).resolve()
+        owner.adopt_created("MCP pair test", base, base.parent)
+        helper = base / "helper"
+        helper.write_text(
+            "#!" + str(Path(sys.executable).resolve()) + "\n"
+            "import json,sys,time\nfrom pathlib import Path\n"
+            "v=json.loads(Path(sys.argv[-1]).read_text())\n"
+            "i=v['arguments']['index']; base=Path.cwd()\n"
+            "(base/('started-'+str(i))).write_text('started')\n"
+            "mode=" + repr(mode) + "\n"
+            "if i==0:\n"
+            " deadline=time.monotonic()+3\n"
+            " marker=base/('release' if mode=='timeout' else 'started-1')\n"
+            " while not marker.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
+            " if not marker.exists(): sys.exit(17)\n"
+            "print(json.dumps({'structuredContent':{'data':{'index':i}},'isError':False}) if not (mode=='bad' and i==0) else '{}')\n"
+        )
+        helper.chmod(0o700)
+        h = object.__new__(remote.RemoteHarness)
+        h.base = base
+        h.args = SimpleNamespace(fixture_tool=helper)
+        h.env = {}
+        h.sequence = 0
+        h.last_mcp_started = 0
+        h.public = "https://fixture.invalid"
+        h.material = {"ca_file": "fixture-ca", "token_file": "fixture-token"}
+        h.responses = []
+        h.interruptions = local.Interruptions()
+        h.processes = self.acceptance.processes.Processes(
+            base / "processes", environment={}, owner=owner
+        )
+        h.peer_pump = lambda: None
+        h._pumping = False
+        try:
+            yield h
+        finally:
+            (base / "release").touch()
+            if h.processes.drain(timeout=5):
+                owner.release()
+                raise AssertionError("MCP pair test retained unresolved owned child")
+            owner.rollback()
+
+    def requests(self):
+        return (
+            ("resolve_operation", {"index": 0}),
+            ("resolve_operation", {"index": 1}),
+        )
+
+    def test_both_native_starts_precede_wait_and_results_keep_request_order(self):
+        with self.harness() as h:
+            events = []
+            start = h.processes.start
+
+            def tracked_start(*args, on_spawned, **kwargs):
+                def spawned(process):
+                    events.append("start")
+                    wait = process.wait
+
+                    def tracked_wait(*args, **kwargs):
+                        events.append("wait")
+                        self.assertEqual(kwargs, {"timeout": 40})
+                        return wait(*args, **kwargs)
+
+                    process.wait = tracked_wait
+                    on_spawned(process)
+
+                return start(*args, on_spawned=spawned, **kwargs)
+
+            with patch.object(h.processes, "start", side_effect=tracked_start):
+                replies = h.mcp_pair(self.requests())
+            self.assertEqual(replies, ({"index": 0}, {"index": 1}))
+            self.assertEqual(events, ["start", "start", "wait", "wait"])
+            self.assertEqual(
+                [r["structuredContent"]["data"] for r in h.responses], list(replies)
+            )
+            self.assertTrue(h.processes.finished_naturally())
+
+    def test_second_start_failure_waits_every_registered_handle_and_preserves_primary(
+        self,
+    ):
+        for phase in ("before", "after"):
+            with self.subTest(phase=phase), self.harness() as h:
+                start = h.processes.start
+                starts = 0
+                waits = []
+                primary = local.ProofFailure("private injected start failure")
+
+                def failing_start(*args, on_spawned, **kwargs):
+                    nonlocal starts
+                    starts += 1
+                    if starts == 2 and phase == "before":
+                        raise primary
+
+                    def spawned(process):
+                        index = starts
+                        wait = process.wait
+
+                        def tracked_wait(*args, **kwargs):
+                            waits.append(index)
+                            return wait(*args, **kwargs)
+
+                        process.wait = tracked_wait
+                        on_spawned(process)
+
+                    process = start(*args, on_spawned=spawned, **kwargs)
+                    if starts == 2:
+                        raise primary
+                    return process
+
+                with patch.object(h.processes, "start", side_effect=failing_start):
+                    with self.assertRaises(local.ProofFailure) as raised:
+                        h.mcp_pair(self.requests())
+                self.assertIs(raised.exception, primary)
+                self.assertEqual(waits, [1] if phase == "before" else [1, 2])
+                self.assertTrue(h.processes.finished_naturally())
+
+    def test_registered_indices_keep_response_order_when_callbacks_arrive_reversed(
+        self,
+    ):
+        with self.harness() as h:
+            start = h.processes.start
+            callbacks = []
+
+            def reversed_registration(*args, on_spawned, **kwargs):
+                def spawned(process):
+                    # Native registers ownership immediately; only delivery to
+                    # this consumer is reversed to challenge its index binding.
+                    callbacks.append((on_spawned, process))
+                    if len(callbacks) == 2:
+                        for callback, handle in reversed(callbacks):
+                            callback(handle)
+
+                return start(*args, on_spawned=spawned, **kwargs)
+
+            with patch.object(h.processes, "start", side_effect=reversed_registration):
+                self.assertEqual(
+                    h.mcp_pair(self.requests()), ({"index": 0}, {"index": 1})
+                )
+            self.assertEqual(
+                [reply["structuredContent"]["data"]["index"] for reply in h.responses],
+                [0, 1],
+            )
+            self.assertTrue(h.processes.finished_naturally())
+
+    def test_bad_reply_is_rejected_after_both_known_children_join(self):
+        with self.harness("bad") as h:
+            with self.assertRaisesRegex(local.ProofFailure, "structured response"):
+                h.mcp_pair(self.requests())
+            self.assertTrue(h.processes.finished_naturally())
+            self.assertEqual(len(h.responses), 2)
+
+    def test_timeout_retains_native_owner_and_still_waits_other_child(self):
+        with self.harness("timeout") as h:
+            start = h.processes.start
+            waits = []
+
+            def timing_start(*args, on_spawned, **kwargs):
+                def spawned(process):
+                    index = len(h.processes.entries) - 1
+                    wait = process.wait
+
+                    def timed_wait(*args, **kwargs):
+                        waits.append(index)
+                        self.assertEqual(kwargs, {"timeout": 40})
+                        return wait(timeout=0 if index == 0 else 5)
+
+                    process.wait = timed_wait
+                    on_spawned(process)
+
+                return start(*args, on_spawned=spawned, **kwargs)
+
+            with patch.object(h.processes, "start", side_effect=timing_start):
+                with self.assertRaisesRegex(RuntimeError, "observation expired"):
+                    h.mcp_pair(self.requests())
+            self.assertEqual(waits, [0, 1])
+            self.assertFalse(h.processes.finished_naturally())
+            self.assertTrue(
+                (
+                    h.processes.entries[0].directory / "observation-expired.json"
+                ).is_file()
+            )
+
+    def test_pair_rejects_nonpair_before_resource_creation(self):
+        for requests in (
+            (("resolve_operation", {}),),
+            (("resolve_operation", {}), ("malformed-second",)),
+            (("resolve_operation", {}), ("", {})),
+            (("resolve_operation", {}), ("resolve_operation", [])),
+        ):
+            with self.subTest(requests=requests):
+                h = object.__new__(remote.RemoteHarness)
+                with patch.object(h, "pump_peers") as pump:
+                    with self.assertRaises(local.ProofFailure):
+                        h.mcp_pair(requests)
+                pump.assert_not_called()
 
 
 class NativeLoaderTests(unittest.TestCase):

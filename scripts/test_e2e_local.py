@@ -124,6 +124,50 @@ class MaintainedFixtureLeaseTests(unittest.TestCase):
                     os.fstat(descriptor)
 
 
+class MCPPolicyTests(unittest.TestCase):
+    def test_sequential_mcp_preserves_spacing_request_policy_and_response_validation(
+        self,
+    ):
+        h = object.__new__(e2e_local.Harness)
+        h.public = "https://fixture.invalid"
+        h.material = {"ca_file": "fixture-ca", "token_file": "fixture-token"}
+        h.fixture_allowed_ips = ("192.0.2.10",)
+        h.last_mcp_started = 0
+        h.responses = []
+        accepted = {"structuredContent": {"data": {"accepted": True}}}
+        denied = {"structuredContent": {"error": {"code": "denied"}}, "isError": True}
+        h.helper = mock.Mock(side_effect=[accepted, denied])
+        with mock.patch.object(
+            e2e_local.time, "monotonic", side_effect=[10, 10, 10.25, 10.5]
+        ):
+            with mock.patch.object(e2e_local.time, "sleep") as sleep:
+                self.assertEqual(
+                    h.mcp("resolve_operation", {"operation_id": "one"}),
+                    {"accepted": True},
+                )
+                self.assertEqual(
+                    h.mcp("prepare_dispatch", {}, failure=True), {"code": "denied"}
+                )
+        sleep.assert_called_once_with(0.25)
+        self.assertEqual(h.responses, [accepted, denied])
+        self.assertEqual(
+            h.helper.call_args_list[0],
+            mock.call(
+                "mcp",
+                {
+                    "endpoint": "https://fixture.invalid/mcp",
+                    "ca_file": "fixture-ca",
+                    "token_file": "fixture-token",
+                    "tool": "resolve_operation",
+                    "arguments": {"operation_id": "one"},
+                    "allowed_ips": ["192.0.2.10"],
+                },
+            ),
+        )
+        with self.assertRaisesRegex(e2e_local.ProofFailure, "operation failed"):
+            h.consume_mcp(denied)
+
+
 class HarnessBoundaryTests(unittest.TestCase):
     def execution_root(self, directory):
         root = object.__new__(e2e_local.DelegateRoot)

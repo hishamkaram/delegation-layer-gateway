@@ -696,14 +696,17 @@ def fixture_scenarios(h, roots):
             "accepted result bytes/descriptor mismatch",
         )
     active = []
-    # Conservative local bound starts before either admission. Canonical peer
-    # deadlines remain the authority for actual native termination evidence.
-    cancellation_deadline = time.monotonic() + 25
     for root in roots:
         root.operate("hold_fixture")
         prepared = h.prepare(root, "DELEGATE_PRIVATE_SILENCE_WAIT")
-        h.mcp("dispatch_task", {"operation_id": prepared["operation_id"]})
         active.append((root, prepared))
+    # Each conservative local bound starts before its own admission. Canonical
+    # peer deadlines remain the authority for actual native termination evidence.
+    cancellation_deadlines = {}
+    for _, prepared in active:
+        operation = prepared["operation_id"]
+        cancellation_deadlines[operation] = time.monotonic() + 25
+        h.mcp("dispatch_task", {"operation_id": operation})
     for _ in range(2):
         for root, prepared in active:
             live = root.operate("wait_fixture_started", task_id=prepared["task_id"])
@@ -715,20 +718,27 @@ def fixture_scenarios(h, roots):
                 "overlapping fixture lease/attempt proof missing",
             )
     h.restart_gateway()
-    for root, prepared in active:
+    for root, _ in active:
         h.until(
             lambda r=root: h.capability_online(r.device, r.alias),
             10,
             "same-registry connector reconnect",
         )
-        handle = {"operation_id": prepared["operation_id"]}
-        recovery.require_active_operation(
-            h.mcp("resolve_operation", handle), root, prepared
+    for tool, validate in (
+        ("resolve_operation", recovery.require_active_operation),
+        ("dispatch_task", recovery.require_dispatch_retry),
+        ("resolve_operation", recovery.require_active_operation),
+    ):
+        replies = h.mcp_pair(
+            tuple(
+                (tool, {"operation_id": prepared["operation_id"]})
+                for _, prepared in active
+            )
         )
-        recovery.require_dispatch_retry(h.mcp("dispatch_task", handle), root, prepared)
-        recovery.require_active_operation(
-            h.mcp("resolve_operation", handle), root, prepared
-        )
+        for (root, prepared), reply in zip(active, replies, strict=True):
+            validate(reply, root, prepared)
+    cancellations = []
+    for root, prepared in active:
         live = root.operate("wait_fixture_started", task_id=prepared["task_id"])
         require(
             live.get("task_id") == prepared["task_id"]
@@ -737,29 +747,37 @@ def fixture_scenarios(h, roots):
             == {"attempted": 2, "rejected_concurrent": 0, "rejected_limit": 0},
             "restart changed fixture attempt count",
         )
-    for root, prepared in active:
         operation = prepared["operation_id"]
         cancel = {
             "operation_id": operation,
             "cancellation_id": h.operations[operation]["cancellation_id"],
         }
-        for _ in range(2):
-            require(
-                time.monotonic() < cancellation_deadline,
-                "fixture cancellation schedule exceeded finite budget",
-            )
-            result = h.mcp("cancel_task", cancel)
-            require(
-                time.monotonic() < cancellation_deadline,
-                "fixture cancellation acknowledgement exceeded finite budget",
-            )
-            require(
-                result["cancellation_id"] == cancel["cancellation_id"],
-                "cancel identity changed",
-            )
+        require(
+            time.monotonic() < cancellation_deadlines[operation],
+            "fixture cancellation schedule exceeded finite budget",
+        )
+        result = h.mcp("cancel_task", cancel)
+        require(
+            time.monotonic() < cancellation_deadlines[operation],
+            "fixture cancellation acknowledgement exceeded finite budget",
+        )
+        require(
+            result["cancellation_id"] == cancel["cancellation_id"],
+            "cancel identity changed",
+        )
+        cancellations.append(cancel)
     for root, prepared in active:
         h.await_operation(prepared["operation_id"])
         require_closed(root, prepared["task_id"])
+    # Both scopes have canonically closed while held; retries now prove identity
+    # without delaying either task's first cancellation.
+    for cancel in cancellations:
+        result = h.mcp("cancel_task", cancel)
+        require(
+            result["cancellation_id"] == cancel["cancellation_id"],
+            "cancel identity changed",
+        )
+    for root, _ in active:
         root.operate("release_fixture")
     h.check_canaries()
     # Device revocation occurs only after all four public operations closed.
@@ -821,6 +839,84 @@ class RemoteHarness(local.Harness):
     def mcp(self, tool, arguments, failure=False):
         with self._serviced():
             return super().mcp(tool, arguments, failure)
+
+    def mcp_pair(self, requests):
+        """Start two fixed helpers before Wait; Native retains every child owner."""
+        require(
+            type(requests) is tuple and len(requests) == 2,
+            "MCP pair requires exactly two requests",
+        )
+        require(
+            all(
+                type(request) is tuple
+                and len(request) == 2
+                and isinstance(request[0], str)
+                and bool(request[0])
+                and isinstance(request[1], dict)
+                for request in requests
+            ),
+            "MCP pair request must contain a tool and argument object",
+        )
+        started = []
+        errors = []
+        try:
+            self.pump_peers()
+            for index, (tool, arguments) in enumerate(requests):
+                self.interruptions.checkpoint()
+                path = self.input_file(self.mcp_input(tool, arguments))
+                self.pace_mcp()
+                self.interruptions.checkpoint()
+                self.sequence += 1
+                self.processes.start(
+                    f"control-{self.sequence:04d}",
+                    [self.args.fixture_tool, "mcp", "--input", path],
+                    self.base,
+                    environment=self.env,
+                    on_spawned=lambda process, index=index: started.append(
+                        (index, process)
+                    ),
+                )
+                self.pump_peers()
+        except BaseException as error:
+            errors.append(error)
+        # Even a pump or post-spawn Start error cannot skip an exact known Wait.
+        for _, process in started:
+            try:
+                self.pump_peers()
+            except BaseException as error:
+                errors.append(error)
+            try:
+                process.wait(timeout=40)
+                self.interruptions.checkpoint()
+            except BaseException as error:
+                errors.append(error)
+        replies = []
+        if not errors:
+            try:
+                require(
+                    sorted(index for index, _ in started) == [0, 1],
+                    "MCP pair registered request indices changed",
+                )
+            except BaseException as error:
+                errors.append(error)
+        if not errors:
+            for _, process in sorted(started, key=lambda entry: entry[0]):
+                try:
+                    replies.append(self.consume_mcp(process.json(bound=1 << 20)))
+                except BaseException as error:
+                    errors.append(error)
+        try:
+            self.pump_peers()
+        except BaseException as error:
+            errors.append(error)
+        if errors:
+            for error in errors[1:]:
+                errors[0].add_note(
+                    "MCP pair secondary failure: " + type(error).__name__
+                )
+            raise errors[0]
+        require(len(replies) == 2, "MCP pair missing a registered child")
+        return tuple(replies)
 
     def until(self, check, seconds, description):
         def serviced_check():
