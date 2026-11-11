@@ -13,10 +13,20 @@ an actionable error. Python 3.12+ is required for repository validation.
 
 Run focused affected checks while editing. `make check` is the complete gate:
 formatting, vet, lint, race tests, build, vulnerability, harness and docs checks.
+The gate also runs vet, lint and `make test-e2e-helper` for the tagged SDK client,
+which the default Go package traversal excludes.
 `make verify-harness` checks native role wiring, skill metadata/local references
 and isolated acceptance/rejection fixtures. `make check-docs` checks documentation
 local links and anchors; it does not execute documented commands. Read the [quality floor](../agents/_data/code-quality-floor.md)
 for evidence limits. Unavailable checks remain unverified.
+
+The FIFO and bootstrap process tests reuse Native's maintained acceptance source.
+For the full Python gate, set
+`DELEGATE_ACCEPTANCE_REPOSITORY=/absolute/path/to/compatible/delegation-layer`.
+Without it, Native-dependent cases report skips and supply no process proof.
+CI checks out the immutable Native revision declared in its workflow into the
+ignored `.ci-native` directory and sets that variable for every gate job.
+This is a test-source dependency, not a bundled runtime or provider installation.
 
 ## Repository skills
 
@@ -38,7 +48,12 @@ prove semantic freshness or visual quality.
 
 `make e2e-local` is reserved for built Gateway/connector and actual compatible
 Delegate with a fixture provider. `make e2e-provider` requires explicit installed
-provider/account and finite-budget authorization. `make e2e-external` requires
-named authorized endpoints/devices/IdP. Blocked future targets must fail clearly;
-no mock substitutes for required live acceptance. Current-host tests do not
-prove macOS, another network or ChatGPT Cloud integration.
+provider/account and finite-budget authorization. `make e2e-external` performs
+zero-task HTTPS/SDK preflight for an authorized endpoint, issuer and two explicit
+device/project targets. See [live acceptance](live-acceptance.md) for private
+configuration, opt-in flags and same-identity recovery. Missing prerequisites
+must fail clearly; no mock substitutes for required live acceptance. Host-local
+checks alone do not prove another native platform, network or ChatGPT Cloud.
+
+For the explicit two-target zero-cost fixture controller, configuration and
+retention rules, see [remote fixture acceptance](remote-fixtures.md).

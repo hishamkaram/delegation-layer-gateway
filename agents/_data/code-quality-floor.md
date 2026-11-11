@@ -25,6 +25,10 @@ standalone gofumpt. Root owns configured tooling and any unresolved toolchain ga
 vulnerability checks, harness validation and docs checks. Focused editing checks
 do not substitute for this gate. Run the exact configured targets; missing tools
 or unavailable checks must fail with actionable guidance. Do not silently skip.
+Vet and lint also check the tagged SDK acceptance helper. `test-e2e-helper`
+runs its race tests with `-tags=e2e`; the default package walk excludes it.
+Vulnerability analysis also includes that tag, covering both the production
+server and the acceptance client's reachable code in one scan.
 
 Tests need independent expected outcomes and success/failure boundaries. Bug
 regressions must detect the intended defect. Real stores/consumers prove durable

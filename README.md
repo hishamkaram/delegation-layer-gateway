@@ -4,10 +4,11 @@ A trusted, self-hosted gateway connecting remote MCP clients to explicitly selec
 devices running [Delegation Layer](https://github.com/hishamkaram/delegation-layer).
 Clients use MCP over HTTPS; device connectors initiate outbound WSS connections.
 
-**Implementation and verification are in progress.** Gateway, connector and
-Delegate prerequisite code are being integrated. The bounded loopback fixture
-flow passed; Native corrections, physical-device and cloud-client proof remain
-open. See the [evidence and remaining gates](docs/verification.md).
+**Release verification is in progress.** Local and physical two-Mac zero-cost
+fixture flows passed execution, results, cancellation, Gateway restart,
+reconnection and revoked-credential registration rejection. Final independent
+review, installed-provider, public identity-provider and ChatGPT Cloud acceptance
+remain open. See the [evidence and remaining gates](docs/verification.md).
 
 ## Ownership and trust
 
@@ -39,3 +40,5 @@ For this host's isolated reverse proxy setup, see [Nginx setup](docs/nginx-setup
 The helper does not start Gateway or establish live MCP acceptance.
 Runtime configuration and enrollment are described in
 [candidate deployment](docs/deployment.md).
+Opt-in provider execution and zero-task HTTPS/SDK preflight are described in
+[live acceptance](docs/live-acceptance.md).
