@@ -10,9 +10,10 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
-// Reservation owns one pre-accounted wire buffer. Publish is one-shot and must
-// follow the application's durable possible-send commit. Await cancellation is
-// only observation cancellation, never a socket or Delegate cancellation.
+// Reservation owns one pre-accounted wire buffer and its correlated reply.
+// Publish is one-shot and must follow the application's durable possible-send
+// commit. Await cancellation is only observation cancellation, never a socket
+// or Delegate cancellation.
 type Reservation struct {
 	armed                bool
 	unpublishedAttempted bool
@@ -172,6 +173,7 @@ func (r *Reservation) Await(ctx context.Context) (protocol.Frame, error) {
 	used := r.used
 	abandoned := r.abandoned
 	previousErr := r.err
+	writeDone := r.job.done
 	s.mu.Unlock()
 	if !used {
 		return protocol.Frame{}, fail(ErrConflict, nil)
@@ -179,30 +181,35 @@ func (r *Reservation) Await(ctx context.Context) (protocol.Frame, error) {
 	if abandoned {
 		return protocol.Frame{}, previousErr
 	}
-	select {
-	case <-ctx.Done():
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		r.abandoned = true
-		r.err = fail(ErrExpired, ctx.Err())
-		if r.finished {
-			s.consumePendingLocked(r)
+	// A peer can reply before the originating Write finishes unwinding. Join
+	// that writer, including its cancellation cleanup, before delivering any
+	// completed response. The writer needs s.mu to publish its completion.
+	for _, done := range []<-chan struct{}{r.done, writeDone} {
+		select {
+		case <-ctx.Done():
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			r.abandoned = true
+			r.err = fail(ErrExpired, ctx.Err())
+			if r.finished && !r.taken {
+				s.consumePendingLocked(r)
+			}
+			return protocol.Frame{}, r.err
+		case <-done:
 		}
-		return protocol.Frame{}, r.err
-	case <-r.done:
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if r.taken {
-			return protocol.Frame{}, fail(ErrConflict, nil)
-		}
-		if checkErr := ctx.Err(); checkErr != nil {
-			s.consumePendingLocked(r)
-			return protocol.Frame{}, fail(ErrExpired, checkErr)
-		}
-		frame, err := r.response, r.err
-		s.consumePendingLocked(r)
-		return frame, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r.taken {
+		return protocol.Frame{}, fail(ErrConflict, nil)
+	}
+	if checkErr := ctx.Err(); checkErr != nil {
+		s.consumePendingLocked(r)
+		return protocol.Frame{}, fail(ErrExpired, checkErr)
+	}
+	frame, err := r.response, r.err
+	s.consumePendingLocked(r)
+	return frame, err
 }
 
 func (s *session) finishPendingLocked(r *Reservation, frame protocol.Frame, err error) {
