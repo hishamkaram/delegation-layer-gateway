@@ -51,9 +51,15 @@ func TestLeaseRejectsSymlinkAndPublicMode(t *testing.T) {
 	if err := os.WriteFile(path, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if lease, err := Acquire(path); err == nil {
 		t.Error(lease.Close())
 		t.Fatal("public lease accepted")
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
 	}
 	link := path + ".link"
 	if err := os.Symlink(path, link); err != nil {
