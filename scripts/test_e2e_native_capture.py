@@ -54,6 +54,52 @@ class LiteralProcesses:
 
 
 class NativeCaptureTests(unittest.TestCase):
+    def test_authentication_diagnostic_preserves_only_closed_failure_triple(self):
+        triple = {
+            "code": "provider_output_rejected",
+            "stage": "collect",
+            "next_action": "run_native_provider_login",
+        }
+        canary = "PRIVATE-PROVIDER-AUTH-CANARY"
+        source = {
+            "schema_version": 1,
+            "command": "collect",
+            "task_record": "created",
+            "message": "Authentication required: " + canary,
+            "provider_output": {"token": canary, "path": "/private/" + canary},
+            "failure": {
+                **triple,
+                "message": "Run native provider login: " + canary,
+                "provider_message": canary,
+                "private_path": "/private/" + canary,
+                "access_token": canary,
+            },
+        }
+        expected = {
+            "schema_version": 1,
+            "command": "collect",
+            "task_record": "created",
+            "failure": triple,
+        }
+        self.assertEqual(capture.closed_metadata(json.dumps(source).encode()), expected)
+        for rejected in (*triple, "all"):
+            with self.subTest(rejected=rejected):
+                failure = dict(source["failure"])
+                safe = dict(triple)
+                for key in triple if rejected == "all" else (rejected,):
+                    failure[key] = canary
+                    del safe[key]
+                output = capture.closed_metadata(
+                    json.dumps({**source, "failure": failure}).encode()
+                )
+                wanted = {
+                    key: value for key, value in expected.items() if key != "failure"
+                }
+                if safe:
+                    wanted["failure"] = safe
+                self.assertEqual(output, wanted)
+                self.assertNotIn(canary, json.dumps(output))
+
     def test_only_closed_bounded_metadata_survives(self):
         source = {
             "schema_version": 1,

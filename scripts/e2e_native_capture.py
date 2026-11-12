@@ -44,6 +44,7 @@ FAILURE_CODES = {
     "invalid_request",
     "observation_canceled",
     "observation_deadline_exceeded",
+    "provider_output_rejected",
     "provider_preflight_failed",
     "provider_preparation_failed",
     "provider_unavailable",
@@ -74,6 +75,7 @@ FAILURE_CODES = {
 }
 STAGES = {
     "check-continuation-capability",
+    "collect",
     "finalize-provider",
     "inspect-provider",
     "load-continuation-session",
@@ -99,6 +101,7 @@ ACTIONS = {
     "check_status",
     "correct_request",
     "retry_later",
+    "run_native_provider_login",
     "run_supervisor_migrate",
     "stop_and_report",
     "wait_for_legacy_work",
