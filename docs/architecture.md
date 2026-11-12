@@ -12,6 +12,7 @@ See the maintained [component and operation-safety diagrams](../diagrams/README.
 | Connector configuration | Operator-bound project aliases and local ceilings | Connector policy and public CLI adapter | Remote requests cannot select arbitrary paths, commands or wider permissions |
 | Delegate | Admission/refusal, tasks, supervision, cancellation and accepted results | Connector through versioned public interfaces | Exactly one execution authority; accepted outcome and canonical closure are distinct from transport success |
 | Identity provider | User authentication and access tokens | Gateway verifier | Principal comes from validated issuer/subject, never tool arguments or OAuth client ID |
+| Observability Recorder | Private audit attempts and fixed aggregate counters | Protected local admin and operator | Observations cannot authorize, settle reservations or replace Native outcomes |
 
 The dependency direction is transport/UI -> orchestration -> pure policy/data.
 SQLite and network/clock/process access stay behind their owners. Cached task
@@ -128,6 +129,89 @@ results are not persisted by Gateway. Operators must protect storage/backups.
 Audit uses an explicit metadata allowlist, not redaction of arbitrary native
 output. No external telemetry is required. The local admin socket is not a
 public administration API.
+
+Routing observations contain only a closed control class, verified actor kind,
+authorization decisions, a transport observation, duration and encoded frame
+lengths. Principal, operation and device/project correlation come from successful
+authorized Registry results. Failed lookups omit stored identity and destination;
+invalid tool arguments never establish a grant decision. Preparation success is
+recorded only after its transaction returns without error. Queued guard decisions
+are sampled atomically because the observer may leave before the writer runs.
+Administrative recovery uses the same contract with `local_admin` actor kind.
+Qualified later preparation and dispatch policy failures emit a separate
+principal-only denial observation, preserving the earlier control observation.
+The Adapter records returned denials once at the public handler boundary for
+`list_devices`, `list_projects`, `get_capabilities` and `list_operations`. These
+rows retain only the authenticated principal and denial category; they identify
+neither the inventory tool nor a target or wire-control class. Routed task tools
+retain Gateway-owned observations. Expected hidden-project filtering emits no
+denial; mixed operational failures propagate rather than becoming successful
+filtering. Known public policy/provider error categories require a qualified
+single cause; otherwise their response is `internal_error`. Existing timeout,
+input-validation and size-limit priorities remain separate.
+
+A supplemented failure can emit both its earlier control observation and a
+principal-only denial. Event counters count observations, not unique requests.
+An authorized alias missing from the device's advertisement is a concealed
+`denied_or_missing` observation, without asserting a known policy violation.
+
+`control_observation_duration_ns` measures the caller's monotonic observation
+interval through finite reservation release and immediate typed acceptance,
+before its own audit persistence. The audit `at` field is the append timestamp.
+It is neither provider runtime nor network latency. `request_frame_bytes` is the
+exact reserved application-frame length; published, unsettled work remains
+`attempted_unknown`, even before the writer starts. `not_sent` requires a
+prepublication or confirmed unsent disposition. `write_completed` means the local WebSocket write returned
+success, without proving peer delivery. A known `response_frame_bytes` survives
+buffer disposal and counts the validated, correlated application frame. These
+lengths exclude WebSocket/TLS/TCP overhead. A received reply followed by a binding,
+immediate-consumer storage or release failure remains `control_unknown` with
+`reply_received` transport metadata. `control_unknown` also covers a failed
+immediate control acceptance; its transport field preserves known delivery facts.
+`reply_invalid` means no accepted Gateway reply projection, including local
+settlement/observation failure after a validated lower-level frame. No audit code
+establishes Native task success or closure. Administrative controls finish after
+their immediate typed consumer; subsequent multi-step initialization or restore
+decisions keep their own Registry authority and do not relabel an earlier remote
+control. Cancellation records its fence and cancel exchanges separately.
+
+Connection events distinguish verified handshake completion, failed registration
+or handshake, and joined session shutdown. They retain an available verified
+credential identity and generation, never certificate/key bytes or raw errors.
+Reconnects produce a new established generation. These application events do not
+count TCP/TLS failures rejected before the device HTTP handler. Successful device
+revocation commands, including idempotent repeats, record `credential_revoked`.
+
+`gateway_device_reconnections_total` counts successful repeat-generation
+establishments: validated `device_connected` observations whose existing durable
+Registry connection counter exceeds one. An earlier allocation may have failed
+its handshake, so this does not claim a prior successful connection. The counter
+uses no per-device history in Metrics and remains meaningful across Gateway boots;
+the exported aggregate itself starts at zero in each process.
+
+Protected metrics use fixed event/class/transport labels and observation duration
+and frame-length totals. Current gauges are sampled from their existing owners:
+active devices/WSS connections are fully handshaken, non-closing Hub sessions;
+registered devices are nonrevoked Registry registrations; authorized devices have
+at least one configured grant to a nonrevoked principal. Configured grant coverage
+does not establish a current token's authority or execution readiness. Snapshot
+failure returns unavailable rather than inventing zero counts. Metrics keep no
+presence or authorization cache.
+
+Origin and capacity rejections before HTTP admission update only
+`gateway_boundary_rejections_total{reason="origin"|"capacity"}`. They never queue
+audit disk work outside the request limit. This fixed anonymous aggregate family
+is separate from audit-event attempt counters. Admitted authentication, grant, routing
+and oversized-body decisions retain their metadata audit attempts. A counter-only
+boundary rejection is not an audit write or a claim of audit persistence.
+
+The Recorder validates metadata before either sink. Failures remain sticky on
+protected health without changing admission, task results or original errors.
+Audit persistence is synchronous and can add caller latency; no event-dropping
+queue is introduced. Private audit segments rotate at 10 MiB, retain at most
+100 MiB and expire after seven days by deleting complete old segments. Operator
+access follows the owned private audit directory and files; no external telemetry
+service or payload redaction pipeline is required.
 
 The `device_credential_denied` audit event records a fresh registration whose
 verified client-certificate identity Registry rejected with a sole policy

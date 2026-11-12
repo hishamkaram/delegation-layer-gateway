@@ -7,6 +7,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
 )
 
 func (a *Adapter) devices(ctx context.Context, actor domain.Actor, input PageInput) (DevicePage, error) {
@@ -133,8 +134,7 @@ func (a *Adapter) snapshot(device domain.DeviceID) (gateway.LinkSnapshot, bool, 
 }
 
 func visibilityDenied(err error) bool {
-	var failure *domain.Error
-	return errors.As(err, &failure) && (failure.Code == domain.Forbidden || failure.Code == domain.NotFound)
+	return gateway.AuthorizationObservation(err) == routing.DeniedOrMissing
 }
 
 func findProject(snapshot gateway.LinkSnapshot, alias domain.ProjectAlias) (protocol.ProjectCapability, bool) {

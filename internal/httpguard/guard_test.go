@@ -41,12 +41,17 @@ func TestHostOriginAndTLSBoundary(t *testing.T) {
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
+			var observed []Rejection
+			guard.rejected = func(reason Rejection) { observed = append(observed, reason) }
 			request := tlsRequest()
 			mutate(request)
 			writer := httptest.NewRecorder()
 			guard.Wrap(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("denied request reached handler") })).ServeHTTP(writer, request)
 			if writer.Code != http.StatusForbidden {
 				t.Fatalf("status=%d", writer.Code)
+			}
+			if len(observed) != 1 || observed[0] != OriginRejected {
+				t.Fatalf("boundary rejection metadata: %v", observed)
 			}
 		})
 	}
@@ -70,6 +75,8 @@ func TestBodyBoundAndContextDeadline(t *testing.T) {
 
 func TestCancelledHandlerRetainsActiveSlotUntilReturn(t *testing.T) {
 	guard := newGuard(t)
+	rejected := make(chan Rejection, 1)
+	guard.rejected = func(reason Rejection) { rejected <- reason }
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	done := make(chan struct{})
@@ -85,5 +92,8 @@ func TestCancelledHandlerRetainsActiveSlotUntilReturn(t *testing.T) {
 	handler.ServeHTTP(writer, tlsRequest())
 	if writer.Code != http.StatusServiceUnavailable {
 		t.Fatalf("cancellation freed still-owned slot: %d", writer.Code)
+	}
+	if reason := <-rejected; reason != CapacityRejected {
+		t.Fatalf("capacity rejection category: %s", reason)
 	}
 }

@@ -23,6 +23,8 @@ type forwardedWriteGate struct {
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
+	// The test sets failure while Write is held, before releasing that gate.
+	failure error
 }
 
 func (g *forwardedWriteGate) Write(data []byte) (int, error) {
@@ -30,6 +32,9 @@ func (g *forwardedWriteGate) Write(data []byte) (int, error) {
 	if err == nil && g.armed.CompareAndSwap(true, false) {
 		close(g.entered)
 		<-g.release
+		if g.failure != nil {
+			return n, g.failure
+		}
 	}
 	return n, err
 }

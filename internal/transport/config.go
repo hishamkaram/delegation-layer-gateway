@@ -90,10 +90,13 @@ type (
 		// CredentialDenied observes only a verified new registration rejected by
 		// the registry with a sole policy denial. It never changes authorization.
 		CredentialDenied func(domain.CredentialRef)
-		Routing          RoutingAuthority
-		GatewayID        domain.GatewayID
-		BootEpoch        domain.BootEpoch
-		Settings         Settings
+		// ConnectionObserved runs outside owner mutexes and inside Hub's joined
+		// handler lifetime. It must not call lifecycle methods that join itself.
+		ConnectionObserved func(ConnectionObservation)
+		Routing            RoutingAuthority
+		GatewayID          domain.GatewayID
+		BootEpoch          domain.BootEpoch
+		Settings           Settings
 	}
 	ClientConfig struct {
 		Routing      ConnectorRouting

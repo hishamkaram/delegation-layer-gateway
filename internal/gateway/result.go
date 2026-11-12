@@ -6,13 +6,18 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
 )
 
-func (s *Service) ReadResult(ctx context.Context, actor domain.Actor, id domain.OperationID, descriptor protocol.Descriptor, offset int64, limit int) (protocol.ResultRange, error) {
+func (s *Service) ReadResult(ctx context.Context, actor domain.Actor, id domain.OperationID, descriptor protocol.Descriptor, offset int64, limit int) (result protocol.ResultRange, err error) {
+	attempt := s.startObservation(actor, routing.ControlClass(protocol.ResultChunk))
+	defer func() { attempt.finish(err) }()
 	view, err := s.store.GetOperation(ctx, actor, id)
+	attempt.authorize(err)
 	if err != nil {
 		return protocol.ResultRange{}, err
 	}
+	attempt.bind(view.Correlation)
 	if !acceptedDescriptor(view, descriptor) {
 		return protocol.ResultRange{}, &RemoteError{Failure: protocol.Failure{Code: "result_unavailable", Retryable: false}}
 	}
@@ -24,20 +29,20 @@ func (s *Service) ReadResult(ctx context.Context, actor domain.Actor, id domain.
 	if err != nil {
 		return protocol.ResultRange{}, err
 	}
-	reply, transmission, err := s.control(ctx, actor, view.Correlation, domain.TaskRead, protocol.Command{Operation: protocol.ResultChunk, Project: string(view.Correlation.Destination.Project), Body: body}, nil)
+	reply, transmission, err := s.control(ctx, actor, view.Correlation, domain.TaskRead, protocol.Command{Operation: protocol.ResultChunk, Project: string(view.Correlation.Destination.Project), Body: body}, attempt, nil)
 	if err != nil {
 		return protocol.ResultRange{}, err
 	}
 	if reply.Error != nil {
 		return protocol.ResultRange{}, &RemoteError{Failure: *reply.Error}
 	}
-	var result protocol.ResultRange
 	if protocol.DecodeStrict(reply.Body, &result, protocol.MaxFrameBytes) != nil || result.ValidateFor(request) != nil {
 		return protocol.ResultRange{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	// Recheck owner/grants after the scan/transport wait, before releasing bytes.
 	current, err := s.store.GetOperation(ctx, actor, id)
 	if err != nil {
+		s.observeAuthorizationFailure(actor, protocol.ResultChunk, err)
 		return protocol.ResultRange{}, err
 	}
 	if !acceptedDescriptor(current, descriptor) || current.Observation.SpecDigest != view.Observation.SpecDigest {

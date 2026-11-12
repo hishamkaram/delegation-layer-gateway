@@ -14,6 +14,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/observability"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
 )
 
 type toolEvents struct{ values []observability.Event }
@@ -68,9 +69,10 @@ func TestSDKToolAuditAndMetricsContainOnlyClosedMetadata(t *testing.T) {
 		}
 	}
 	data := recorded.String()
-	if strings.Contains(data, privateCanary) || strings.Count(data, `"code":"mcp_tool_response_ready"`) != 1 || strings.Count(data, `"code":"mcp_tool_error_ready"`) != 3 || strings.Count(data, `"principal":"`+string(f.alice.Principal)+`"`) != 4 {
+	if strings.Contains(data, privateCanary) || strings.Count(data, `"code":"mcp_tool_response_ready"`) != 1 || strings.Count(data, `"code":"mcp_tool_error_ready"`) != 3 || strings.Count(data, `"principal":"`+string(f.alice.Principal)+`"`) != 5 {
 		t.Fatal("audit lost closed tool metadata or retained caller/native data")
 	}
+	assertScopeDenialEvents(t, data, f.alice.Principal)
 	writer := httptest.NewRecorder()
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/v1/metadata/metrics", nil)
 	check(t, err)
@@ -80,5 +82,36 @@ func TestSDKToolAuditAndMetricsContainOnlyClosedMetadata(t *testing.T) {
 	}
 	if !recorder.Health().AuditHealthy || recorder.Health().MetricFailures != 0 {
 		t.Fatal("valid events failed metadata recording")
+	}
+}
+
+func assertScopeDenialEvents(t *testing.T, data string, principal domain.PrincipalID) {
+	t.Helper()
+	denials := 0
+	for _, line := range strings.Split(strings.TrimSpace(data), "\n") {
+		var event observability.Event
+		check(t, json.Unmarshal([]byte(line), &event))
+		if event.Code == observability.AuthorizationDenied {
+			denials++
+			if event.Principal != principal || event.Control.Class != routing.PrepareClass || event.Control.Authorization != routing.DeniedOrMissing || event.Device != "" || event.Project != "" || event.Operation != "" {
+				t.Fatalf("early scope denial enriched rejected arguments: %+v", event)
+			}
+		}
+	}
+	if denials != 1 {
+		t.Fatalf("missing explicit scope-denial audit: %d", denials)
+	}
+}
+
+func TestInvalidRoutingArgumentsDoNotClaimGrantAuthorization(t *testing.T) {
+	events := &toolEvents{}
+	adapter := &Adapter{options: Options{Recorder: events}}
+	adapter.recordToolRejection(domain.Actor{Principal: "principal"}, "dispatch_task", "invalid_request", time.Nanosecond)
+	if len(events.values) != 1 {
+		t.Fatal("missing bounded argument-rejection observation")
+	}
+	event := events.values[0]
+	if event.Control.Authorization != routing.NotEvaluated || event.Principal != "principal" || event.Device != "" || event.Project != "" || event.Operation != "" {
+		t.Fatalf("argument rejection invented authorized correlation: %+v", event)
 	}
 }

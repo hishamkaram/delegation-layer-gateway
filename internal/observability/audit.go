@@ -16,6 +16,7 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/instance"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 	EnrollmentIssued           Code = "enrollment_issued"
 	DeviceConnected            Code = "device_connected"
 	DeviceDisconnected         Code = "device_disconnected"
+	DeviceConnectionFailed     Code = "device_connection_failed"
 	CredentialRevoked          Code = "credential_revoked"
 	OperationPrepared          Code = "operation_prepared"
 	ControlSent                Code = "control_sent"
@@ -77,11 +79,15 @@ type CredentialIdentity struct {
 // Event contains only bounded identity metadata. Code is a closed enum; no
 // free-text message or map can carry a prompt, payload or native diagnostic.
 type Event struct {
-	Code       Code               `json:"code"`
-	Credential CredentialIdentity `json:"credential,omitzero"`
-	Principal  domain.PrincipalID `json:"principal,omitempty"`
-	Device     domain.DeviceID    `json:"device,omitempty"`
-	Operation  domain.OperationID `json:"operation,omitempty"`
+	Code                 Code                        `json:"code"`
+	Credential           CredentialIdentity          `json:"credential,omitzero"`
+	Principal            domain.PrincipalID          `json:"principal,omitempty"`
+	Device               domain.DeviceID             `json:"device,omitempty"`
+	Operation            domain.OperationID          `json:"operation,omitempty"`
+	Project              domain.ProjectAlias         `json:"project,omitempty"`
+	Control              routing.ControlMetadata     `json:"control,omitzero"`
+	Connection           domain.ConnectionGeneration `json:"connection,omitzero"`
+	ConnectionDurationNS int64                       `json:"connection_duration_ns,omitempty"`
 }
 type record struct {
 	At time.Time `json:"at"`
@@ -92,16 +98,88 @@ func (e Event) validate() bool {
 	if !e.Code.valid() {
 		return false
 	}
-	for _, value := range []string{string(e.Principal), string(e.Device), string(e.Operation)} {
+	for _, value := range []string{string(e.Principal), string(e.Device), string(e.Operation), string(e.Project)} {
 		if value != "" && domain.Token(value) != nil {
 			return false
 		}
 	}
-	if e.Code == DeviceCredentialDenied {
-		ref := domain.CredentialRef{Device: e.Credential.DeviceID, Epoch: e.Credential.Epoch, Generation: e.Credential.Generation}
-		return ref.Validate() == nil && ref.Device == e.Device && e.Principal == "" && e.Operation == ""
+	if e.ConnectionDurationNS < 0 || e.Connection != (domain.ConnectionGeneration{}) && e.Connection.Validate() != nil {
+		return false
 	}
-	return e.Credential == (CredentialIdentity{})
+	switch {
+	case e.Code.connectionEvent():
+		return e.validConnectionMetadata()
+	case e.Code.controlEvent():
+		return e.validControlMetadata()
+	default:
+		return e.Credential == (CredentialIdentity{}) && e.Control == (routing.ControlMetadata{}) && e.Project == "" && e.Connection == (domain.ConnectionGeneration{}) && e.ConnectionDurationNS == 0
+	}
+}
+
+func (code Code) connectionEvent() bool {
+	return code == DeviceCredentialDenied || code == DeviceConnected || code == DeviceDisconnected || code == DeviceConnectionFailed
+}
+
+func (code Code) controlEvent() bool {
+	return code == OperationPrepared || code == ControlSent || code == ControlCompleted || code == ControlUnknown || code == AuthorizationDenied || code == ResourceDenied || code == RecoveryBlocked
+}
+
+func (e Event) validConnectionMetadata() bool {
+	if e.Principal != "" || e.Operation != "" || e.Project != "" || e.Control != (routing.ControlMetadata{}) {
+		return false
+	}
+	if e.Code == DeviceConnectionFailed && e.Credential == (CredentialIdentity{}) {
+		return e.Device == "" && e.Connection == (domain.ConnectionGeneration{})
+	}
+	ref := domain.CredentialRef{Device: e.Credential.DeviceID, Epoch: e.Credential.Epoch, Generation: e.Credential.Generation}
+	if ref.Validate() != nil || ref.Device != e.Device {
+		return false
+	}
+	if e.Code == DeviceCredentialDenied {
+		return e.Connection == (domain.ConnectionGeneration{}) && e.ConnectionDurationNS == 0
+	}
+	if e.Code == DeviceConnected || e.Code == DeviceDisconnected {
+		return e.Connection != (domain.ConnectionGeneration{})
+	}
+	return e.Code == DeviceConnectionFailed
+}
+
+func (e Event) validControlMetadata() bool {
+	if e.Credential != (CredentialIdentity{}) || e.Connection != (domain.ConnectionGeneration{}) || e.ConnectionDurationNS != 0 {
+		return false
+	}
+	if e.Control == (routing.ControlMetadata{}) {
+		return e.validUnavailableControl()
+	}
+	if !e.validControlIdentity() {
+		return false
+	}
+	if e.Control.Class == routing.PrepareClass && !validPrepareObservation(e.Control) {
+		return false
+	}
+	if e.Code == OperationPrepared {
+		return e.validPreparedIdentity()
+	}
+	return e.Control.Class != routing.PrepareClass || (e.Code != ControlSent && e.Code != ControlCompleted)
+}
+
+func (e Event) validUnavailableControl() bool {
+	return (e.Code == AuthorizationDenied || e.Code == ResourceDenied) && e.Device == "" && e.Project == "" && e.Operation == ""
+}
+
+func (e Event) validPreparedIdentity() bool {
+	return e.Principal != "" && e.Device != "" && e.Project != "" && e.Operation != "" && e.Control.Class == routing.PrepareClass && e.Control.Authorization == routing.Allowed
+}
+
+func (e Event) validControlIdentity() bool {
+	if e.Control.Validate() != nil || (e.Control.Actor == routing.PrincipalActor) != (e.Principal != "") {
+		return false
+	}
+	return (e.Device == "") == (e.Project == "") && (e.Operation == "" || e.Device != "")
+}
+
+func validPrepareObservation(metadata routing.ControlMetadata) bool {
+	return metadata.Recheck == routing.NotEvaluated && metadata.Transport == routing.NotAttempted && metadata.WriteState == routing.WriteNotStarted && metadata.EncodedRequestFrameBytes == 0 && metadata.EncodedResponseFrameBytes == 0 && !metadata.ResponseKnown && metadata.Connection == (domain.ConnectionGeneration{}) && metadata.Request == ""
 }
 
 // Audit owns its private directory lease and serializes append/rotation. Record

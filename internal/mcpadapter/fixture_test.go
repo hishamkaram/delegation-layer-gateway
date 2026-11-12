@@ -160,6 +160,10 @@ func (r *fixtureReservation) ArmRouting(route routing.Request) error {
 }
 
 func (r *fixtureReservation) Transmission() domain.Transmission { return r.transmission }
+func (r *fixtureReservation) TransferSnapshot() routing.TransferSnapshot {
+	return routing.TransferSnapshot{WriteState: routing.WriteNotStarted, EncodedRequestFrameBytes: r.transmission.EncodedFrameBytes}
+}
+
 func (r *fixtureReservation) Publish(ctx context.Context, guard func(context.Context) error) error {
 	if err := guard(ctx); err != nil {
 		return err
@@ -265,7 +269,7 @@ func newRecordedFixture(t *testing.T, count int, recorder Recorder) *fixture {
 	}
 	generatedID, identityErr := store.Identity(t.Context())
 	check(t, identityErr)
-	service, err := gateway.New(f.store, f.link, generatedID, rand.Reader, f.clock.now)
+	service, err := gateway.New(f.store, f.link, generatedID, rand.Reader, f.clock.now, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 	f.service = checked(t, service, err)
 	mux := http.NewServeMux()
 	f.server = httptest.NewUnstartedServer(mux)

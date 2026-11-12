@@ -13,7 +13,16 @@ import (
 
 var ErrInvalid = errors.New("invalid HTTP guard configuration")
 
+type Rejection string
+
+const (
+	OriginRejected   Rejection = "origin_rejected"
+	CapacityRejected Rejection = "capacity_rejected"
+)
+
 type Options struct {
+	// Rejected runs outside admission. It must be nonblocking and perform no I/O.
+	Rejected           func(Rejection)
 	PublicOrigin       string
 	ConcurrentRequests int
 	Timeout            time.Duration
@@ -23,10 +32,11 @@ type Options struct {
 // Guard owns the only active-request semaphore, released after the handler
 // returns rather than when its client disconnects or its deadline expires.
 type Guard struct {
-	origin  *url.URL
-	active  chan struct{}
-	timeout time.Duration
-	maxBody int64
+	rejected func(Rejection)
+	origin   *url.URL
+	active   chan struct{}
+	timeout  time.Duration
+	maxBody  int64
 }
 
 func New(options Options) (*Guard, error) {
@@ -37,12 +47,13 @@ func New(options Options) (*Guard, error) {
 	if options.ConcurrentRequests < 1 || options.ConcurrentRequests > 128 || options.Timeout <= 0 || options.MaxBodyBytes < 1 || options.MaxBodyBytes > 1<<20 {
 		return nil, ErrInvalid
 	}
-	return &Guard{origin: origin, active: make(chan struct{}, options.ConcurrentRequests), timeout: options.Timeout, maxBody: options.MaxBodyBytes}, nil
+	return &Guard{origin: origin, active: make(chan struct{}, options.ConcurrentRequests), timeout: options.Timeout, maxBody: options.MaxBodyBytes, rejected: options.Rejected}, nil
 }
 
 func (g *Guard) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.TLS == nil || !strings.EqualFold(request.Host, g.origin.Host) || !g.allowedOrigin(request.Header.Values("Origin")) {
+			g.observeRejection(OriginRejected)
 			http.Error(writer, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -50,6 +61,7 @@ func (g *Guard) Wrap(next http.Handler) http.Handler {
 		case g.active <- struct{}{}:
 			defer func() { <-g.active }()
 		default:
+			g.observeRejection(CapacityRejected)
 			writer.Header().Set("Retry-After", "1")
 			http.Error(writer, "resource_limit", http.StatusServiceUnavailable)
 			return
@@ -62,6 +74,13 @@ func (g *Guard) Wrap(next http.Handler) http.Handler {
 		writer.Header().Set("X-Content-Type-Options", "nosniff")
 		next.ServeHTTP(writer, request)
 	})
+}
+
+func (g *Guard) observeRejection(reason Rejection) {
+	// Rejection must remain fast even when admitted request storage is stalled.
+	if g.rejected != nil {
+		g.rejected(reason)
+	}
 }
 
 func (g *Guard) allowedOrigin(values []string) bool {

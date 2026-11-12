@@ -31,8 +31,11 @@ type Reservation struct {
 	taken                bool
 	response             protocol.Frame
 	responseBytes        int
-	err                  error
-	done                 chan struct{}
+	// Unlike responseBytes (live buffer accounting), this immutable observation
+	// survives consumption without keeping the response payload alive.
+	observedResponseBytes int
+	err                   error
+	done                  chan struct{}
 }
 
 type replyBinding struct {
@@ -244,6 +247,9 @@ func (s *session) releasePendingLocked(r *Reservation) {
 func (s *session) response(ctx context.Context, frame protocol.Frame, size int) error {
 	s.mu.Lock()
 	r, completion, checkErr := s.validateResponseLocked(frame, size)
+	if checkErr == nil {
+		r.observedResponseBytes = size
+	}
 	s.mu.Unlock()
 	if checkErr != nil {
 		return checkErr

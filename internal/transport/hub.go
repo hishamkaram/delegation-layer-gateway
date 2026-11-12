@@ -57,11 +57,22 @@ func NewHub(ctx context.Context, config Config, store CredentialStore, now func(
 }
 
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+	if h.config.ConnectionObserved != nil {
+		if !h.beginConnectionObservation() {
+			http.Error(w, "device connection rejected", http.StatusForbidden)
+			return
+		}
+		defer h.workers.Done()
+	}
 	preflight, cancel := context.WithTimeout(r.Context(), h.config.Settings.HandshakeTimeout)
 	defer cancel()
 	request := r.WithContext(preflight)
 	s, err := h.register(preflight, request)
 	if err != nil {
+		// Registration failures return no verified session; omit identity instead
+		// of deriving it from untrusted request fields or parsing an error.
+		h.observeConnection(started, ConnectionFailed, nil)
 		http.Error(w, "device connection rejected", http.StatusForbidden)
 		return
 	}
@@ -70,6 +81,9 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.stop(fail(ErrOffline, nil))
 		if !ran {
 			s.finish()
+			h.observeConnection(started, ConnectionFailed, s)
+		} else {
+			h.observeConnection(started, ConnectionClosed, s)
 		}
 		h.retire(s)
 	}()
@@ -105,6 +119,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	close(s.ready)
 	ran = true
+	h.observeConnection(started, ConnectionEstablished, s)
 	s.run(r.Context())
 }
 

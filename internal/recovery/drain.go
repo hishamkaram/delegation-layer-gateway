@@ -95,31 +95,32 @@ func (d *Drainer) observe(ctx context.Context, input DrainRequest, view domain.A
 		return view, err
 	}
 	check := domain.AdministrativeDrainCheck{Key: input.Key, Action: input.Action, Destination: input.Route}
-	reply, transmission, err := d.namespace.wire.exchangeWithOperation(ctx, input.Route, view.Binding.Origin.Operation, command, func(call context.Context, current domain.Transmission) error {
+	observed := view
+	_, _, err = d.namespace.wire.exchangeWithOperation(ctx, input.Route, view.Binding.Origin.Operation, command, func(call context.Context, current domain.Transmission) error {
 		if current.Operation != view.Binding.Origin.Operation {
 			return domain.Reject(domain.EvidenceInvalid)
 		}
 		guard := check
 		guard.Credential, guard.Connection, guard.Now = current.Credential, current.Connection, current.Now
 		return d.store.CheckAdministrativeDrain(call, guard)
+	}, func(reply protocol.Reply, transmission domain.Transmission) error {
+		now := d.now()
+		check.Credential, check.Connection, check.Now = transmission.Credential, transmission.Connection, now
+		observation, acceptErr := drainObservation(reply, view, now)
+		if acceptErr != nil {
+			return acceptErr
+		}
+		updated, acceptErr := d.store.RecordAdministrativeObservation(ctx, domain.AdministrativeObservation{Check: check, Binding: view.Binding, Observation: observation})
+		if acceptErr != nil {
+			return acceptErr
+		}
+		observed = updated
+		if observation.Kind == domain.Existing {
+			return d.store.BindAdministrativeRoute(ctx, domain.AdministrativeRouteBinding{Destination: input.Route, Context: view.Binding.Context, Credential: transmission.Credential, Connection: transmission.Connection, Now: d.now()})
+		}
+		return nil
 	})
-	if err != nil {
-		return view, err
-	}
-	now := d.now()
-	check.Credential, check.Connection, check.Now = transmission.Credential, transmission.Connection, now
-	observation, err := drainObservation(reply, view, now)
-	if err != nil {
-		return view, err
-	}
-	updated, err := d.store.RecordAdministrativeObservation(ctx, domain.AdministrativeObservation{Check: check, Binding: view.Binding, Observation: observation})
-	if err != nil {
-		return view, err
-	}
-	if observation.Kind == domain.Existing {
-		err = d.store.BindAdministrativeRoute(ctx, domain.AdministrativeRouteBinding{Destination: input.Route, Context: view.Binding.Context, Credential: transmission.Credential, Connection: transmission.Connection, Now: d.now()})
-	}
-	return updated, err
+	return observed, err
 }
 
 func drainCommand(input DrainRequest, view domain.AdministrativeTaskView) (protocol.Command, error) {

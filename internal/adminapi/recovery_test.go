@@ -37,7 +37,7 @@ func (f projectInspectorFunc) Inspect(ctx context.Context, route domain.Destinat
 func configureRecovery(t *testing.T, f *fixture) {
 	t.Helper()
 	f.stop()
-	namespace, err := recovery.New(f.store, unusedRecoveryLink{}, "gateway", func() time.Time { return f.now })
+	namespace, err := recovery.New(f.store, unusedRecoveryLink{}, "gateway", func() time.Time { return f.now }, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 	check(t, err)
 	restorer, err := recovery.NewRestorer(f.store, namespace, func() time.Time { return f.now })
 	check(t, err)

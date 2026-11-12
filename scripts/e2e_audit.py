@@ -30,6 +30,224 @@ MAX_RECORD_BYTES = 4096
 SEGMENT_NAME = re.compile(r"audit-(\d{8})-(\d{2})\.jsonl\Z")
 CREDENTIAL_TOKEN = re.compile(r"[A-Za-z0-9._-]{1,128}\Z")
 TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z\Z")
+ROUTING_TOKEN = re.compile(r"[A-Za-z0-9._:-]{1,128}\Z")
+CONTROL_CODES = frozenset(
+    {
+        "operation_prepared",
+        "control_sent",
+        "control_completed",
+        "control_unknown",
+        "authorization_denied",
+        "resource_denied",
+        "recovery_blocked",
+    }
+)
+CONTROL_CLASSES = frozenset(
+    {
+        "prepare",
+        "context_inspect",
+        "admit",
+        "resolve",
+        "resume_existing",
+        "fence_absent",
+        "status",
+        "collect",
+        "result_chunk",
+        "cancel",
+        "origin_barrier",
+        "origin_inventory",
+        "origin_reopen",
+    }
+)
+CONNECTION_CODES = frozenset(
+    {"device_connected", "device_disconnected", "device_connection_failed"}
+)
+DECISIONS = frozenset({"not_evaluated", "allowed", "denied_or_missing", "unknown"})
+RECORD_FIELDS = frozenset(
+    {
+        "at",
+        "code",
+        "device",
+        "principal",
+        "operation",
+        "credential",
+        "project",
+        "control",
+        "connection",
+        "connection_duration_ns",
+    }
+)
+CONTROL_FIELDS = frozenset(
+    {
+        "class",
+        "actor",
+        "authorization",
+        "recheck",
+        "transport",
+        "control_observation_duration_ns",
+        "write_state",
+        "request_frame_bytes",
+        "response_frame_bytes",
+        "response_known",
+    }
+)
+
+
+def bounded_integer(value, maximum):
+    return type(value) is int and 0 <= value <= maximum
+
+
+def routing_token(value):
+    return type(value) is str and ROUTING_TOKEN.fullmatch(value) is not None
+
+
+def connection_generation(value):
+    require(
+        type(value) is dict
+        and set(value) == {"BootEpoch", "Counter"}
+        and routing_token(value["BootEpoch"])
+        and bounded_integer(value["Counter"], (1 << 64) - 1)
+        and value["Counter"] > 0,
+        "invalid audit connection",
+    )
+
+
+def control_metadata(value):
+    require(
+        type(value) is dict
+        and CONTROL_FIELDS <= set(value)
+        and set(value) <= CONTROL_FIELDS | {"connection", "request_id"}
+        and value["class"] in CONTROL_CLASSES
+        and value["actor"] in {"principal", "local_admin"}
+        and value["authorization"] in DECISIONS
+        and value["recheck"] in DECISIONS
+        and bounded_integer(value["control_observation_duration_ns"], (1 << 63) - 1)
+        and bounded_integer(value["request_frame_bytes"], 1 << 20)
+        and bounded_integer(value["response_frame_bytes"], 1 << 20)
+        and type(value["response_known"]) is bool
+        and value["response_known"] == (value["response_frame_bytes"] > 0),
+        "invalid audit control",
+    )
+    if "connection" in value:
+        connection_generation(value["connection"])
+    if "request_id" in value:
+        require(routing_token(value["request_id"]), "invalid audit request identity")
+    write = value["write_state"]
+    require(
+        write in {"not_started", "attempted_unknown", "write_completed"}
+        and (write == "not_started" or value["request_frame_bytes"] > 0),
+        "invalid audit write state",
+    )
+    transport = value["transport"]
+    require(
+        (
+            transport in {"not_attempted", "not_sent"}
+            and write == "not_started"
+            and not value["response_known"]
+        )
+        or (transport == "write_unknown" and write == "attempted_unknown")
+        or (
+            transport == "written_no_reply"
+            and write == "write_completed"
+            and not value["response_known"]
+        )
+        or (
+            transport in {"reply_received", "reply_invalid"}
+            and write == "write_completed"
+            and value["response_known"]
+        ),
+        "invalid audit transport observation",
+    )
+    if value["class"] == "prepare":
+        require(
+            value["recheck"] == "not_evaluated"
+            and transport == "not_attempted"
+            and value["request_frame_bytes"] == 0
+            and value["response_frame_bytes"] == 0
+            and "connection" not in value
+            and "request_id" not in value,
+            "preparation claims audit transport",
+        )
+
+
+def control_record(value):
+    require(
+        value["code"] in CONTROL_CODES
+        and "control" in value
+        and set(value)
+        <= {"at", "code", "principal", "device", "project", "operation", "control"},
+        "invalid audit control record",
+    )
+    metadata = value["control"]
+    control_metadata(metadata)
+    require(
+        (metadata["actor"] == "principal") == ("principal" in value)
+        and ("device" in value) == ("project" in value)
+        and ("operation" not in value or "device" in value),
+        "invalid audit control identity",
+    )
+    if value["code"] == "operation_prepared":
+        require(
+            {"principal", "device", "project", "operation"} <= set(value)
+            and metadata["class"] == "prepare"
+            and metadata["authorization"] == "allowed",
+            "invalid prepared audit identity",
+        )
+    elif value["code"] in {"control_sent", "control_completed"}:
+        require(metadata["class"] != "prepare", "invalid completed audit class")
+
+
+def connection_record(value):
+    require(
+        set(value)
+        <= {
+            "at",
+            "code",
+            "device",
+            "credential",
+            "connection",
+            "connection_duration_ns",
+        }
+        and bounded_integer(value.get("connection_duration_ns", 0), (1 << 63) - 1),
+        "invalid connection audit record",
+    )
+    if "credential" not in value:
+        require(
+            value["code"] == "device_connection_failed"
+            and "device" not in value
+            and "connection" not in value,
+            "unverified audit connection identity",
+        )
+        return
+    credential_identity(value["credential"], value.get("device"))
+    if "connection" in value:
+        connection_generation(value["connection"])
+    else:
+        require(
+            value["code"] == "device_connection_failed",
+            "missing audit connection generation",
+        )
+
+
+def record_metadata(value):
+    if value["code"] == "device_credential_denied":
+        require(
+            set(value) == {"at", "code", "device", "credential"},
+            "invalid denial record",
+        )
+        credential_identity(value["credential"], value["device"])
+        return
+    metadata = {"project", "control", "connection", "connection_duration_ns"}
+    if not metadata.intersection(value) and "credential" not in value:
+        # Retained pre-metadata generic rows are historical observations only.
+        return
+    for key in ("device", "principal", "operation", "project"):
+        if key in value:
+            require(routing_token(value[key]), "invalid audit routing identity")
+    if value["code"] in CONNECTION_CODES:
+        connection_record(value)
+    else:
+        control_record(value)
 
 
 def credential_identity(value, device):
@@ -136,8 +354,7 @@ def records(data):
             require(
                 type(value) is dict
                 and {"at", "code"} <= set(value)
-                and set(value)
-                <= {"at", "code", "device", "principal", "operation", "credential"}
+                and set(value) <= RECORD_FIELDS
                 and type(value["at"]) is str
                 and TIMESTAMP.fullmatch(value["at"])
                 and type(value["code"]) is str
@@ -145,14 +362,7 @@ def records(data):
                 "invalid audit record",
             )
             datetime.fromisoformat(value["at"].replace("Z", "+00:00"))
-            if value["code"] == "device_credential_denied":
-                require(
-                    set(value) == {"at", "code", "device", "credential"},
-                    "invalid denial record",
-                )
-                credential_identity(value["credential"], value["device"])
-            else:
-                require("credential" not in value, "unexpected audit credential")
+            record_metadata(value)
             for key in ("device", "principal", "operation"):
                 if key in value:
                     require(

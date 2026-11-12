@@ -24,7 +24,14 @@ func NewRecorder(audit *Audit, metrics *Metrics) (*Recorder, error) {
 }
 
 func (r *Recorder) Record(event Event) {
-	if err := r.metrics.Record(event.Code); err != nil {
+	// Reject incomplete or unsafe observations before either sink consumes them.
+	// Invalid metadata still becomes fixed protected health, never a raw log.
+	if !event.validate() {
+		r.metrics.metricFailures.Add(1)
+		r.metrics.AuditFailed()
+		return
+	}
+	if err := r.metrics.recordEvent(event); err != nil {
 		r.metrics.metricFailures.Add(1)
 	}
 	if err := r.audit.Record(event); err != nil {

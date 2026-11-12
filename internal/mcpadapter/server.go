@@ -17,6 +17,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpguard"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/observability"
 )
 
 type Options struct {
@@ -93,11 +94,25 @@ func (a *Adapter) limitHTTP(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		info := auth.TokenInfoFromContext(request.Context())
 		if info == nil || !a.limits.Allow(info.UserID) {
+			if a.options.Recorder != nil {
+				principal := domain.PrincipalID("")
+				if info != nil && domain.Token(info.UserID) == nil {
+					principal = domain.PrincipalID(info.UserID)
+				}
+				a.options.Recorder.Record(observability.Event{Code: observability.ResourceDenied, Principal: principal})
+			}
 			writer.Header().Set("Retry-After", "1")
 			http.Error(writer, "resource_limit", http.StatusTooManyRequests)
 			return
 		}
-		if !singleMessage(writer, request) {
+		framing := singleMessage(writer, request)
+		if framing != framingAdmitted {
+			if a.options.Recorder != nil {
+				if framing == framingOversized {
+					a.options.Recorder.Record(observability.Event{Code: observability.ResourceDenied, Principal: domain.PrincipalID(info.UserID)})
+				}
+				a.options.Recorder.Record(observability.Event{Code: observability.MCPToolErrorReady, Principal: domain.PrincipalID(info.UserID)})
+			}
 			return
 		}
 		next.ServeHTTP(writer, request)

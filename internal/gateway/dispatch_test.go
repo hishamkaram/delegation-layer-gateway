@@ -107,6 +107,11 @@ func (r *controlledReservation) ArmRouting(route routing.Request) error {
 }
 
 func (r *controlledReservation) Transmission() domain.Transmission { return r.transmission }
+func (r *controlledReservation) TransferSnapshot() routing.TransferSnapshot {
+	// This fixture has no socket. Its reserved size is known; wire delivery is not.
+	return routing.TransferSnapshot{WriteState: routing.WriteNotStarted, EncodedRequestFrameBytes: r.transmission.EncodedFrameBytes}
+}
+
 func (r *controlledReservation) Publish(ctx context.Context, guard func(context.Context) error) error {
 	if r.owner.beforeWrite != nil {
 		if err := r.owner.beforeWrite(ctx); err != nil {
@@ -203,7 +208,7 @@ func newDispatchFixture(t *testing.T) *dispatchFixture {
 	f.reconcileRouting(t)
 	root := testsupport.OpenRoot(t, t.Context(), f.store, domain.RootInitializationStart{Route: f.destination, ExpectedContext: domain.ContextBinding{Root: domain.RootGuard(protocol.WireContextGuard("root")), Project: domain.ProjectGuard(protocol.WireContextGuard("project-guard"))}, Credential: credential, Connection: generation, Now: f.now})
 	f.link.snapshot.Capabilities.Projects[0].AdmissionGeneration = string(root.Generation)
-	service, err := New(f.store, f.link, dispatchIdentity(t, f.store), f.entropy, func() time.Time { return f.now })
+	service, err := New(f.store, f.link, dispatchIdentity(t, f.store), f.entropy, func() time.Time { return f.now }, RoutingObserverFunc(func(RoutingObservation) {}))
 	f.service = dispatchMust(t, service, err)
 	return f
 }
@@ -348,7 +353,7 @@ func TestPossibleSendCommitPrecedesPublishAndLostAckSurvivesRestart(t *testing.T
 	f.store = dispatchMust(t, store, err)
 	f.link.store = f.store
 	f.entropy.deny = true
-	service, err := New(f.store, f.link, dispatchIdentity(t, f.store), f.entropy, func() time.Time { return f.now })
+	service, err := New(f.store, f.link, dispatchIdentity(t, f.store), f.entropy, func() time.Time { return f.now }, RoutingObserverFunc(func(RoutingObservation) {}))
 	f.service = dispatchMust(t, service, err)
 	dispatcher := domain.Actor{Principal: f.actor.Principal, Scopes: domain.ScopeSet{domain.TaskDispatch}}
 	result, err = f.service.Dispatch(t.Context(), dispatcher, prepared.Correlation.Operation)

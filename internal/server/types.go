@@ -66,5 +66,5 @@ type (
 )
 
 func (r *Runtime) Addresses() Addresses          { return r.addresses }
-func (r *Runtime) MetadataMetrics() http.Handler { return &r.metrics }
+func (r *Runtime) MetadataMetrics() http.Handler { return http.HandlerFunc(r.metadataMetrics) }
 func (r *Runtime) Health() observability.Health  { return r.recorder.Health() }

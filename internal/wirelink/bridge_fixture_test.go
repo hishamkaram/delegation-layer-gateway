@@ -121,7 +121,7 @@ func newBridgeFixture(t *testing.T) *bridgeFixture {
 	mustOK(t, hub.WaitReady(ctx, "device-one"))
 	link, err := wirelink.New(hub)
 	mustOK(t, err)
-	service, err := gateway.New(store, link, generatedID, rand.Reader, func() time.Time { return now })
+	service, err := gateway.New(store, link, generatedID, rand.Reader, func() time.Time { return now }, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 	mustOK(t, err)
 	return &bridgeFixture{gateway: generatedID, store: store, hub: hub, client: client, link: link, service: service, actor: actor, ref: ref, now: now}
 }

@@ -66,6 +66,20 @@ func (r *reservation) Transmission() domain.Transmission {
 	return domain.Transmission{Operation: domain.OperationID(meta.OperationID), Credential: meta.Credential, Connection: meta.Connection, EncodedFrameBytes: meta.EncodedFrameBytes}
 }
 
+func (r *reservation) TransferSnapshot() routing.TransferSnapshot {
+	value := r.wire.TransferSnapshot()
+	state := routing.WriteAttemptedUnknown
+	switch value.WriteState {
+	case transport.WriteNotStarted:
+		state = routing.WriteNotStarted
+	case transport.WriteAttemptedUnknown:
+		state = routing.WriteAttemptedUnknown
+	case transport.WriteCompleted:
+		state = routing.WriteCompleted
+	}
+	return routing.TransferSnapshot{WriteState: state, EncodedRequestFrameBytes: value.EncodedRequestFrameBytes, EncodedResponseFrameBytes: value.EncodedResponseFrameBytes, ResponseKnown: value.ResponseKnown}
+}
+
 func (r *reservation) Routing() (routing.Request, error) {
 	request, err := r.wire.Routing()
 	return request, publicError(err)

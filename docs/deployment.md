@@ -187,3 +187,15 @@ Verify discovery, the selected device/project, execution readiness and each
 operation through that client's actual transport. Device presence and completed
 root initialization do not establish provider authentication. Record local,
 real-provider, two-device/network and ChatGPT Cloud results separately.
+
+## Local audit and metrics
+
+The private admin Unix socket serves `GET /v1/metadata/metrics` and
+`GET /v1/metadata/health`. Keep both behind that socket's administration gate;
+they are not public proxy routes. Health reports sticky audit/metric failures.
+Current gauges distinguish connected devices, registered devices and configured
+grant coverage; none substitutes for a token-specific authorization check.
+
+See the [metadata contract](architecture.md#privacy-and-deployment) for frame-byte
+units, duration, uncertain writes, retention and private log access. A healthy
+sink alone does not prove that each required producer emitted a correlated row.

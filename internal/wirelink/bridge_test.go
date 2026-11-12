@@ -158,7 +158,7 @@ func TestBridgeCommitBeforePublishAndClosureIsSeparateFromControlCompletion(t *t
 	f := newBridgeFixture(t)
 	c := f.prepare(t)
 	gate := &commitGate{Store: f.store, committed: make(chan struct{}), proceed: make(chan struct{})}
-	service, err := gateway.New(gate, f.link, f.gateway, rand.Reader, func() time.Time { return f.now })
+	service, err := gateway.New(gate, f.link, f.gateway, rand.Reader, func() time.Time { return f.now }, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 	mustOK(t, err)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()

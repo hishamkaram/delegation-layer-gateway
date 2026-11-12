@@ -22,11 +22,11 @@ type Service struct {
 	gateway domain.GatewayID
 }
 
-func New(store Store, link gateway.Link, id domain.GatewayID, now func() time.Time) (*Service, error) {
-	if store == nil || link == nil || domain.Token(string(id)) != nil || now == nil {
+func New(store Store, link gateway.Link, id domain.GatewayID, now func() time.Time, observer gateway.RoutingObserver) (*Service, error) {
+	if store == nil || link == nil || domain.Token(string(id)) != nil || now == nil || observer == nil {
 		return nil, domain.ErrInvalid
 	}
-	return &Service{store: store, wire: defaultClient(store, link, now), gateway: id}, nil
+	return &Service{store: store, wire: defaultClient(store, link, now, observer), gateway: id}, nil
 }
 
 // Inspect reads current Delegate namespace state, never the advertised cache.
@@ -35,16 +35,20 @@ func (s *Service) Inspect(ctx context.Context, route domain.Destination, expecte
 	if err != nil || expected.Validate() != nil {
 		return protocol.ProjectCapability{}, domain.Transmission{}, domain.ErrInvalid
 	}
-	reply, tx, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.ContextInspect, Project: string(route.Project), Body: body}, func(context.Context, domain.Transmission) error { return nil })
+	var report protocol.ProjectCapability
+	_, tx, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.ContextInspect, Project: string(route.Project), Body: body}, func(context.Context, domain.Transmission) error { return nil }, func(reply protocol.Reply, _ domain.Transmission) error {
+		var candidate protocol.ProjectCapability
+		if protocol.DecodeStrict(reply.Body, &candidate, protocol.MaxFrameBytes) != nil || candidate.Validate() != nil || candidate.Alias != string(route.Project) || candidate.Context.Root != string(expected.Root) || candidate.Context.Project != string(expected.Project) {
+			return domain.Reject(domain.EvidenceInvalid)
+		}
+		if candidate.ContractVersion != protocol.Version || !protocol.NativeFeaturesCompatible(candidate.Features) {
+			return domain.Reject(domain.EvidenceInvalid)
+		}
+		report = candidate
+		return nil
+	})
 	if err != nil {
 		return protocol.ProjectCapability{}, tx, err
-	}
-	var report protocol.ProjectCapability
-	if protocol.DecodeStrict(reply.Body, &report, protocol.MaxFrameBytes) != nil || report.Validate() != nil || report.Alias != string(route.Project) || report.Context.Root != string(expected.Root) || report.Context.Project != string(expected.Project) {
-		return protocol.ProjectCapability{}, tx, domain.Reject(domain.EvidenceInvalid)
-	}
-	if report.ContractVersion != protocol.Version || !protocol.NativeFeaturesCompatible(report.Features) {
-		return protocol.ProjectCapability{}, tx, domain.Reject(domain.EvidenceInvalid)
 	}
 	return report, tx, nil
 }
@@ -56,13 +60,17 @@ func (s *Service) InspectRoot(ctx context.Context, route domain.Destination, exp
 	if err != nil || domain.ContextToken(string(expected)) != nil {
 		return protocol.RootCapability{}, domain.Transmission{}, domain.ErrInvalid
 	}
-	reply, tx, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.ContextInspect, Project: string(route.Project), Body: body}, func(context.Context, domain.Transmission) error { return nil })
+	var report protocol.RootCapability
+	_, tx, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.ContextInspect, Project: string(route.Project), Body: body}, func(context.Context, domain.Transmission) error { return nil }, func(reply protocol.Reply, _ domain.Transmission) error {
+		var candidate protocol.RootCapability
+		if protocol.DecodeStrict(reply.Body, &candidate, protocol.MaxFrameBytes) != nil || candidate.Validate() != nil || candidate.Root != string(expected) || (candidate.Origin != nil && candidate.Origin.GatewayID != string(s.gateway)) {
+			return domain.Reject(domain.EvidenceInvalid)
+		}
+		report = candidate
+		return nil
+	})
 	if err != nil {
 		return protocol.RootCapability{}, tx, err
-	}
-	var report protocol.RootCapability
-	if protocol.DecodeStrict(reply.Body, &report, protocol.MaxFrameBytes) != nil || report.Validate() != nil || report.Root != string(expected) || (report.Origin != nil && report.Origin.GatewayID != string(s.gateway)) {
-		return protocol.RootCapability{}, tx, domain.Reject(domain.EvidenceInvalid)
 	}
 	return report, tx, nil
 }
@@ -81,7 +89,8 @@ func (s *Service) Barrier(ctx context.Context, route domain.Destination, input d
 	if err != nil {
 		return protocol.OriginStateReport{}, err
 	}
-	reply, _, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginBarrier, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
+	var report protocol.OriginStateReport
+	_, _, err = s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginBarrier, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
 		if tx.Credential != input.Credential || tx.Connection != input.Connection {
 			return domain.Reject(domain.Conflict)
 		}
@@ -95,11 +104,15 @@ func (s *Service) Barrier(ctx context.Context, route domain.Destination, input d
 			return domain.Reject(domain.Conflict)
 		}
 		return nil
+	}, func(reply protocol.Reply, _ domain.Transmission) error {
+		var acceptErr error
+		report, acceptErr = originReply(reply, s.gateway, plan.Destination.Recovery, plan.Generation, false)
+		return acceptErr
 	})
 	if err != nil {
 		return protocol.OriginStateReport{}, err
 	}
-	return originReply(reply, s.gateway, plan.Destination.Recovery, plan.Generation, false)
+	return report, nil
 }
 
 // Reopen cannot bypass Registry approval: every send rechecks its revision,
@@ -112,13 +125,14 @@ func (s *Service) Reopen(ctx context.Context, route domain.Destination, expected
 	if err != nil {
 		return protocol.OriginStateReport{}, err
 	}
-	reply, _, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginReopen, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
+	var reopened protocol.OriginStateReport
+	_, _, err = s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginReopen, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
 		return s.store.CheckReopen(call, domain.ReopenCheck{Target: target, Credential: tx.Credential, Connection: tx.Connection, Now: tx.Now})
+	}, func(reply protocol.Reply, _ domain.Transmission) error {
+		var acceptErr error
+		reopened, acceptErr = originReply(reply, s.gateway, target.Destination.Recovery, target.Generation, true)
+		return acceptErr
 	})
-	if err != nil {
-		return protocol.OriginStateReport{}, err
-	}
-	reopened, err := originReply(reply, s.gateway, target.Destination.Recovery, target.Generation, true)
 	if err != nil {
 		return protocol.OriginStateReport{}, err
 	}
@@ -158,7 +172,8 @@ func (s *Service) inventory(ctx context.Context, route domain.Destination, plan 
 	if err != nil {
 		return protocol.OriginInventoryReport{}, domain.Transmission{}, err
 	}
-	reply, transmission, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginInventory, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
+	var report protocol.OriginInventoryReport
+	_, transmission, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginInventory, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
 		current, checkErr := s.store.PrepareRecoveryBarrier(call, domain.BarrierPreparation{Destination: plan.Destination, Credential: tx.Credential, Connection: tx.Connection, ExpectedGeneration: plan.ExpectedGeneration, Now: tx.Now})
 		if checkErr != nil {
 			return checkErr
@@ -167,13 +182,16 @@ func (s *Service) inventory(ctx context.Context, route domain.Destination, plan 
 			return domain.Reject(domain.Conflict)
 		}
 		return nil
+	}, func(reply protocol.Reply, _ domain.Transmission) error {
+		var candidate protocol.OriginInventoryReport
+		if protocol.DecodeStrict(reply.Body, &candidate, protocol.MaxFrameBytes) != nil || candidate.ValidateFor(request) != nil {
+			return domain.Reject(domain.EvidenceInvalid)
+		}
+		report = candidate
+		return nil
 	})
 	if err != nil {
 		return protocol.OriginInventoryReport{}, transmission, err
-	}
-	var report protocol.OriginInventoryReport
-	if protocol.DecodeStrict(reply.Body, &report, protocol.MaxFrameBytes) != nil || report.ValidateFor(request) != nil {
-		return protocol.OriginInventoryReport{}, transmission, domain.Reject(domain.EvidenceInvalid)
 	}
 	return report, transmission, nil
 }

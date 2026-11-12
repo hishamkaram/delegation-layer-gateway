@@ -18,6 +18,7 @@ func (s *Service) acceptReply(ctx context.Context, actor domain.Actor, c domain.
 		return domain.OperationView{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	if _, err := s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope}); err != nil {
+		s.observeAuthorizationFailure(actor, reply.Operation, err)
 		return domain.OperationView{}, err
 	}
 	if reply.Error != nil {

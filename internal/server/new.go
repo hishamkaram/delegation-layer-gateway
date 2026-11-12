@@ -102,7 +102,7 @@ func (r *Runtime) publicHandler(cfg config.Gateway, jwksClient *http.Client) (ht
 	if err != nil {
 		return nil, failed(err)
 	}
-	service, err := gateway.New(r.store, link, r.gatewayID, rand.Reader, r.now)
+	service, err := gateway.New(r.store, link, r.gatewayID, rand.Reader, r.now, r)
 	if err != nil {
 		return nil, failed(err)
 	}
@@ -114,7 +114,7 @@ func (r *Runtime) publicHandler(cfg config.Gateway, jwksClient *http.Client) (ht
 	if err != nil {
 		return nil, failed(err)
 	}
-	guard, err := httpguard.New(httpguard.Options{PublicOrigin: cfg.PublicURL, ConcurrentRequests: 128, Timeout: time.Duration(cfg.HTTPTimeoutSeconds) * time.Second, MaxBodyBytes: 1 << 20})
+	guard, err := httpguard.New(httpguard.Options{PublicOrigin: cfg.PublicURL, ConcurrentRequests: 128, Timeout: time.Duration(cfg.HTTPTimeoutSeconds) * time.Second, MaxBodyBytes: 1 << 20, Rejected: r.observeHTTPRejection})
 	if err != nil {
 		return nil, failed(err)
 	}
@@ -223,7 +223,7 @@ func (r *Runtime) openBackend(cfg config.Gateway, bundle tlsconfig.Bundle, autho
 	if err != nil {
 		return failed(err)
 	}
-	hub, err := transport.NewHub(r.lifetime, transport.Config{Routing: store, GatewayID: r.gatewayID, BootEpoch: domain.BootEpoch(boot), CredentialDenied: r.recordCredentialDenied}, store, r.now)
+	hub, err := transport.NewHub(r.lifetime, transport.Config{Routing: store, GatewayID: r.gatewayID, BootEpoch: domain.BootEpoch(boot), CredentialDenied: r.recordCredentialDenied, ConnectionObserved: r.observeConnection}, store, r.now)
 	if err != nil {
 		return failed(err)
 	}
@@ -236,7 +236,7 @@ func (r *Runtime) bindAdmin(cfg config.Gateway, authority *adminapi.Authorizer) 
 	if err != nil {
 		return failed(err)
 	}
-	namespace, err := recovery.New(r.store, link, r.gatewayID, r.now)
+	namespace, err := recovery.New(r.store, link, r.gatewayID, r.now, r)
 	if err != nil {
 		return failed(err)
 	}
@@ -252,7 +252,7 @@ func (r *Runtime) bindAdmin(cfg config.Gateway, authority *adminapi.Authorizer) 
 	if err != nil {
 		return failed(err)
 	}
-	handler, err := adminapi.NewHandler(adminapi.Options{Roots: initializer, Recoveries: restorer, Tasks: drainer, Projects: namespace, Permits: r.store, RoutingDrains: r.store, GenerationDisconnector: deviceDisconnector{r.hub}, Store: r.store, Authority: authority, Disconnector: deviceDisconnector{r.hub}, Random: rand.Reader, Now: r.now, MetadataMetrics: r.MetadataMetrics(), MetadataHealth: r.Health})
+	handler, err := adminapi.NewHandler(adminapi.Options{Roots: initializer, Recoveries: restorer, Tasks: drainer, Projects: namespace, Permits: r.store, RoutingDrains: r.store, GenerationDisconnector: deviceDisconnector{r.hub}, Store: auditedAdministrativeStore{Store: r.store, recorder: r.recorder}, Authority: authority, Disconnector: deviceDisconnector{r.hub}, Random: rand.Reader, Now: r.now, MetadataMetrics: r.MetadataMetrics(), MetadataHealth: r.Health})
 	if err != nil {
 		return failed(err)
 	}

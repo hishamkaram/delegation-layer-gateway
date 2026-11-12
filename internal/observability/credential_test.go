@@ -64,7 +64,7 @@ func TestCredentialIdentityCannotAttachToOtherEvents(t *testing.T) {
 		"operation":       {Code: DeviceCredentialDenied, Device: "device-one", Operation: "operation-one", Credential: valid.Credential},
 	}
 	for _, code := range metricCodes() {
-		if code != DeviceCredentialDenied {
+		if code != DeviceCredentialDenied && code != DeviceConnected && code != DeviceDisconnected && code != DeviceConnectionFailed {
 			cases[string(code)] = Event{Code: code, Credential: valid.Credential}
 		}
 	}

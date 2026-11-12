@@ -138,7 +138,7 @@ func newRecoveryTLS(t *testing.T) *recoveryTLS {
 	recoveryOK(t, f.hub.WaitReady(ready, "device-one"))
 	f.link, err = wirelink.New(f.hub)
 	recoveryOK(t, err)
-	f.service, err = recovery.New(f.store, f.link, f.id, func() time.Time { return f.now })
+	f.service, err = recovery.New(f.store, f.link, f.id, func() time.Time { return f.now }, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 	recoveryOK(t, err)
 	f.initializer, err = recovery.NewInitializer(f.store, f.service, func() time.Time { return f.now })
 	recoveryOK(t, err)
@@ -471,7 +471,7 @@ func testQueuedRecoveryFault(t *testing.T, fault string) {
 	f := newRecoveryTLS(t)
 	p := f.approved(t)
 	delayed := &recoveryGuardLink{Link: f.link, entered: make(chan struct{}), resume: make(chan struct{})}
-	service, err := recovery.New(f.store, delayed, f.id, func() time.Time { return f.now })
+	service, err := recovery.New(f.store, delayed, f.id, func() time.Time { return f.now }, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 	recoveryOK(t, err)
 	ctx, cancel := context.WithTimeout(f.ctx, 8*time.Second)
 	defer cancel()
@@ -596,7 +596,7 @@ func TestRecoveryRechecksAuthorityAfterRealTLSResponse(t *testing.T) {
 				_, err := f.store.NextConnectionGeneration(f.ctx, f.ref, "response-supersession", f.now)
 				return err
 			}}
-			service, err := recovery.New(f.store, link, f.id, func() time.Time { return f.now })
+			service, err := recovery.New(f.store, link, f.id, func() time.Time { return f.now }, gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}))
 			recoveryOK(t, err)
 			var report protocol.ProjectCapability
 			err = runRecoveryCall(t, f, []protocol.Operation{protocol.ContextInspect}, func(ctx context.Context) error {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
 )
 
 func (s *Service) Resolve(ctx context.Context, actor domain.Actor, id domain.OperationID) (domain.OperationView, error) {
@@ -20,11 +21,15 @@ func (s *Service) Collect(ctx context.Context, actor domain.Actor, id domain.Ope
 	return s.observe(ctx, actor, id, protocol.Collect)
 }
 
-func (s *Service) observe(ctx context.Context, actor domain.Actor, id domain.OperationID, operation protocol.Operation) (domain.OperationView, error) {
+func (s *Service) observe(ctx context.Context, actor domain.Actor, id domain.OperationID, operation protocol.Operation) (result domain.OperationView, err error) {
+	attempt := s.startObservation(actor, routing.ControlClass(operation))
+	defer func() { attempt.finish(err) }()
 	view, err := s.store.GetOperation(ctx, actor, id)
+	attempt.authorize(err)
 	if err != nil {
 		return view, err
 	}
+	attempt.bind(view.Correlation)
 	if view.Delivery == domain.Prepared || view.Delivery == domain.ExpiredUnsent {
 		return view, nil
 	}
@@ -36,7 +41,7 @@ func (s *Service) observe(ctx context.Context, actor domain.Actor, id domain.Ope
 	if err != nil {
 		return view, err
 	}
-	reply, transmission, err := s.control(ctx, actor, view.Correlation, domain.TaskRead, protocol.Command{Operation: operation, Project: string(view.Correlation.Destination.Project), Body: body}, nil)
+	reply, transmission, err := s.control(ctx, actor, view.Correlation, domain.TaskRead, protocol.Command{Operation: operation, Project: string(view.Correlation.Destination.Project), Body: body}, attempt, nil)
 	if err != nil {
 		return view, err
 	}
@@ -49,11 +54,15 @@ func (s *Service) observe(ctx context.Context, actor domain.Actor, id domain.Ope
 
 // Recover performs only an explicit existing-only Delegate recovery, with the
 // original identity/spec. Current grants and retained options are checked twice.
-func (s *Service) Recover(ctx context.Context, actor domain.Actor, id domain.OperationID) (domain.OperationView, error) {
+func (s *Service) Recover(ctx context.Context, actor domain.Actor, id domain.OperationID) (result domain.OperationView, err error) {
+	attempt := s.startObservation(actor, routing.ControlClass(protocol.ResumeExisting))
+	defer func() { attempt.finish(err) }()
 	view, err := s.store.GetForRecovery(ctx, actor, id)
+	attempt.authorize(err)
 	if err != nil {
 		return domain.OperationView{}, err
 	}
+	attempt.bind(view.Correlation)
 	body, err := protocol.Encode(protocol.TaskControl{Task: binding(view.Correlation, view.SpecDigest)}, protocol.MaxFrameBytes)
 	if err != nil {
 		return domain.OperationView{}, err
@@ -68,7 +77,7 @@ func (s *Service) Recover(ctx context.Context, actor domain.Actor, id domain.Ope
 		}
 		return nil
 	}
-	reply, transmission, err := s.control(ctx, actor, view.Correlation, domain.TaskDispatch, protocol.Command{Operation: protocol.ResumeExisting, Project: string(view.Correlation.Destination.Project), Body: body}, guard)
+	reply, transmission, err := s.control(ctx, actor, view.Correlation, domain.TaskDispatch, protocol.Command{Operation: protocol.ResumeExisting, Project: string(view.Correlation.Destination.Project), Body: body}, attempt, guard)
 	if err != nil {
 		return domain.OperationView{}, err
 	}
@@ -84,12 +93,16 @@ type CancellationResult struct {
 	ClosureConfirmed bool
 }
 
-func (s *Service) Cancel(ctx context.Context, actor domain.Actor, id domain.OperationID, cancellation domain.CancellationID) (CancellationResult, error) {
+func (s *Service) Cancel(ctx context.Context, actor domain.Actor, id domain.OperationID, cancellation domain.CancellationID) (result CancellationResult, err error) {
+	attempt := s.startObservation(actor, routing.ControlClass(protocol.Cancel))
+	defer func() { attempt.finish(err) }()
 	bound, err := s.store.BindCancellation(ctx, actor, id, cancellation)
+	attempt.authorize(err)
 	if err != nil {
 		return CancellationResult{}, err
 	}
-	result := CancellationResult{Operation: id, Cancellation: cancellation, DefinitelyUnsent: bound.DefinitelyUnsent}
+	attempt.bind(bound.Correlation)
+	result = CancellationResult{Operation: id, Cancellation: cancellation, DefinitelyUnsent: bound.DefinitelyUnsent}
 	if bound.DefinitelyUnsent {
 		return result, nil
 	}
@@ -99,7 +112,8 @@ func (s *Service) Cancel(ctx context.Context, actor domain.Actor, id domain.Oper
 	if err != nil {
 		return result, err
 	}
-	reply, transmission, err := s.control(ctx, actor, bound.Correlation, domain.TaskCancel, protocol.Command{Operation: protocol.FenceAbsent, Project: string(bound.Correlation.Destination.Project), Body: fence}, nil)
+	attempt.value.Control.Class = routing.ControlClass(protocol.FenceAbsent)
+	reply, transmission, err := s.control(ctx, actor, bound.Correlation, domain.TaskCancel, protocol.Command{Operation: protocol.FenceAbsent, Project: string(bound.Correlation.Destination.Project), Body: fence}, attempt, nil)
 	if err != nil {
 		return result, err
 	}
@@ -117,19 +131,26 @@ func (s *Service) Cancel(ctx context.Context, actor domain.Actor, id domain.Oper
 	if view.Observation.Kind != domain.Existing {
 		return result, domain.Reject(domain.Pending)
 	}
+	// The accepted fence is complete before the independent cancellation starts.
+	// The outer defer must not relabel it if that subsequent call fails.
+	attempt.finish(nil)
 	return s.cancelExisting(ctx, actor, bound, view.Observation.SpecDigest, result)
 }
 
-func (s *Service) cancelExisting(ctx context.Context, actor domain.Actor, bound domain.CancellationBinding, spec domain.Digest, result CancellationResult) (CancellationResult, error) {
+func (s *Service) cancelExisting(ctx context.Context, actor domain.Actor, bound domain.CancellationBinding, spec domain.Digest, previous CancellationResult) (result CancellationResult, err error) {
+	attempt := s.startObservation(actor, routing.ControlClass(protocol.Cancel))
+	defer func() { attempt.finish(err) }()
+	attempt.bind(bound.Correlation)
+	result = previous
 	request := protocol.Cancellation{Task: binding(bound.Correlation, spec), CancellationID: string(bound.Cancellation)}
-	if err := request.Validate(); err != nil {
-		return result, err
+	if validationErr := request.Validate(); validationErr != nil {
+		return result, validationErr
 	}
 	body, err := protocol.Encode(request, protocol.MaxFrameBytes)
 	if err != nil {
 		return result, err
 	}
-	reply, transmission, err := s.control(ctx, actor, bound.Correlation, domain.TaskCancel, protocol.Command{Operation: protocol.Cancel, Project: string(bound.Correlation.Destination.Project), Body: body}, nil)
+	reply, transmission, err := s.control(ctx, actor, bound.Correlation, domain.TaskCancel, protocol.Command{Operation: protocol.Cancel, Project: string(bound.Correlation.Destination.Project), Body: body}, attempt, nil)
 	if err != nil {
 		return result, err
 	}
@@ -141,14 +162,20 @@ func (s *Service) cancelExisting(ctx context.Context, actor domain.Actor, bound 
 	return result, nil
 }
 
-func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Correlation, scope domain.Scope, command protocol.Command, guard func(context.Context) error) (reply protocol.Reply, transmission domain.Transmission, err error) {
-	if _, err = s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope}); err != nil {
+// control retains its original reservation/release ownership. The caller owns
+// final observation because body, binding and Registry acceptance happen later.
+func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Correlation, scope domain.Scope, command protocol.Command, attempt *routingAttempt, guard func(context.Context) error) (reply protocol.Reply, transmission domain.Transmission, err error) {
+	_, err = s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope})
+	attempt.authorize(err)
+	if err != nil {
 		return protocol.Reply{}, domain.Transmission{}, err
 	}
+	attempt.bind(c)
 	reservation, err := s.link.Reserve(ctx, c.Destination.Device, c.Operation, command)
 	if err != nil {
 		return protocol.Reply{}, domain.Transmission{}, err
 	}
+	attempt.reservation = reservation
 	defer releaseReservation(ctx, reservation, &err)
 	transmission = reservation.Transmission()
 	transmission.Operation = c.Operation
@@ -156,11 +183,15 @@ func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Corr
 	if transmission.Credential.Device != c.Destination.Device {
 		return protocol.Reply{}, transmission, domain.Reject(domain.EvidenceInvalid)
 	}
-	if err = s.acquireControlRoute(ctx, reservation); err != nil {
+	if err = s.acquireControlRoute(ctx, reservation, attempt, transmission); err != nil {
 		return protocol.Reply{}, transmission, err
 	}
 	err = reservation.Publish(ctx, func(guardCtx context.Context) error {
-		if _, authorizeErr := s.store.Authorize(guardCtx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope}); authorizeErr != nil {
+		authorizeErr := attempt.guard(func() error {
+			_, checkErr := s.store.Authorize(guardCtx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope})
+			return checkErr
+		})
+		if authorizeErr != nil {
 			return authorizeErr
 		}
 		if guard != nil {
@@ -178,6 +209,7 @@ func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Corr
 	if reply.Operation != command.Operation || reply.Validate() != nil {
 		return protocol.Reply{}, transmission, domain.Reject(domain.EvidenceInvalid)
 	}
+	attempt.replyValid = true
 	return reply, transmission, nil
 }
 

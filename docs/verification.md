@@ -1,6 +1,85 @@
 # Verification and delivery gates
 
-## November 12 current integration checkpoint
+## November 12 Office and audit correction checkpoint
+
+**Not release-ready.** Office's authorized isolated Native root now passed the
+same-binding migration/restart/replay checks without replacing its original root
+or project. A fresh installed-Claude task through authenticated public MCP passed:
+one read-only, 60-second/max-one request produced an accepted 60-byte result whose
+length and digest verified. Canonical successful worker Wait, task closure and
+controller cleanup were confirmed. Both temporary connector processes and their
+original SSH owners subsequently joined exit0. Together with Home's result below,
+this proves the installed provider on both physical Macs through the SDK client.
+It does not prove ChatGPT Cloud task execution or installed-provider fault recovery.
+
+A separate installed-provider recovery run on the deployed `8610c6c`/`d24a2cc2`
+baseline then passed. One read-only, 60-second/max-one Home task showed real
+provider activity before Gateway stopped, and the same Native task remained
+running after the manager confirmed the old Gateway's normal exit. Following
+restart and authenticated readiness, one intentional duplicate retained the same
+operation and task identities. The 11,952-byte accepted result verified by length,
+digest and canary, followed by qualified successful Native worker Wait. Task and
+controller cleanup passed; both temporary connectors and original SSH owners
+joined exit0. This proves the observed restart/retry window, not deterministic
+LLM timing or the new audit revision. Early completion would remain inconclusive.
+
+The operator confirmed that the devices use separate Internet connections. That
+is operator attestation, separate from the retained two-device process evidence.
+The GUI-qualified Mac service setup and final Cloud task test still require live
+qualification; a differently named tmux socket did not establish an Aqua manager.
+
+An independent audit check exposed an original Issue #1 section 6 P2: healthy
+sinks and 400 retained audit rows did not provide required operation correlation
+or transport measurements. Sol and Opus reviewed a bounded correction preserving
+Registry, transport and Native ownership. The working change adds typed producers,
+strict metadata validation, current-owner gauges and fixed-label measurements.
+A real server regression first failed with zero correlated preparation/completion
+rows, then passed through real SQLite, JWT/JWKS, TLS/WSS and SDK composition. It
+checks exact peer-frame lengths, one actual dispatch, a separate cached retry,
+revoked-grant denial, privacy and healthy sinks. Focused race checks are evidence
+for their scope; the complete changed-source gate, independent final code reviews
+and fresh live audit proof remain required before this P2 is closed.
+
+Review also found and corrected audit completion masking a later finalization
+failure. An isolated controlled counterfactual retained the old condition and
+failed the new regression; the corrected actual server test passed under `-race`.
+The strict live-test audit reader also needs the additive schema; its repair and
+negative-schema tests remain part of the same delivery gate.
+
+The first complete engineering gate for that audit image passed in 381.891s with
+unchanged inputs: 406 Python tests, all Go race packages, tagged SDK helper,
+formatting, lint, vet, build, vulnerability, harness and documentation checks.
+There were zero reachable/imported-package vulnerability findings; three
+module-only findings remained. Independent reviews then found later acceptance
+failures still masked by an inner control helper, queued work falsely described
+as unsent, and missing resource-denial accounting for authenticated HTTP 413.
+Actual regressions reproduced these cases; corrected focused checks passed.
+The administrative consumer boundary received the same correction.
+
+A separate availability regression proved six rejected requests waiting on a
+held audit owner outside admission. Both reviewers approved fixed counter-only
+pre-admission accounting, separate from durable events. Its regression now
+returns all six 403/503 responses while the audit remains held; a real loopback
+HTTP/2 test checks the origin rejection and unchanged audit baseline. These
+corrections require another integrated source gate and final correction review;
+the earlier passing gate does not prove their postimage.
+
+A final comparison with the original issue also identified the missing distinction
+between initial connections and reconnects in metrics. The correction derives a
+fixed aggregate from validated established events and Registry's existing durable
+per-device connection counter. It creates no new device history or authority.
+Repeat-generation establishment does not prove an earlier handshake succeeded.
+Its regression, integrated gate and fresh producer proof are part of the same
+remaining verification gate.
+
+Sol's final source review additionally identified missing denial producers at
+later preparation/dispatch Registry checks and public inventory authorization.
+Real SQLite and SDK regressions reproduced both omissions. The corrections reuse
+the sole-cause classifier and principal-only denial metadata, preserve original
+errors and send ordering, and keep mixed operational faults out of denial counts.
+These later fixes also require the final frozen-source gate and review.
+
+## November 12 deployed baseline checkpoint
 
 **Not release-ready.** The current production-source candidates are Gateway
 `8610c6c` and Native `d24a2cc2`. Their respective

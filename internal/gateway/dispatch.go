@@ -45,6 +45,7 @@ type Link interface {
 }
 type Reservation interface {
 	Transmission() domain.Transmission
+	TransferSnapshot() routing.TransferSnapshot
 	Routing() (routing.Request, error)
 	ArmRouting(routing.Request) error
 	Publish(context.Context, func(context.Context) error) error
@@ -52,27 +53,33 @@ type Reservation interface {
 	Release(context.Context) error
 }
 type Service struct {
-	store   DispatchStore
-	link    Link
-	gateway domain.GatewayID
-	random  io.Reader
-	now     func() time.Time
+	observer RoutingObserver
+	store    DispatchStore
+	link     Link
+	gateway  domain.GatewayID
+	random   io.Reader
+	now      func() time.Time
 }
 
-func New(store DispatchStore, link Link, gateway domain.GatewayID, random io.Reader, now func() time.Time) (*Service, error) {
-	if store == nil || link == nil || domain.Token(string(gateway)) != nil || random == nil || now == nil {
+func New(store DispatchStore, link Link, gateway domain.GatewayID, random io.Reader, now func() time.Time, observer RoutingObserver) (*Service, error) {
+	if store == nil || link == nil || domain.Token(string(gateway)) != nil || random == nil || now == nil || observer == nil {
 		return nil, domain.ErrInvalid
 	}
-	return &Service{store: store, link: link, gateway: gateway, random: random, now: now}, nil
+	return &Service{store: store, link: link, gateway: gateway, random: random, now: now, observer: observer}, nil
 }
 
-func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination domain.Destination, request domain.FrozenRequest) (domain.PreparedOperation, error) {
+func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination domain.Destination, request domain.FrozenRequest) (prepared domain.PreparedOperation, err error) {
+	attempt := s.startObservation(actor, routing.PrepareClass)
+	defer func() { attempt.finish(err) }()
 	if actor.Validate() != nil || destination.Validate() != nil || request.Validate() != nil {
 		return domain.PreparedOperation{}, domain.ErrInvalid
 	}
-	if _, err := s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: destination, Scope: domain.TaskDispatch}); err != nil {
+	authorized, err := s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: destination, Scope: domain.TaskDispatch})
+	attempt.authorize(err)
+	if err != nil {
 		return domain.PreparedOperation{}, err
 	}
+	attempt.value.Destination = authorized.Destination
 	snapshot, err := s.link.Snapshot(destination.Device)
 	if err != nil {
 		return domain.PreparedOperation{}, err
@@ -82,10 +89,13 @@ func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination d
 	}
 	capability, err := project(snapshot, destination.Project)
 	if err != nil {
+		s.observeClassAuthorizationFailure(actor, routing.PrepareClass, err)
 		return domain.PreparedOperation{}, err
 	}
 	if !allows(capability, request) {
-		return domain.PreparedOperation{}, domain.Reject(domain.Forbidden)
+		refusal := domain.Reject(domain.Forbidden)
+		s.observeClassAuthorizationFailure(actor, routing.PrepareClass, refusal)
+		return domain.PreparedOperation{}, refusal
 	}
 	var entropy [32]byte
 	if _, err = io.ReadFull(s.random, entropy[:]); err != nil {
@@ -106,7 +116,14 @@ func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination d
 	if err = preflight(command, string(correlation.Operation)); err != nil {
 		return domain.PreparedOperation{}, domain.Reject(domain.ResourceLimit)
 	}
-	return s.store.Prepare(ctx, actor, domain.Preparation{Correlation: correlation, Request: request, Now: s.now()})
+	prepared, err = s.store.Prepare(ctx, actor, domain.Preparation{Correlation: correlation, Request: request, Now: s.now()})
+	if err == nil {
+		attempt.bind(prepared.Correlation)
+		attempt.value.Prepared = true
+	} else {
+		s.observeClassAuthorizationFailure(actor, routing.PrepareClass, err)
+	}
+	return prepared, err
 }
 
 type DispatchResult struct {
@@ -114,17 +131,23 @@ type DispatchResult struct {
 }
 
 func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation domain.OperationID) (result DispatchResult, err error) {
+	attempt := s.startObservation(actor, routing.ControlClass(protocol.Admit))
+	defer func() { attempt.finish(err) }()
 	view, err := s.store.GetForDispatch(ctx, actor, operation, s.now())
+	attempt.authorize(err)
 	if err != nil {
 		return DispatchResult{}, err
 	}
+	attempt.bind(view.Operation.Correlation)
 	if view.Operation.Delivery != domain.Prepared {
 		return DispatchResult{Operation: view.Operation}, nil
 	}
 	reservation, err := s.reserveDispatch(ctx, view, operation)
 	if err != nil {
+		s.observeAuthorizationFailure(actor, protocol.Admit, err)
 		return DispatchResult{}, err
 	}
+	attempt.reservation = reservation
 	defer releaseReservation(ctx, reservation, &err)
 	transmission := reservation.Transmission()
 	transmission.Operation = operation
@@ -133,9 +156,11 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	if err != nil {
 		return DispatchResult{}, err
 	}
+	attempt.route(transmission, route)
 	route.Now = transmission.Now
 	decision, err := s.store.MarkPossibleSendRouted(ctx, actor, transmission, route)
 	if err != nil {
+		s.observeAuthorizationFailure(actor, protocol.Admit, err)
 		return DispatchResult{}, err
 	}
 	if decision.Kind == domain.ObserveExisting {
@@ -151,7 +176,7 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	// decision. Recheck current grants immediately before the transport write.
 	err = reservation.Publish(ctx, func(guardCtx context.Context) error {
 		transmission.Now = s.now()
-		return s.store.CheckQueuedAdmission(guardCtx, actor, transmission)
+		return attempt.guard(func() error { return s.store.CheckQueuedAdmission(guardCtx, actor, transmission) })
 	})
 	if err != nil {
 		return DispatchResult{Operation: decision.Operation}, err
@@ -163,6 +188,7 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	if reply.Operation != protocol.Admit || reply.Validate() != nil {
 		return DispatchResult{Operation: decision.Operation}, domain.Reject(domain.EvidenceInvalid)
 	}
+	attempt.replyValid = true
 	observed, err := s.acceptReply(ctx, actor, view.Operation.Correlation, transmission, reply, domain.TaskDispatch, "")
 	if err != nil {
 		return DispatchResult{Operation: decision.Operation}, err

@@ -36,7 +36,7 @@ func TestAuditDurabilityPrivacyAndLease(t *testing.T) {
 		}
 		t.Fatal("two directory owners")
 	}
-	event := Event{Code: OperationPrepared, Device: "device1", Operation: "operation1"}
+	event := preparedAuditFixture()
 	if err = a.Record(event); err != nil {
 		t.Fatal(err)
 	}
@@ -154,11 +154,12 @@ func TestConcurrentAuditAndFixedMetrics(t *testing.T) {
 		}
 	}()
 	var metrics Metrics
+	completed := completedAuditFixture()
 	var workers sync.WaitGroup
 	for range 8 {
 		workers.Go(func() {
 			for range 10 {
-				if recordErr := a.Record(Event{Code: ControlCompleted}); recordErr != nil {
+				if recordErr := a.Record(completed); recordErr != nil {
 					t.Error(recordErr)
 				}
 				if metricErr := metrics.Record(ControlCompleted); metricErr != nil {

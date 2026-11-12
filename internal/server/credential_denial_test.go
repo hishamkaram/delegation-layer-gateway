@@ -49,9 +49,9 @@ func TestCredentialAuditFailureDoesNotChangeRegistrationDenial(t *testing.T) {
 		t.Fatal("audit failure changed the credential denial outcome")
 	}
 	health := f.runtime.Health()
-	// Device request start/end and the credential-denial event each attempted
-	// the real closed sink; failure remains sticky on protected admin health.
-	if health.AuditHealthy || health.AuditFailures != 3 || health.MetricFailures != 0 {
+	// Request start/end, exact credential denial and connection failure each
+	// attempted the closed sink; all four failures remain sticky and explicit.
+	if health.AuditHealthy || health.AuditFailures != 4 || health.MetricFailures != 0 {
 		t.Fatalf("credential audit failure disappeared: %+v", health)
 	}
 }
