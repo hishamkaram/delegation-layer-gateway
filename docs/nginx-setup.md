@@ -68,6 +68,11 @@ can select another unprivileged loopback port; it must match Gateway's listener.
 
 - Keep the Cloudflare DNS record **DNS only** for the intended direct device
   mTLS connection. This script never changes Cloudflare settings.
+- Permit the configured device TCP port through the host and upstream firewalls
+  and verify it from each device. The reference port is 8443. Check its TLS/WSS
+  handshake separately from the public port 443 MCP connection; Nginx does not
+  forward this device listener. Overlay TCP reachability alone does not establish
+  the configured public route or an authenticated device session.
 - Nginx request/error logging is disabled for this virtual host because native
   error messages can contain URLs, query values and upstream details. Gateway
   owns protected metadata-only audit and metrics.

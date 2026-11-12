@@ -67,6 +67,15 @@ compatibility or provider authentication. Every operation requires current grant
 and the connector's local ceiling. Explicit device and project selection never
 silently falls back.
 
+Transport owns each outbound write and its completion signal. A completed
+reservation response waits for both the peer reply and the originating writer
+to finish, including its cancellation cleanup. Otherwise a caller cancelling
+its completed request could close a WebSocket still finishing that write.
+Observer cancellation remains bounded and does not assume the writer stopped.
+Session teardown retains its existing precedence: it can discard an unconsumed
+reply and return an offline error. These are connection-lifetime rules, not task
+outcome or execution-closure evidence.
+
 ## Admission and recovery
 
 Registry creation is explicit: `gateway init --database ABS` creates a new private

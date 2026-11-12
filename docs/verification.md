@@ -1,5 +1,91 @@
 # Verification and delivery gates
 
+## Current live checkpoint and write-lifetime repair
+
+On November 11, actual ChatGPT Cloud authentication, tool discovery and device
+inventory succeeded. The client displayed both registered devices as offline
+and not ready; Gateway audit recorded the matching inventory response at
+`2026-11-11T18:38:29Z`. This establishes Cloud inventory only. No Cloud provider
+request was demonstrated.
+
+Both physical Macs enrolled real device credentials against the retained live
+registry, using separate authorized Native test roots. Enrollment required
+correcting the operator's device CA validity: a 30-day CA could not issue the
+configured 30-day leaf. The same CA key/subject and original enrollment intent
+were retained; no registry reset or replacement device identity was used.
+
+On November 12, a second client using the official Go MCP SDK authenticated
+through system-trusted public HTTPS and Auth0. It saw zero devices before its
+explicit grants and exactly two afterward. Revoking that dedicated test
+principal caused HTTP 401; restoring it permitted authenticated inventory again.
+The original ChatGPT principal was unchanged. These checks launched no provider
+tasks. Separate device-listener reachability, readiness, installed-provider
+execution and different underlying networks remain unverified at this checkpoint.
+
+The [CI run for `107c948`](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43077815209)
+passed Linux and harness jobs but failed a macOS recovery test with
+`device_offline`. Investigation found a separate concrete transport lifetime
+defect: a peer reply could release `Reservation.Await` before the originating
+WebSocket write returned. Cancelling the caller afterward could close that
+connection. A real TLS/WebSocket regression reproduced premature completion on
+the old implementation. The repair joins the write before returning a completed
+response and preserves cancellation and session-teardown precedence. Its exact
+role in that CI failure remains unverified.
+
+Five focused transport race cases passed in **11.502 seconds** including the
+runner. The instance lease tests passed under both `umask 077` and `022`. Their
+invalid-permission fixture now explicitly sets 0644 before rejection, then 0600
+before the independent symlink check; production permission rules are unchanged.
+An integrated Go run retained a failure from that fixture before its correction.
+All other race packages passed there with unchanged production inputs. The
+current remaining Go targets passed in **112.533 seconds**:
+
+```sh
+GOMAXPROCS=4 GOFLAGS=-p=2 make fmt-check vet lint test-e2e-helper build vuln
+```
+
+This is composite local evidence, not a fresh successful `make check`. Both lint
+scopes reported zero issues and tagged vulnerability analysis reported no
+affected or imported-package vulnerabilities. Fresh final-head native-platform
+CI and live acceptance remain required.
+
+The new [connector hold controller](remote-fixtures.md#already-enrolled-connector-hold)
+has separate source-backed review and fault tests. Independent review found
+lost account environment, sibling cleanup skipped after stdin-close failure,
+and potentially blocking controller stdout. All three paths were corrected.
+The affected 173-test invocation retained one failure and two errors: a missing
+test interruption owner and two wall-time failures. The fixture was corrected;
+all three exact cases then passed in **9.124 seconds** with timing assertions
+unchanged. A final publication-watchdog scope correction passed its focused
+case in **3.717 seconds**. Further correction tests cover bidirectional bootstrap
+mode agreement, final receipt attempts after observation/release faults and
+bounded Native Wait after poll/signal faults. All eight focused cases passed in
+**10.756 seconds** after source-backed failures were retained.
+
+The final configured Python, Ruff, harness and documentation scope then passed
+with unchanged inputs in **136.618 seconds**: **397 tests, zero skips**, taking
+131.713 seconds for unittest itself:
+
+```sh
+DELEGATE_ACCEPTANCE_REPOSITORY=/absolute/dedicated/native-worktree \
+  make test-tooling lint-python verify-harness check-docs
+```
+
+Native prerequisite source was `ad255598`. Eight negative harness fixtures and
+all six diagram bindings passed. Actual Sol and Opus 5.5 correction reviews
+closed the three cleanup findings and found no remaining P0/P1/P2 in the bounded
+source scope. An inaccurate test comment about suppressed heartbeats was also
+corrected to state the delayed-heartbeat and raw-write assumptions explicitly.
+Fresh native CI remains a separate gate. Read-only SSH checks verified both provider
+CLIs are visible in each Mac's actual account environment. Both Macs reached
+the device TCP listener over the private overlay, while the configured public
+port timed out. TLS/WSS, provider authentication and different WANs are not
+established by those TCP and PATH checks.
+
+The component and operation-safety diagrams keep their current owners and
+connections. The write join and acceptance process owner add no execution or
+persistence authority; no topology change requires regenerated artifacts.
+
 ## Public proxy discovery correction
 
 An actual ChatGPT connection completed authentication but reported action
@@ -51,9 +137,9 @@ Sol, Opus 5.5 and the independent native reviewer inspected the production
 correction. Both named reviewers inspected the final fixes and reported no
 remaining actionable P0–P3 within this correction's scope.
 
-These are local engineering/protocol/security results. The CI results below
-precede this correction. Current native-platform CI, deployment and an actual
-ChatGPT retry remain separate gates. The component/operation
+These were local engineering/protocol/security results. At that checkpoint,
+native-platform CI, deployment and an actual ChatGPT retry remained separate
+gates; the current checkpoint above records later evidence. The component/operation
 diagrams retain the same owners and connections; no execution, persistence or
 recovery boundary changes in this correction.
 
@@ -409,11 +495,11 @@ manual run omitted distribution jobs and is separate evidence.
 | --- | --- | --- |
 | M0 | Gateway engineering harness, contracts, architecture and instructions | Implemented; structural/workflow checks and source-backed review passed |
 | M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; all 19 exact-head checks passed at `ad255598`; local App timeout and cleanup gap retained |
-| M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; local/two-Mac fixtures and configured checks passed; public Auth0 proof open |
+| M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; real enrollment and public Auth0 SDK inventory/revocation verified; full live matrix open |
 | M3 | WSS connector, local ceilings and Delegate adapter | Local and two-Mac fixture flows passed; installed-provider accounts remain open |
 | M4 | MCP orchestration and recovery across real processes | Local recovery and physical restart/reconnect/dedupe/cancel/revocation passed; external proof open |
-| M5 | Integrated hardening, docs and independent code reviews | Sol/Opus and specialized correction reviews completed; no known P0/P1/P2 remains in reviewed scope |
-| M6 | Live evidence matrix and release assessment | Fixture evidence recorded; public/provider/cloud acceptance remains unverified |
+| M5 | Integrated hardening, docs and independent code reviews | Current write-lifetime/connector-harness corrections reviewed with no known P0/P1/P2; fresh native CI and live gates remain |
+| M6 | Live evidence matrix and release assessment | Fixture, public SDK and Cloud inventory evidence recorded; provider execution and remaining live matrix unverified |
 
 Root owns integration and Git. Native implementers own bounded packages and
 tests. Independent Sol and Opus 5.5 high-effort reviews examine each current

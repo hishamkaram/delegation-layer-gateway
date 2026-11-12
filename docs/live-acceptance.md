@@ -15,6 +15,13 @@ receipt parent, token file, helper and Native checkout. Use physical paths rathe
 than symlink aliases. On macOS, `/var/...` may resolve to `/private/var/...`;
 provide the physical form. Invalid aliases are rejected before network work.
 
+For already enrolled SSH targets, the separate
+[connector hold controller](remote-fixtures.md#already-enrolled-connector-hold)
+can own two foreground connectors while these tools inspect the public Gateway.
+It preserves existing connector configuration, credentials and Native state.
+Starting those children establishes neither online readiness nor provider
+authentication; preflight and the provider run check their own evidence.
+
 ## One installed-provider task
 
 An operator must first authorize the environment and a finite monetary budget.

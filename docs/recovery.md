@@ -18,6 +18,20 @@ local paths and raw Delegate context tokens stay on the device. An operator
 cannot supply an admission generation. Registry owns eligibility once per
 bound device/root, shared by its aliases.
 
+## Stale administrative socket after an unclean exit
+
+The admin listener refuses a pre-existing socket path, including a stale socket
+left by a crash. Recovery is an explicit operator action. Hold exclusive leases
+on the state directory's `gateway.lock` and the socket directory's `.admin.lock`;
+verify the private socket is owned by the service account, no listener accepts
+connections, and its filesystem identity stays unchanged. Preserve the stale
+socket under a separate path before starting Gateway with the same database,
+identity and certificate configuration. Keep the stable lease files in place.
+
+Acquiring new listener ownership does not establish the old process's join or
+the closure of any Delegate task. Retain uncertain task reservations and their
+original identities for recovery through the connected Delegate namespace.
+
 ## Private root controls
 
 Use the private Unix socket and an owned regular 0600 input file:

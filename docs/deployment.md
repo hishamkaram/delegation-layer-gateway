@@ -69,6 +69,15 @@ custody. Protect its private key and the database together. The admin socket is
 local and private. Route HTTPS through the [Nginx setup](nginx-setup.md) and make
 the direct device listener reachable from authorized devices.
 
+Device certificates last 30 days. The device CA must remain valid beyond the
+entire new certificate window; manage its certificate and explicit trust pins
+before it has only 30 days remaining. A currently valid CA can still verify
+existing devices while refusing new issuance or renewal. Successful server
+startup therefore does not establish issuance readiness. The public TLS server
+certificate has its own validity and renewal requirements. After failed
+enrollment, preserve the pending identity, CSR and token for same-identity
+recovery; replacing them does not repair an insufficient CA validity window.
+
 The Nginx proxy preserves the public Host while connecting to the loopback TLS
 listener. Gateway validates TLS, that exact Host and any supplied Origin before
 authentication; the MCP SDK defers its loopback-host check to this guard.
