@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private, single-use stdin staging before the remote fixture peer.
+"""Private, single-use stdin staging before the selected remote peer mode.
 
 Wire: 4-byte big-endian JSON length, strict UTF-8 JSON manifest, then each
 file's exact bytes in manifest order. No buffered input: the controller waits
@@ -41,10 +41,18 @@ MAX_EVENT = 16 << 10
 CANDIDATES = frozenset({"bin/gateway", "bin/delegate", "bin/delegate-run"})
 GATEWAY_SOURCES = frozenset(
     "gateway/scripts/" + name + ".py"
-    for name in ("e2e_remote_peer", "e2e_local", "e2e_contracts", "e2e_native_capture")
+    for name in (
+        "e2e_remote_peer",
+        "e2e_local",
+        "e2e_contracts",
+        "e2e_native_capture",
+        "e2e_connector_hold",
+        "e2e_remote_channel",
+    )
 )
 NATIVE_DATA_SOURCES = frozenset({"native/scripts/_data/unicode-simple-fold.json"})
 PEER = "gateway/scripts/e2e_remote_peer.py"
+PEER_MODE_ENV = "DELEGATION_GATEWAY_ACCEPTANCE_MODE"
 # The code is constant; paths are argv data, never interpolated Python/shell code.
 LAUNCHER = (
     "import runpy,sys; "
@@ -78,6 +86,7 @@ class Manifest:
     expected_home: str
     expected_uid: int
     files: tuple[FileSpec, ...]
+    mode: str = "fixture"
 
 
 def require(condition, kind):
@@ -115,7 +124,12 @@ def allowed_path(path):
 
 def validate_manifest(value, home, uid):
     """Validate all metadata before any filesystem mutation."""
-    exact(value, {"schema_version", "run_id", "expected_home", "expected_uid", "files"})
+    fields = {"schema_version", "run_id", "expected_home", "expected_uid", "files"}
+    if type(value) is dict and "mode" in value:
+        fields.add("mode")
+    exact(value, fields)
+    mode = value.get("mode", "fixture")
+    require(type(mode) is str and mode in {"fixture", "connector_hold"}, "invalid_mode")
     require(
         type(value["schema_version"]) is int and value["schema_version"] == 1,
         "invalid_schema",
@@ -161,7 +175,7 @@ def validate_manifest(value, home, uid):
         )
         parsed.append(FileSpec(path, item["size"], digest, item["executable"]))
     require(PEER in seen, "missing_peer")
-    return Manifest(run_id, str(home), uid, tuple(parsed))
+    return Manifest(run_id, str(home), uid, tuple(parsed), mode)
 
 
 def read_chunk(fd, count, deadline, clock=time.monotonic):
@@ -417,6 +431,20 @@ def handoff(manifest, stage, *, execve=os.execve):
         "LANG": "C",
         "PYTHONIOENCODING": "utf-8",
     }
+    if manifest.mode == "connector_hold":
+        # Only this closed mode inherits the actual account environment. The
+        # manifest never accepts an arbitrary caller-supplied environment map.
+        environment = dict(os.environ)
+        home = environment.get("HOME")
+        path = environment.get("PATH")
+        require(type(home) is str and bool(home), "account_home_missing")
+        require(
+            Path(home).resolve(strict=True)
+            == Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True),
+            "account_home_mismatch",
+        )
+        require(type(path) is str and 0 < len(path) <= 32768, "account_path_invalid")
+        environment[PEER_MODE_ENV] = "connector_hold"
     execve(
         sys.executable,
         [sys.executable, "-I", "-c", LAUNCHER, str(scripts), str(stage / PEER)],

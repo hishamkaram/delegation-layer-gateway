@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Private stdin peer for two-device fixture proof; never launches SSH itself.
+"""Private stdin peer for fixture proof or a finite connector-only hold.
 
 The caller supplies the first JSON line and fixed operations on subsequent lines.
-Delegate remains the task authority. This peer owns only fixture resources and
-exact child handles. EOF requests cleanup, never supplies task-stop evidence.
+Delegate remains the task authority. The selected owner controls fixture resources
+or only its connector child and receipts; this peer never launches SSH itself.
+EOF requests cleanup, never supplies task-stop evidence.
 """
 
 from __future__ import annotations
@@ -671,11 +672,22 @@ def decode_line(data):
     return json.loads(data, object_pairs_hook=pairs)
 
 
-def lines(stream, interruptions, idle_seconds=120):
+class HoldDeadline(local.ProofFailure):
+    """The separate connector hold expired; cleanup has its own finite budget."""
+
+
+def lines(stream, interruptions, idle_seconds=120, *, absolute_deadline=None):
     buffer = b""
     deadline = time.monotonic() + idle_seconds
+
+    def check_absolute():
+        absolute = absolute_deadline() if absolute_deadline is not None else None
+        if absolute is not None and time.monotonic() >= absolute:
+            raise HoldDeadline("connector hold deadline exceeded")
+
     while True:
         interruptions.checkpoint()
+        check_absolute()
         local.require(time.monotonic() < deadline, "peer input deadline exceeded")
         ready, _, _ = select.select([stream], [], [], 0.2)
         if not ready:
@@ -689,6 +701,7 @@ def lines(stream, interruptions, idle_seconds=120):
             len(buffer.split(b"\n", 1)[0]) <= MAX_LINE, "peer line exceeds bound"
         )
         while b"\n" in buffer:
+            check_absolute()
             line, buffer = buffer.split(b"\n", 1)
             yield decode_line(line + b"\n")
             deadline = time.monotonic() + idle_seconds
@@ -755,11 +768,35 @@ def main():
     peer = None
     failed = False
     try:
-        inputs = lines(sys.stdin.buffer, interruptions)
-        manifest = Manifest.parse(request_payload(next(inputs), 1))
+        hold_deadline = [None]
+        inputs = lines(
+            sys.stdin.buffer, interruptions, absolute_deadline=lambda: hold_deadline[0]
+        )
+        setup = request_payload(next(inputs), 1)
+        selected_mode = os.environ.get("DELEGATION_GATEWAY_ACCEPTANCE_MODE")
+        local.require(
+            (selected_mode is None and "mode" not in setup)
+            or (
+                selected_mode == "connector_hold" and setup.get("mode") == selected_mode
+            ),
+            "bootstrap peer mode mismatch",
+        )
+        if "mode" in setup:
+            local.require(setup["mode"] == "connector_hold", "unknown peer mode")
+            from e2e_connector_hold import HoldManifest, ConnectorHold
+
+            manifest = HoldManifest.parse(setup)
+            owner = ConnectorHold
+        else:
+            manifest = Manifest.parse(setup)
+            owner = Peer
         # Publish the owner before any initialization can launch children.
-        peer = Peer.__new__(Peer)
-        peer.__init__(manifest, interruptions)
+        peer = owner.__new__(owner)
+        if "mode" in setup:
+            peer.__init__(manifest, interruptions, deadline_error=HoldDeadline)
+            hold_deadline[0] = peer.deadline
+        else:
+            peer.__init__(manifest, interruptions)
         emit(event_frame("initialized", peer.initialize(), 1), interruptions)
         for request_id, envelope in enumerate(inputs, start=2):
             value = request_payload(envelope, request_id)
@@ -768,6 +805,8 @@ def main():
             emit(event_frame(value["operation"], result, request_id), interruptions)
             if peer.finished:
                 break
+    except HoldDeadline:
+        pass  # Intentional finite hold expiration still requires exact owned cleanup.
     except Exception as error:
         failed = True
         try:
