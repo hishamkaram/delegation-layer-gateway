@@ -1,6 +1,59 @@
 # Verification and delivery gates
 
-## November 12 upstream integration and remaining provider proof
+## November 12 current integration checkpoint
+
+**Not release-ready.** The current production-source candidates are Gateway
+`8610c6c` and Native `d24a2cc2`. Their respective
+[Gateway CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43219879990)
+and [Native CI](https://github.com/hishamkaram/delegation-layer/actions/runs/43260668961)
+passed all 3 and all 19 jobs respectively. Native includes upstream `68e572a1` and
+uses its own harness in a dedicated integration worktree. Later operational
+acceptance results below do not replace or broaden those CI results.
+
+| Evidence category | Observed result | Scope and remaining proof |
+| --- | --- | --- |
+| Current local real-process fixtures | Passed in 154.896s with creator cleanup and original command joins confirmed. | Gateway, Native, Pueue and SDK processes are real; the provider is a controlled fixture. |
+| Current two-Mac fixtures | Passed in 152.661s: four tasks, explicit routing and denials, result verification, overlap, cancellation, Gateway restart, reconnection and revocation. Both SSH owners and fourteen remote children joined. | Two physical devices are proved. Client response loss was simulated. Installed-provider recovery and independent underlying networks are separate evidence categories. |
+| Home Native transition | The authorized isolated root completed bundled-pair migration, exact predecessor closure, same-binding runtime restart and completed same-reference replay. Root/project identities were preserved; original commands joined. | Default installations and provider accounts were preserved. Office's selected-state transition remains open. |
+| Home installed Claude | One new read-only, 60-second/max-one task through authenticated public MCP produced a verified accepted 60-byte result. Canonical execution closure, successful native worker Wait and controller cleanup were confirmed. | This proves the installed provider on Home through the SDK client. It does not prove Office, ChatGPT Cloud task execution or provider fault recovery. |
+| Real-provider cancellation | A fresh corrected automated run passed: one dispatch, running provider activity, exact matched user cancellation, requested termination after 1.031443s, and qualified worker Wait 48.598422s before the deadline. All 9 SDK, 4 SSH and 4 remote Native children joined naturally; task and controller cleanup were confirmed. | The earlier automated command remains failed because its per-request annotation was absent. Its later same-task composite proof is separate from this fresh successful run. No failed task was replayed or assigned another cancellation identity. |
+| Linux persistence | The original foreground process joined exit0 before the enabled user service started. Authenticated MCP passed. A controlled service stop reported normal exit0, followed by restart and another authenticated inventory check. | This is qualified systemd process-exit/readiness evidence. It does not establish Native task closure or Mac service behavior. |
+| Cloud and Mac operation | Earlier actual ChatGPT Cloud OAuth, discovery and inventory worked. Both Mac service definitions passed installed plist validation. A fully joined read-only probe confirmed that Home's existing tmux server has the Background manager context. | Cloud task execution, Mac service activation/clean exit, Office installed-provider execution and distinct underlying networks remain unverified. Home's tmux probe correctly refused GUI qualification; working Claude execution does not establish the GUI manager namespace. |
+
+The cancellation failure exposed a sequencing error in the private acceptance
+checker. Native's guardian owns lifetime termination and worker-Wait evidence.
+Its per-request stop annotation has a separate maintenance writer. Passive
+helper reads and guarded Gateway status do not materialize that annotation.
+Ordinary Native status can do so after its ended-row, identity and closure
+checks; it is maintenance-capable. A successful status observation may also
+carry domain guidance such as `task_interrupted`, so an operational error must
+be distinguished from that guidance. The subsequent strict helper proof keeps
+the original request ID, user cause, requested termination, qualified Wait and
+before-deadline timestamp checks. See Native's
+[annotation writer](https://github.com/hishamkaram/delegation-layer/blob/d24a2cc2d568d1327c58e6520f6e48fb50d0606a/internal/tasklifecycle/stop_observation.go#L52)
+and [status projection](https://github.com/hishamkaram/delegation-layer/blob/d24a2cc2d568d1327c58e6520f6e48fb50d0606a/internal/app/task_observation_projection.go#L47).
+
+Independent correction reviews closed the inspected observer-locator,
+timestamp-precision, cleanup-order and annotation-sequence findings. The
+corrected remote projection was also verified on the same already-closed task
+before the fresh cancellation run. Those scoped verdicts are not whole-system
+or release approval. GUI service startup and exit qualification remain open.
+
+Earlier failed builds, placement checks, provider attempts and cleanup gaps
+remain retained. In particular, an earlier connector controller's exact children
+have closure proof while its historical remote parent Wait remains unverified.
+Later clean owners do not close that historical gap. No original failed
+provider task was replayed, and no failed record was replaced with a pass.
+
+The dated sections below retain their original revision and evidence scope.
+Current status and open acceptance gates are also tracked in
+[Issue #1](https://github.com/hishamkaram/delegation-layer-gateway/issues/1),
+[Gateway PR #2](https://github.com/hishamkaram/delegation-layer-gateway/pull/2)
+and [Native PR #179](https://github.com/hishamkaram/delegation-layer/pull/179).
+The existing diagrams retain the same execution, routing and persistence
+owners; these operational checks add no task-state authority or topology.
+
+## Earlier November 12 upstream integration checkpoint
 
 The dedicated Native integration worktree now includes upstream main
 `68e572a1` ([PR #180](https://github.com/hishamkaram/delegation-layer/pull/180)).
