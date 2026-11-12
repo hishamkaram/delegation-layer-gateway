@@ -126,14 +126,18 @@ func (s *Service) fenceOldIntake() error {
 		return ErrPending
 	}
 	if socket != nil {
-		if closeErr := socket.close(); closeErr != nil {
-			s.recordError("prior_socket_cleanup")
-			return ErrPending
-		}
+		// close joins the transport even when returning its terminal diagnostic.
+		// The service still owns the intake join; fencing excludes replacement
+		// attachments until this exact captured socket slot is retired.
+		closeErr := socket.close()
 		s.intake.Wait()
 		s.mu.Lock()
 		s.socket = nil
 		s.mu.Unlock()
+		if closeErr != nil {
+			s.recordError("prior_socket_cleanup")
+			return ErrPending
+		}
 	}
 	return nil
 }

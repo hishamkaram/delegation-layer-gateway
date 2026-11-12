@@ -1,5 +1,73 @@
 # Verification and delivery gates
 
+## November 12 upstream integration and remaining provider proof
+
+The dedicated Native integration worktree now includes upstream main
+`68e572a1` ([PR #180](https://github.com/hishamkaram/delegation-layer/pull/180)).
+That change adds versioned provider authentication diagnostics and scheduler
+repairs. Gateway's acceptance capture retains only the closed diagnostic
+values `provider_output_rejected`, `collect` and
+`run_native_provider_login`; arbitrary messages, paths and credentials remain
+excluded. The eight capture tests and configured Ruff checks passed.
+
+Read-only checks of the same installed Claude CLI on the home Mac reported
+logged out under SSH and logged in under its existing tmux context, including
+when using the same saved environment values. This establishes a native process
+context dependency. The exact macOS authentication mechanism is unverified;
+the upstream diagnostic change does not repair that execution context.
+
+The Native runtime-restart repair remains under integration review and testing.
+Its focused regressions are not a completed platform gate or live provider
+proof. The original rejected provider attempt remains rejected and will not be
+replayed. A new, explicitly selected home-device request must produce a verified
+accepted result before installed-provider acceptance can be claimed. Existing
+Mac installations and provider credentials remain unchanged at this checkpoint.
+
+The dated evidence below retains its original scope and revision. None of the
+upstream merge, diagnostic tests or read-only authentication checks establishes
+successful provider execution through ChatGPT Cloud.
+
+## Reconnect retirement correction
+
+A required Go race run failed while waiting for a second device generation.
+Bounded failure diagnostics later reproduced the failure after successful TLS
+and WebSocket upgrade, before routing reconciliation. The precise terminal
+close error in those runs remains unverified.
+
+A separate deterministic regression uses an actual enrolled TLS/WebSocket
+connection whose TCP close completes and reports an injected diagnostic.
+Transport's `Client.Close` joins its session before returning that diagnostic.
+Connector previously returned from its fence without retiring the old socket;
+every later census retried the same retained error. The regression failed at
+the second census before the correction. Connector now joins the old intake
+and retires its socket before reporting the initial cleanup error. A fresh
+census can proceed; the original transport diagnostic is preserved.
+
+The complete affected-package race command passed after this correction:
+
+```sh
+go test -race -count=1 -timeout=30m ./internal/connector ./internal/deviceruntime -v
+```
+
+Package durations were **47.243s** and **24.769s**. The real-TCP regression and
+the regular/recovery-only reconnect checks passed, including authoritative ACK
+readiness after reconnection. Scoped lint reported zero issues.
+
+The fresh complete `make check` then passed in **727.275 seconds**, with pinned
+Go 1.27.4, `GOTOOLCHAIN=local`, `GOMAXPROCS=4`, `GOFLAGS=-p=4` and the dedicated
+Native contract worktree selected explicitly. This includes 398 Python tests,
+harness/docs checks, formatting, vet, both lint scopes, all Go race packages,
+the tagged MCP helper, build and vulnerability analysis. The scan found zero
+affected or imported-package vulnerabilities and three module-only findings
+outside reachable code. These are current local Linux results, not final-head
+CI, native macOS or live provider acceptance.
+
+Actual Sol and Opus correction reviews found no P0/P1/P2 in their inspected
+Gateway scope. Opus noted optional coverage/diagnostic improvements, including
+a combined live-intake/close-error case that the new regression does not
+exercise. Earlier failed runs remain failed; the current Native shutdown
+recovery correction and complete-system live proof remain separate open gates.
+
 ## Current live checkpoint and write-lifetime repair
 
 On November 11, actual ChatGPT Cloud authentication, tool discovery and device

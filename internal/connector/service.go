@@ -25,6 +25,8 @@ type (
 		report(context.Context, protocol.CapabilityReport) error
 		generation() domain.ConnectionGeneration
 		boot() string
+		// close joins transport work before returning a cleanup diagnostic.
+		// Native task closure remains a separate authoritative observation.
 		close() error
 	}
 	clientPeer struct{ client *transport.Client }
