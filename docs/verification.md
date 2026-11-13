@@ -1,5 +1,60 @@
 # Verification and delivery gates
 
+## November 13 Home managed-service checkpoint
+
+**Current MVP acceptance is supported within the recorded scopes.** Home passed actual persistent connector start,
+authenticated SDK readiness, label-directed graceful stop with normal manager
+exit0, plain restart to a distinct running subject, and authenticated readiness
+after the original SSH owner exited. All three phase SSH owners and both SDK
+children joined exit0. Remote control-command joins and cleanup gates are
+reported by the reviewed, source-pinned controller; the selected full remote
+control files were not independently recounted locally.
+The installed plist remained present with its pinned content after installation
+and throughout the later phases. The intended service remains installed.
+
+The controller ran from the existing UID501/Background SSH context and explicitly
+selected the GUI service domain. No physical Terminal or tmux session was used.
+Each passive Delegate context inspection matched the existing isolated root and
+opaque project bindings against unchanged connector configuration. Those bindings
+stayed fixed; the controller's only Delegate operation was context inspection.
+The manager snapshots
+are dated service observations, not Native task-closure or direct child Mach
+context evidence. Reboot, logout and automatic crash restart remain unproved.
+
+After that lifecycle sequence completed, one new installed-Claude task passed
+through Home's restarted service: read-only, 60 seconds, maximum one task and
+one dispatch. The maintained public acceptance controller verified the accepted
+60-byte result and SHA-256
+`0a5e1e1790fb86338d8dbfb994edd97ddb75282431fd400ff9c87f763b553f3d`,
+reported canonical public execution closure, and confirmed task/controller/helper
+cleanup. This is actual installed-provider proof through the SDK, separate from
+the earlier Cloud tasks and direct Native worker-Wait attestations. Advertised
+provider authentication remains `unknown`. No provider task was dispatched during
+the preceding service lifecycle/readiness sequence.
+
+Independent Sol, Opus5.5 high and native reviews cleared the corrected service
+and SDK source with no actionable P0/P1/P2 in the inspected scope. A missing-plist
+verification P2 was reproduced before activation, corrected at preflight,
+post-installation and every actual lifecycle-command boundary, then re-reviewed.
+A separate private SDK capture P2 was corrected to use the maintained strict JSON
+decoder and persist only selected readiness metadata. The old-function canary
+failure is retained. Fourteen installer tests and eight SDK tests, lint,
+formatting and source-only plans passed with original check-process joins.
+Optional diagnostic/one-shot-observation limits remain recorded; no zero-defect
+or release claim follows from these scoped reviews.
+
+Private receipts are retained under `home-gui-ssh-connector-20261113`,
+`home-sdk-readiness-root-20261113-{initial-start,restart}` and
+`home-persistent-service-provider-20261113`; these contain the actual command,
+source commitments and cleanup evidence. Local receipt-writing mistakes were
+corrected against the same saved phase/task records without replaying a service
+or provider action. The earlier physical-IP and Cloud checkpoints below retain
+their original dates and limits. Final independent assessments cleared the
+inspected code and current acceptance matrix. Root retains the reported
+historical P3 uncertainties without claiming closure or deleting their paths;
+see the [release assessment](release-assessment.md). Merge, issue closure and
+release publication remain separate actions.
+
 ## November 13 physical IP migration checkpoint
 
 **Not release-ready.** Office completed an operator-controlled network change.
@@ -35,10 +90,9 @@ The complete frozen-source gate passed in 418.979 seconds: 421 Python tests
 without skips, Go race packages, tagged SDK, formatting/vet/lint/build,
 vulnerability, harness and docs checks. No reachable or imported-package
 vulnerability was found; three module-only findings remain separate.
-Home's persistent connector
-and the recorded historical owner-proof obligations remain open. A physical
-Home Terminal or an Aqua caller is not established as a connector requirement;
-its existing Native runtime must be preserved.
+At that checkpoint, Home persistence and historical owner-proof obligations
+remained open. The later Home checkpoint above closes the persistence gate while
+preserving its existing Native runtime; the historical obligations remain open.
 
 The first integrated gate on this additive proof failed a pre-existing CLI
 fixture: its requested mode0644 became mode0600 under the runner's restrictive
@@ -86,8 +140,8 @@ evidence digest is not substituted for it. Advertised provider authentication
 remains `unknown` and is separate from this successful execution.
 
 This supplies the actual ChatGPT task category alongside the earlier Claude.ai
-Cloud and SDK categories. Home's persistent connector and final criterion
-reconciliation remain open; the later IP checkpoint is recorded above. Earlier dated
+Cloud and SDK categories. Home persistence and final criterion reconciliation
+were still open at this checkpoint; later Home and IP evidence is recorded above. Earlier dated
 checkpoints retain their original evidence and limitations; current milestones
 below reflect this later task proof.
 
@@ -203,8 +257,9 @@ OAuth, discovery, inventory and capabilities only. The company workspace's
 policy blocked adding the ChatGPT connector there; another Cloud client or SDK
 could not substitute for ChatGPT task proof. Later Claude.ai and ChatGPT tasks
 and current-deployment provider fault checks passed as recorded above/below.
-Home's persistent connector and final integrated assessment remain open;
-documentation CI is separate from the passed runtime-source gate.
+Home persistence and final integrated assessment were still open at that Office
+checkpoint; later Home evidence is recorded above. Documentation CI is separate
+from the passed runtime-source gate.
 Separate Internet connections are operator-attested, not independently verified
 packet paths. Both PRs remain draft and Issue #1 remains open.
 
@@ -1040,11 +1095,11 @@ the missing live acceptance or approve release.
 | --- | --- | --- |
 | M0 | Gateway engineering harness, contracts, architecture and instructions | Implemented; structural/workflow checks and source-backed review passed |
 | M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open as draft at `d24a2cc2`; all 19 exact-head checks passed. Earlier failures and cleanup uncertainty remain recorded separately. |
-| M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; real enrollment and public Auth0 SDK inventory/revocation verified; full live matrix open |
-| M3 | WSS connector, local ceilings and Delegate adapter | Current local/two-Mac fixture flows and installed-Claude SDK execution on both devices passed. Office persistent-service lifecycle passed; Home persistence remains open. |
+| M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; real enrollment and public Auth0 SDK inventory/revocation verified. |
+| M3 | WSS connector, local ceilings and Delegate adapter | Local/two-Mac fixture flows, persistent-service lifecycle and installed-Claude SDK execution on both devices passed. |
 | M4 | MCP orchestration and recovery across real processes | Current controlled-provider matrices passed; current installed-Claude Gateway restart/same-identity duplicate and requested cancellation passed on Home. Actual Claude.ai Cloud returned verified PONG on Office. |
-| M5 | Integrated hardening, docs and independent code reviews | Complete new-source gate passed in 418.979s with 421 Python tests/no skips and independent scoped Sol/Opus/native review. Reconciled prose uses affected docs checks. Historical CI is separate from the next exact-head CI; review agreement is not live acceptance. |
-| M6 | Live evidence matrix and release assessment | Incomplete: Home persistent connector, historical owner-proof disposition and final criterion reconciliation remain open. Actual ChatGPT and physical IP migration evidence is recorded above; separate WANs remain operator-attested. |
+| M5 | Integrated hardening, docs and independent code reviews | Frozen proof gate passed in 418.979s with 421 Python tests/no skips and independent scoped Sol/Opus/native review. Exact `a8ad5f5` harness/Linux/macOS CI passed. Later Home operational corrections passed their own reviewed checks; reconciled prose uses affected docs checks. Review agreement is not live acceptance. |
+| M6 | Live evidence matrix and release assessment | Current mandatory categories are supported within their recorded scopes; final scoped Sol/Opus/native assessments found no actionable P0/P1/P2. Historical P3 uncertainties are explicitly retained. Home/Office persistence, actual ChatGPT and physical IP migration passed; separate WANs remain operator-attested. Merge/release are separate. |
 
 Root owns integration and Git. Native implementers own bounded packages and
 tests. Independent Sol and Opus 5.5 high-effort reviews examine each current
@@ -1084,7 +1139,8 @@ The local process harness passed its bounded fixture flow. The opt-in live
 drivers and their recovery commands are documented in
 [live acceptance](live-acceptance.md). Current installed-provider and Claude.ai
 Cloud evidence is recorded above; these commands alone do not establish live
-acceptance. Home persistence and final acceptance reconciliation remain open.
+acceptance. The current acceptance/disposition is recorded above and in the
+[release assessment](release-assessment.md); historical unknowns remain reported.
 Delegate retains its own gates.
 
 The complete configured Gateway gate passed on an earlier candidate on Go

@@ -4,11 +4,15 @@ A trusted, self-hosted gateway connecting remote MCP clients to explicitly selec
 devices running [Delegation Layer](https://github.com/hishamkaram/delegation-layer).
 Clients use MCP over HTTPS; device connectors initiate outbound WSS connections.
 
-**Release verification is in progress.** Local and physical two-Mac zero-cost
-fixture flows passed execution, results, cancellation, Gateway restart,
-reconnection and revoked-credential registration rejection. Final independent
-review, installed-provider, public identity-provider and ChatGPT Cloud acceptance
-remain open. See the [evidence and remaining gates](docs/verification.md).
+**MVP implementation and live acceptance passed within the recorded scopes.** Real process flows, installed-Claude
+execution and persistent connectors passed on both Macs. Auth0-backed SDK,
+ChatGPT Cloud and Claude.ai tasks passed; rollback, network reconnection,
+cancellation and resource-expiry checks have separately recorded evidence.
+Independent final assessments found no actionable P0/P1/P2 in their inspected
+scope. Historical P3 uncertainties remain reported with their paths retained;
+merge and release publication are separate. See the
+[release assessment](docs/release-assessment.md) and
+[evidence and remaining gates](docs/verification.md).
 
 ## Ownership and trust
 
