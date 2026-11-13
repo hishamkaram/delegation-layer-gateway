@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NATIVE_ACCEPTANCE_REVISION: ad2555987a49a1f5e5dcb58d9392c5aed251d322
+  DELEGATE_ACCEPTANCE_REPOSITORY: ${{ github.workspace }}/.ci-native
+
+jobs:
+  harness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      runtime: ${{ steps.sources.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Checkout pinned Native acceptance source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: hishamkaram/delegation-layer
+          ref: ${{ env.NATIVE_ACCEPTANCE_REVISION }}
+          path: .ci-native
+          persist-credentials: false
+      - name: Require Native acceptance source
+        run: test -f "$DELEGATE_ACCEPTANCE_REPOSITORY/scripts/acceptance/processes/operations.py"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Validate harness and contributor tooling
+        run: make tools-python verify-harness check-docs test-tooling lint-python
+      - name: Detect runtime sources
+        id: sources
+        shell: bash
+        run: |
+          source_manifest="$RUNNER_TEMP/gateway-go-sources"
+          trap 'rm -f "$source_manifest"' EXIT
+          git ls-files '*.go' > "$source_manifest"
+          if [ -s "$source_manifest" ]; then
+            echo 'runtime=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'runtime=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::M0 has no Go runtime sources; runtime acceptance remains unverified.'
+          fi
+
+  runtime:
+    needs: harness
+    if: needs.harness.outputs.runtime == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Checkout pinned Native acceptance source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: hishamkaram/delegation-layer
+          ref: ${{ env.NATIVE_ACCEPTANCE_REVISION }}
+          path: .ci-native
+          persist-credentials: false
+      - name: Require Native acceptance source
+        run: test -f "$DELEGATE_ACCEPTANCE_REPOSITORY/scripts/acceptance/processes/operations.py"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: .go-version
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install pinned repository tools
+        run: make tools
+      - name: Complete engineering gate
+        run: make check

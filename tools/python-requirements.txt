@@ -1,0 +1,6 @@
+# Official pinned wheels reused from Delegate 0eed5e28; no system installs.
+ruff==0.15.20 \
+    --hash=sha256:9ebd1fd9b9c95fc0bd7b2761aebec1f030013d2e193a2901b224af68fe47251b \
+    --hash=sha256:c5b16cdd67ca108185cd36dce98c576350c03b1660a751de725fb049193a0632 \
+    --hash=sha256:3413bb3c3d2ca6a8208f1f4809cd2dca3c6de6d0b491c0e70847672bde6e6efd \
+    --hash=sha256:309809086c2acb67624950a3c8133e80f32d0d3e27106c0cd60ff26657c9f24b

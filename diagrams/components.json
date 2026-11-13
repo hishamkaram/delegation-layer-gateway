@@ -1,0 +1,463 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "IMPLEMENTATION CANDIDATE — Gateway ownership",
+    "output": "diagrams/components.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
+      "revision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "HTTPS MCP client",
+      "sublabel": "OAuth access token",
+      "pos": [
+        40,
+        270
+      ],
+      "size": [
+        210,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/server/new.go",
+          "line": 93,
+          "end_line": 121
+        }
+      ]
+    },
+    {
+      "id": "idp",
+      "type": "security",
+      "label": "External OAuth issuer",
+      "sublabel": "Verified issuer + subject",
+      "pos": [
+        40,
+        65
+      ],
+      "size": [
+        210,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/identity/authenticate.go",
+          "line": 70,
+          "end_line": 85
+        },
+        {
+          "path": "internal/identity/authenticate.go",
+          "line": 126,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "type": "security",
+      "label": "Local operator",
+      "sublabel": "Unix socket 0600",
+      "pos": [
+        410,
+        65
+      ],
+      "size": [
+        210,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/server/new.go",
+          "line": 234,
+          "end_line": 263
+        },
+        {
+          "path": "internal/registry/routing_drain.go",
+          "line": 35,
+          "end_line": 59
+        },
+        {
+          "path": "internal/adminapi/listener.go",
+          "line": 52,
+          "end_line": 70
+        }
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "Trusted Gateway",
+      "sublabel": "HTTPS public / mTLS device WSS",
+      "pos": [
+        410,
+        270
+      ],
+      "size": [
+        230,
+        82
+      ],
+      "sources": [
+        {
+          "path": "internal/server/new.go",
+          "line": 93,
+          "end_line": 152
+        },
+        {
+          "path": "internal/tlsconfig/tls.go",
+          "line": 26,
+          "end_line": 58
+        },
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 116,
+          "end_line": 170
+        }
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "Gateway SQLite",
+      "sublabel": "Schema 7 · grants + two quotas",
+      "pos": [
+        410,
+        525
+      ],
+      "size": [
+        230,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/registry/store.go",
+          "line": 85,
+          "end_line": 103
+        },
+        {
+          "path": "internal/registry/routing.go",
+          "line": 155,
+          "end_line": 231
+        },
+        {
+          "path": "internal/registry/operations.go",
+          "line": 301,
+          "end_line": 367
+        }
+      ]
+    },
+    {
+      "id": "connectorA",
+      "type": "backend",
+      "label": "Device A connector",
+      "sublabel": "Local aliases + policy ceiling",
+      "pos": [
+        800,
+        100
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/config.go",
+          "line": 65,
+          "end_line": 88
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 169,
+          "end_line": 187
+        },
+        {
+          "path": "internal/connector/cli.go",
+          "line": 163,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "id": "delegateA",
+      "type": "external",
+      "label": "Native public CLI",
+      "sublabel": "EXTERNAL prerequisite contract",
+      "pos": [
+        1190,
+        100
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/command.go",
+          "line": 206,
+          "end_line": 272
+        },
+        {
+          "path": "internal/connector/cli.go",
+          "line": 163,
+          "end_line": 192
+        },
+        {
+          "path": "internal/protocol/native_features.go",
+          "line": 5,
+          "end_line": 13
+        }
+      ]
+    },
+    {
+      "id": "storeA",
+      "type": "external",
+      "label": "Native canonical evidence",
+      "sublabel": "Task / refusal / closure / result",
+      "pos": [
+        1190,
+        255
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/inventory.go",
+          "line": 9,
+          "end_line": 46
+        },
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 40,
+          "end_line": 92
+        }
+      ]
+    },
+    {
+      "id": "connectorB",
+      "type": "backend",
+      "label": "Device B connector",
+      "sublabel": "Local aliases + policy ceiling",
+      "pos": [
+        800,
+        450
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/config.go",
+          "line": 131,
+          "end_line": 168
+        },
+        {
+          "path": "internal/connector/service_routing.go",
+          "line": 141,
+          "end_line": 199
+        },
+        {
+          "path": "internal/deviceruntime/run.go",
+          "line": 163,
+          "end_line": 190
+        }
+      ]
+    },
+    {
+      "id": "delegateB",
+      "type": "external",
+      "label": "Native public CLI",
+      "sublabel": "EXTERNAL prerequisite contract",
+      "pos": [
+        1190,
+        450
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/command.go",
+          "line": 244,
+          "end_line": 290
+        },
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 100,
+          "end_line": 136
+        },
+        {
+          "path": "internal/protocol/native_features.go",
+          "line": 5,
+          "end_line": 13
+        }
+      ]
+    },
+    {
+      "id": "storeB",
+      "type": "external",
+      "label": "Native canonical evidence",
+      "sublabel": "Task / refusal / closure / result",
+      "pos": [
+        1190,
+        605
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "internal/connector/inventory.go",
+          "line": 9,
+          "end_line": 46
+        },
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 40,
+          "end_line": 92
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "Gateway trust boundary — plaintext visible",
+      "wraps": [
+        "gateway",
+        "registry"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "region",
+      "label": "Device A role — shared OS account boundary",
+      "wraps": [
+        "connectorA",
+        "delegateA",
+        "storeA"
+      ],
+      "pad": 24
+    },
+    {
+      "kind": "region",
+      "label": "Device B role — shared OS account boundary",
+      "wraps": [
+        "connectorB",
+        "delegateB",
+        "storeB"
+      ],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "mcp",
+      "from": "client",
+      "to": "gateway",
+      "label": "HTTPS MCP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "jwt",
+      "from": "idp",
+      "to": "gateway",
+      "label": "JWT / JWKS",
+      "variant": "security"
+    },
+    {
+      "id": "admin-control",
+      "from": "admin",
+      "to": "gateway",
+      "label": "Admin socket",
+      "variant": "security"
+    },
+    {
+      "id": "registry-owner",
+      "from": "gateway",
+      "to": "registry",
+      "label": "Owns / persists"
+    },
+    {
+      "id": "outboundA",
+      "from": "connectorA",
+      "to": "gateway",
+      "label": "Outbound mTLS WSS",
+      "variant": "security"
+    },
+    {
+      "id": "outboundB",
+      "from": "connectorB",
+      "to": "gateway",
+      "label": "Outbound mTLS WSS",
+      "variant": "security"
+    },
+    {
+      "id": "cliA",
+      "from": "connectorA",
+      "to": "delegateA",
+      "label": "Fixed argv / files"
+    },
+    {
+      "id": "cliB",
+      "from": "connectorB",
+      "to": "delegateB",
+      "label": "Fixed argv / files"
+    },
+    {
+      "id": "authorityA",
+      "from": "delegateA",
+      "to": "storeA",
+      "label": "Required evidence",
+      "variant": "dashed"
+    },
+    {
+      "id": "authorityB",
+      "from": "delegateB",
+      "to": "storeB",
+      "label": "Required evidence",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Separate authoritative owners",
+      "items": [
+        "Gateway Registry owns grants, immutable operation correlation, execution reservations and durable CLI-routing permits. Observations are dated caches; Native alone owns task admission, launch, supervision and accepted outcomes.",
+        "Connector owns immutable local alias pins and a stricter provider/permission/budget ceiling. Effective execution rights require both current Gateway grants and the local ceiling; no automatic repin or failover.",
+        "Schema 7 keeps routing permits separate from task reservations. CLI Wait/cleanup, definite non-publication or fenced same-process census can settle routing; only canonical task closure, matching confirmed stop or permanent refusal settles transmitted execution uncertainty."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trust, fleet coverage and joins",
+      "items": [
+        "Separate TLS 1.3 listeners: public HTTPS OAuth/JWKS MCP and device mTLS WSS. Each connector initiates outbound WSS; Gateway sees plaintext. Two device roles illustrate topology, not physical-device/network acceptance.",
+        "Complete prior-fleet routing coverage precedes ANY routed CLI, including protected recovery controls. Changed process identity needs explicit out-of-band frozen local CLI-join attestation bound to current credential, process boot and exact connection generation.",
+        "Connector census/ACK gates claims. Accepted controls retain ownership through actual Wait and cleanup; timeout/socket closure never proves task closure. Phase-4 schema-7 compaction deletes only closed older routing rows, never active controls or task evidence.",
+        "Same account is a trusted device boundary. Project grants route requests; they are not an OS sandbox. Native CLI is a separately reviewed prerequisite, not an embedded second engine."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Source-backed candidate, bounded evidence",
+      "items": [
+        "Gateway source is pinned to commit 5e065e84 (full revision in metadata). All node references resolve against committed Gateway bytes with local-only links. External Native nodes cite the Gateway consumer contract, not foreign implementation.",
+        "Native is an external prerequisite: namespace-admission-v1 and namespace-mutation-lease-v1 are both required. The reviewed Native prerequisite is commit 62b11d34 (PR 179); an arbitrary installed CLI is not presumed compatible.",
+        "Gateway enforces frozen task guards, root-only namespace probes and live project checks for new execution. Current commands, results and remaining acceptance limits belong in docs/verification.md; this diagram supplies source provenance, not runtime or release proof."
+      ]
+    }
+  ]
+}

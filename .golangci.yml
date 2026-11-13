@@ -1,0 +1,52 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - nilerr
+    - errorlint
+    - errname
+    - forcetypeassert
+    - contextcheck
+    - exhaustive
+    - forbidigo
+    - nolintlint
+    - gocognit
+    - gocyclo
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    - reassign
+    - gocheckcompilerdirectives
+    - loggercheck
+    - durationcheck
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    govet:
+      enable-all: true
+      disable: [fieldalignment]
+    exhaustive:
+      default-signifies-exhaustive: false
+    gocognit:
+      min-complexity: 20
+    gocyclo:
+      min-complexity: 15
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    forbidigo:
+      analyze-types: true
+      exclude-godoc-examples: false
+      forbid:
+        - pattern: '^syscall\.(Kill|Setsid)$'
+          msg: "Gateway must use Delegate lifecycle controls, not native task-process control."
+        - pattern: '^unix\.Kill$'
+          msg: "Gateway must use Delegate lifecycle controls, not native task-process control."

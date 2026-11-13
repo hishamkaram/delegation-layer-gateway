@@ -1,0 +1,17 @@
+/bin/
+/dist/
+/.local/
+/.ci-native/
+/.archify/
+/coverage/
+*.prof
+__pycache__/
+/diagrams/**/*.delivery.json
+/diagrams/**/*.browser-check.json
+/diagrams/**/*.finalize-summary.json
+/diagrams/**/*.finalize.json
+
+# Local operator credentials.
+/.env
+/.env.*
+/..env.sw?

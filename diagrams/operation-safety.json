@@ -1,0 +1,669 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "IMPLEMENTATION CANDIDATE — Admission and recovery gates",
+    "output": "diagrams/operation-safety.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
+      "revision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
+      "link_mode": "local-only"
+    }
+  },
+  "lanes": [
+    {
+      "id": "admission",
+      "label": "Admission — current rights, one immutable task identity"
+    },
+    {
+      "id": "fence",
+      "label": "Uncertainty — no timeout inference or fresh identity"
+    },
+    {
+      "id": "restore",
+      "label": "Restore — explicit local admin, barrier before inventory"
+    },
+    {
+      "id": "routing",
+      "label": "CLI routing ownership — independent of task execution closure"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "prepare",
+      "lane": "admission",
+      "col": 0,
+      "type": "backend",
+      "label": "Prepare draft",
+      "sublabel": "Freeze identity; starts nothing",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 69,
+          "end_line": 109
+        }
+      ]
+    },
+    {
+      "id": "confirm",
+      "lane": "admission",
+      "col": 1,
+      "type": "security",
+      "label": "Confirm + recheck",
+      "sublabel": "Current grants + live readiness",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 116,
+          "end_line": 146
+        },
+        {
+          "path": "internal/registry/authorization.go",
+          "line": 217,
+          "end_line": 250
+        }
+      ]
+    },
+    {
+      "id": "reserve",
+      "lane": "admission",
+      "col": 2,
+      "type": "database",
+      "label": "Atomic possible-send",
+      "sublabel": "Execution + routing permits",
+      "sources": [
+        {
+          "path": "internal/registry/operations.go",
+          "line": 301,
+          "end_line": 367
+        },
+        {
+          "path": "internal/registry/routing_admission.go",
+          "line": 12,
+          "end_line": 35
+        }
+      ]
+    },
+    {
+      "id": "send",
+      "lane": "admission",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Guarded WSS write",
+      "sublabel": "Auth / credential / generation",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 147,
+          "end_line": 164
+        },
+        {
+          "path": "internal/registry/admission.go",
+          "line": 117,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "id": "create",
+      "lane": "admission",
+      "col": 4,
+      "type": "external",
+      "label": "Native CLI prerequisite",
+      "sublabel": "Local ceiling + frozen guards",
+      "sources": [
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 99,
+          "end_line": 136
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 219,
+          "end_line": 290
+        },
+        {
+          "path": "internal/protocol/native_features.go",
+          "line": 5,
+          "end_line": 13
+        }
+      ]
+    },
+    {
+      "id": "observe",
+      "lane": "admission",
+      "col": 5,
+      "type": "database",
+      "label": "Validate dated evidence",
+      "sublabel": "Canonical closure ≠ result",
+      "sources": [
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 16,
+          "end_line": 92
+        },
+        {
+          "path": "internal/registry/operations.go",
+          "line": 418,
+          "end_line": 482
+        }
+      ]
+    },
+    {
+      "id": "unknown",
+      "lane": "fence",
+      "col": 0,
+      "type": "messagebus",
+      "label": "Lost ACK / timeout",
+      "sublabel": "Retain execution reservation",
+      "sources": [
+        {
+          "path": "internal/gateway/dispatch.go",
+          "line": 159,
+          "end_line": 170
+        }
+      ]
+    },
+    {
+      "id": "resolve",
+      "lane": "fence",
+      "col": 1,
+      "type": "backend",
+      "label": "Passive resolve",
+      "sublabel": "Frozen binding; no launch",
+      "sources": [
+        {
+          "path": "internal/gateway/control.go",
+          "line": 23,
+          "end_line": 47
+        },
+        {
+          "path": "internal/connector/command.go",
+          "line": 253,
+          "end_line": 258
+        }
+      ]
+    },
+    {
+      "id": "choice",
+      "lane": "fence",
+      "col": 2,
+      "type": "security",
+      "label": "Explicit authorized action",
+      "sublabel": "Existing resume or cancellation",
+      "sources": [
+        {
+          "path": "internal/gateway/control.go",
+          "line": 50,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "fenceid",
+      "lane": "fence",
+      "col": 3,
+      "type": "backend",
+      "label": "Resolve / absent fence",
+      "sublabel": "Original ID; conditional refusal",
+      "sources": [
+        {
+          "path": "internal/connector/fence.go",
+          "line": 9,
+          "end_line": 44
+        },
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 423,
+          "end_line": 430
+        },
+        {
+          "path": "internal/gateway/control.go",
+          "line": 87,
+          "end_line": 120
+        }
+      ]
+    },
+    {
+      "id": "refusal",
+      "lane": "fence",
+      "col": 4,
+      "type": "database",
+      "label": "Validate permanent refusal",
+      "sublabel": "Release reserved execution",
+      "sources": [
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 40,
+          "end_line": 53
+        },
+        {
+          "path": "internal/registry/operations.go",
+          "line": 457,
+          "end_line": 482
+        }
+      ]
+    },
+    {
+      "id": "existing",
+      "lane": "fence",
+      "col": 5,
+      "type": "backend",
+      "label": "Existing / unresolved",
+      "sublabel": "Cancel known task or retain",
+      "sources": [
+        {
+          "path": "internal/gateway/control.go",
+          "line": 110,
+          "end_line": 140
+        },
+        {
+          "path": "internal/connector/adapter.go",
+          "line": 261,
+          "end_line": 279
+        }
+      ]
+    },
+    {
+      "id": "restore",
+      "lane": "restore",
+      "col": 0,
+      "type": "security",
+      "label": "Begin supported restore",
+      "sublabel": "New epoch; grants cleared",
+      "sources": [
+        {
+          "path": "internal/registry/recovery.go",
+          "line": 52,
+          "end_line": 87
+        }
+      ]
+    },
+    {
+      "id": "roster",
+      "lane": "restore",
+      "col": 1,
+      "type": "security",
+      "label": "Complete fleet coverage",
+      "sublabel": "Census + explicit join proofs",
+      "sources": [
+        {
+          "path": "internal/registry/routing_recovery.go",
+          "line": 66,
+          "end_line": 87
+        },
+        {
+          "path": "internal/registry/routing.go",
+          "line": 222,
+          "end_line": 231
+        },
+        {
+          "path": "internal/registry/routing_drain.go",
+          "line": 49,
+          "end_line": 84
+        }
+      ]
+    },
+    {
+      "id": "barrier",
+      "lane": "restore",
+      "col": 2,
+      "type": "security",
+      "label": "Durable root barrier",
+      "sublabel": "Freeze expected + new generation",
+      "sources": [
+        {
+          "path": "internal/recovery/service.go",
+          "line": 71,
+          "end_line": 103
+        }
+      ]
+    },
+    {
+      "id": "inventory",
+      "lane": "restore",
+      "col": 3,
+      "type": "database",
+      "label": "Canonical inventory",
+      "sublabel": "Exact per-entry receipt + options",
+      "sources": [
+        {
+          "path": "internal/recovery/service.go",
+          "line": 146,
+          "end_line": 177
+        },
+        {
+          "path": "internal/connector/inventory.go",
+          "line": 9,
+          "end_line": 46
+        },
+        {
+          "path": "internal/registry/import_inventory.go",
+          "line": 90,
+          "end_line": 155
+        }
+      ]
+    },
+    {
+      "id": "reconcile",
+      "lane": "restore",
+      "col": 4,
+      "type": "backend",
+      "label": "Map / drain; approve",
+      "sublabel": "Complete coverage + regular cert",
+      "sources": [
+        {
+          "path": "internal/registry/recovery.go",
+          "line": 695,
+          "end_line": 721
+        },
+        {
+          "path": "internal/registry/recovery_progress.go",
+          "line": 165,
+          "end_line": 187
+        }
+      ]
+    },
+    {
+      "id": "reopen",
+      "lane": "restore",
+      "col": 5,
+      "type": "security",
+      "label": "Explicit reopen + finish",
+      "sublabel": "Revision + root proof rechecked",
+      "sources": [
+        {
+          "path": "internal/recovery/service.go",
+          "line": 106,
+          "end_line": 135
+        },
+        {
+          "path": "internal/registry/recovery.go",
+          "line": 507,
+          "end_line": 551
+        }
+      ]
+    },
+    {
+      "id": "census",
+      "lane": "routing",
+      "col": 0,
+      "type": "security",
+      "label": "Fence prior intake",
+      "sublabel": "Complete census + matching ACK",
+      "sources": [
+        {
+          "path": "internal/connector/service_routing.go",
+          "line": 141,
+          "end_line": 199
+        },
+        {
+          "path": "internal/registry/routing_reconcile.go",
+          "line": 65,
+          "end_line": 89
+        }
+      ]
+    },
+    {
+      "id": "permit",
+      "lane": "routing",
+      "col": 1,
+      "type": "database",
+      "label": "Acquire durable permit",
+      "sublabel": "Full fleet ready; bounded scans",
+      "sources": [
+        {
+          "path": "internal/registry/routing.go",
+          "line": 155,
+          "end_line": 231
+        }
+      ]
+    },
+    {
+      "id": "wait",
+      "lane": "routing",
+      "col": 2,
+      "type": "backend",
+      "label": "Actual CLI Wait",
+      "sublabel": "Network expiry cannot kill/join",
+      "sources": [
+        {
+          "path": "internal/connector/cli.go",
+          "line": 163,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "id": "cleanup",
+      "lane": "routing",
+      "col": 3,
+      "type": "backend",
+      "label": "Join owned cleanup",
+      "sublabel": "Retain pending; reconcile later",
+      "sources": [
+        {
+          "path": "internal/connector/cli.go",
+          "line": 244,
+          "end_line": 289
+        },
+        {
+          "path": "internal/connector/service_routing.go",
+          "line": 202,
+          "end_line": 239
+        }
+      ]
+    },
+    {
+      "id": "settle",
+      "lane": "routing",
+      "col": 4,
+      "type": "database",
+      "label": "Settle routing only",
+      "sublabel": "Exact call / credential / boot",
+      "sources": [
+        {
+          "path": "internal/registry/routing_reconcile.go",
+          "line": 243,
+          "end_line": 289
+        }
+      ]
+    },
+    {
+      "id": "retention",
+      "lane": "routing",
+      "col": 5,
+      "type": "database",
+      "label": "Compact closed old rows",
+      "sublabel": "Phase 4 ≠ task closure",
+      "sources": [
+        {
+          "path": "internal/registry/routing_reconcile.go",
+          "line": 292,
+          "end_line": 295
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "prepare-confirm",
+      "from": "prepare",
+      "to": "confirm",
+      "variant": "default"
+    },
+    {
+      "id": "confirm-reserve",
+      "from": "confirm",
+      "to": "reserve",
+      "variant": "default"
+    },
+    {
+      "id": "reserve-send",
+      "from": "reserve",
+      "to": "send",
+      "variant": "default"
+    },
+    {
+      "id": "send-create",
+      "from": "send",
+      "to": "create",
+      "variant": "default"
+    },
+    {
+      "id": "create-observe",
+      "from": "create",
+      "to": "observe",
+      "variant": "default"
+    },
+    {
+      "id": "unknown-resolve",
+      "from": "unknown",
+      "to": "resolve",
+      "variant": "default"
+    },
+    {
+      "id": "resolve-choice",
+      "from": "resolve",
+      "to": "choice",
+      "variant": "default"
+    },
+    {
+      "id": "choice-fenceid",
+      "from": "choice",
+      "to": "fenceid",
+      "variant": "default"
+    },
+    {
+      "id": "fenceid-refusal",
+      "from": "fenceid",
+      "to": "refusal",
+      "variant": "default"
+    },
+    {
+      "id": "restore-roster",
+      "from": "restore",
+      "to": "roster",
+      "variant": "default"
+    },
+    {
+      "id": "roster-barrier",
+      "from": "roster",
+      "to": "barrier",
+      "variant": "default"
+    },
+    {
+      "id": "barrier-inventory",
+      "from": "barrier",
+      "to": "inventory",
+      "variant": "default"
+    },
+    {
+      "id": "inventory-reconcile",
+      "from": "inventory",
+      "to": "reconcile",
+      "variant": "default"
+    },
+    {
+      "id": "reconcile-reopen",
+      "from": "reconcile",
+      "to": "reopen",
+      "variant": "default"
+    },
+    {
+      "id": "census-permit",
+      "from": "census",
+      "to": "permit",
+      "variant": "default"
+    },
+    {
+      "id": "permit-wait",
+      "from": "permit",
+      "to": "wait",
+      "variant": "default"
+    },
+    {
+      "id": "wait-cleanup",
+      "from": "wait",
+      "to": "cleanup",
+      "variant": "default"
+    },
+    {
+      "id": "cleanup-settle",
+      "from": "cleanup",
+      "to": "settle",
+      "variant": "default"
+    },
+    {
+      "id": "settle-retention",
+      "from": "settle",
+      "to": "retention",
+      "variant": "default"
+    },
+    {
+      "id": "fenceid-existing",
+      "from": "fenceid",
+      "to": "existing",
+      "variant": "security",
+      "label": "Present / uncertain",
+      "role": "branch"
+    }
+  ],
+  "mainPath": [
+    "prepare",
+    "confirm",
+    "reserve",
+    "send",
+    "create",
+    "observe"
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Source-backed Gateway; external Native contract",
+      "items": [
+        "Every node cites committed Gateway source at 5e065e84. External Native nodes show the public capability/receipt boundary consumed by Gateway, not Native implementation verified in this repository.",
+        "Prepare starts nothing. Encoding and queue reservation precede the atomic possible-send decision. The actual write and response acceptance recheck current rights and immutable identity; duplicate confirmation observes the original operation.",
+        "New execution requires fresh live project context and current local ceilings. Passive task controls use frozen receipt guards; namespace operations use fresh root-only evidence without granting project readiness. Both namespace-admission-v1 and namespace-mutation-lease-v1 are required; Native prerequisite 62b11d34 is reviewed separately in PR 179."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "No synthetic task closure",
+      "items": [
+        "Rows are separate related procedures, not automatic transitions. Lost ACK, timeout, disconnect, accepted result bytes and cancellation requested do not prove task closure. Unknown transmitted work retains its execution reservation.",
+        "Explicit cancellation first sends Gateway FenceAbsent for the original ID. A complete matching existing receipt is resolved passively, without Native refusal locking, and may then be canceled. Only validated absence or independently root-checked partial preparation invokes the Native refusal fence. Unknown or partial evidence retains the reservation.",
+        "Execution reservation release requires validated canonical execution closure, an exact requested-and-terminated stop, or permanent refusal. Result bytes and routing completion do not establish task closure.",
+        "Revoked principal/grant/device or stale credential/connection blocks current sends and responses. Already-transmitted work can finish; revocation is not task cancellation."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery conserves identity and visibility",
+      "items": [
+        "Full prior-fleet coverage precedes EVERY routed CLI. Out-of-band operator CLI-only join attestation is frozen to device, credential, boot and exact generation; it does not establish Native task closure.",
+        "Persist barriers before inventory. Import root-wide canonical receipts with each frozen project context and exact budget nanoseconds. Attributed and unattributed records share one honest ledger; unowned work stays admin-only and reserved until canonical drain.",
+        "Missing coverage, mapping, completeness, regular credential or reopen revision keeps recovery blocked. Recovery-only permits observation/cancel/fence/barrier/inventory after routing coverage, never admit/resume/reopen. Fresh root proof follows reopen before Registry finish."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Two independent resource ledgers",
+      "items": [
+        "Execution reservations account for uncertain Native work. Routing permits account only for Gateway-routed CLI owners, not operator CLI/SSH/TUI or a local startup probe.",
+        "Routing completion is not task completion. Keep permits while CLI Wait/output copiers/owned cleanup remain unresolved. Same-process fenced census or protected explicit drain can settle prior controls; socket closure alone cannot.",
+        "Schema 7 phase-4 retention removes only closed routing rows older than the current generation. Active owners, execution reservations and canonical task evidence are not released by compaction."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Candidate and evidence limits",
+      "items": [
+        "This is a source-backed Gateway implementation candidate, not release approval. Native public CLI prerequisites are separate. Before PR, independent integrated reviews and no known unresolved P0/P1/P2 remain required.",
+        "Current test commands, environments, results and remaining acceptance limits are recorded in docs/verification.md. These graphics establish source provenance only; they do not prove installed-provider, public OAuth, multi-network, Cloud or release acceptance."
+      ]
+    }
+  ]
+}
