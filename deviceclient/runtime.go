@@ -135,7 +135,7 @@ func (r *Runtime) Serve(ctx context.Context) (result error) {
 	defer func() { cancel(); r.mu.Lock(); r.serveErr = result; close(r.serveDone); r.mu.Unlock() }()
 	if err := deviceruntime.RunConfigured(runContext, &r.configuration, r.identity); err != nil {
 		if runContext.Err() != nil && deviceruntime.IsExpectedCancellation(err) {
-			return expectedRuntimeStop{cause: runContext.Err()}
+			return expectedRuntimeStopError{cause: runContext.Err()}
 		}
 		kind := ErrTransport
 		if errors.Is(err, deviceruntime.ErrConfiguration) {
@@ -146,11 +146,11 @@ func (r *Runtime) Serve(ctx context.Context) (result error) {
 	return nil
 }
 
-type expectedRuntimeStop struct{ cause error }
+type expectedRuntimeStopError struct{ cause error }
 
-func (expectedRuntimeStop) Error() string         { return "gateway_runtime_stopped" }
-func (e expectedRuntimeStop) Unwrap() error       { return e.cause }
-func (expectedRuntimeStop) qualifiedRuntimeStop() {}
+func (expectedRuntimeStopError) Error() string         { return "gateway_runtime_stopped" }
+func (e expectedRuntimeStopError) Unwrap() error       { return e.cause }
+func (expectedRuntimeStopError) qualifiedRuntimeStop() {}
 
 // IsExpectedShutdown is for a caller that has invoked Serve then Close. True
 // requires the SDK's direct qualified cancellation result and a clean Close:
