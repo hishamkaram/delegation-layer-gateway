@@ -75,18 +75,26 @@ func TestExplicitCloseOwnsSocketBeforeCancellingReaders(t *testing.T) {
 
 func TestParentCancellationAndDeadlineJoinPhysicalSocket(t *testing.T) {
 	for _, mode := range []string{"cancel", "deadline"} {
-		t.Run(mode, func(t *testing.T) { assertParentSocketJoin(t, mode) })
+		t.Run(mode, func(t *testing.T) { assertParentSocketJoin(t, mode, nil) })
 	}
 }
 
-func assertParentSocketJoin(t *testing.T, mode string) {
+func TestParentStopOwnsDiagnosticBeforeReaderCancellation(t *testing.T) {
+	for _, mode := range []string{"cancel", "deadline"} {
+		t.Run(mode, func(t *testing.T) {
+			assertParentSocketJoin(t, mode, errors.New("diagnostic on same-parent shutdown"))
+		})
+	}
+}
+
+func assertParentSocketJoin(t *testing.T, mode string, fault error) {
 	t.Helper()
 	f := newFixture(t, Settings{HeartbeatInterval: time.Hour, OfflineTimeout: 2 * time.Hour})
 	// Establishing the fixture's CA/listener precedes this finite owner
 	// lifetime. The deadline path exercises an actual context deadline.
 	owner, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
 	t.Cleanup(cancel)
-	client, observer := dialDiagnosticClient(t, f, owner, nil)
+	client, observer := dialDiagnosticClient(t, f, owner, fault)
 	if err := f.hub.WaitReady(owner, "device-one"); err != nil {
 		t.Fatal(err)
 	}
@@ -101,11 +109,28 @@ func assertParentSocketJoin(t *testing.T, mode string) {
 	if !errors.Is(owner.Err(), want) {
 		t.Fatal("fixture did not end through the selected parent cause")
 	}
-	if err := client.Close(); err != nil {
-		t.Fatal("normal externally cancelled close failed", err)
+	assertParentSocketClose(t, client, observer, fault)
+}
+
+func assertParentSocketClose(t *testing.T, client *Client, observer *diagnosticCloseTransport, fault error) {
+	t.Helper()
+	// Parent cancellation alone must stop and join the session. Calling Close
+	// first would let a detached session without its parent hook pass this test.
+	select {
+	case <-client.session.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parent cancellation did not stop and join its socket owner")
 	}
-	if !observer.closed.Load() {
-		t.Fatal("external cancellation did not close its physical socket")
+	closeErr := client.Close()
+	if fault == nil {
+		if closeErr != nil {
+			t.Fatal("normal externally cancelled close failed", closeErr)
+		}
+	} else if !errors.Is(closeErr, fault) {
+		t.Fatal("parent cancellation hid the actual close diagnostic", closeErr)
+	}
+	if !observer.closed.Load() || observer.closedCanceled.Load() {
+		t.Fatal("parent bypassed socket ownership before cancelling its reader")
 	}
 	select {
 	case <-client.session.done:

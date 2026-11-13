@@ -22,6 +22,7 @@ type session struct {
 	processBoot            string
 	routingReady           bool
 	routingAck             protocol.ControlInventoryAck
+	parent                 context.Context
 	ctx                    context.Context
 	cancel                 context.CancelFunc
 	conn                   *websocket.Conn
@@ -98,8 +99,8 @@ func (s *session) correlationCapacity(class trafficClass) bool {
 }
 
 func newSession(ctx context.Context, config Settings, now func() time.Time, b *budget, incoming chan *Received) *session {
-	owned, cancel := context.WithCancel(ctx)
-	return &session{wireVersion: protocol.Version, ctx: owned, cancel: cancel, settings: config, now: now, budget: b, incoming: incoming, writeQueue: make(chan *writeJob, QueueFrames), done: make(chan struct{}), ready: make(chan struct{}), jobs: make(map[*writeJob]struct{}), pending: make(map[string]*Reservation), received: make(map[*Received]struct{}), seen: make(map[uint64]struct{})}
+	owned, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	return &session{wireVersion: protocol.Version, parent: ctx, ctx: owned, cancel: cancel, settings: config, now: now, budget: b, incoming: incoming, writeQueue: make(chan *writeJob, QueueFrames), done: make(chan struct{}), ready: make(chan struct{}), jobs: make(map[*writeJob]struct{}), pending: make(map[string]*Reservation), received: make(map[*Received]struct{}), seen: make(map[uint64]struct{})}
 }
 
 func (s *session) stop(reason error) {
@@ -111,8 +112,8 @@ func (s *session) stop(reason error) {
 		s.mu.Unlock()
 		// Own socket close before cancelling its reader/writer contexts: coder's
 		// cancellation callback can otherwise close it first and discard the
-		// underlying diagnostic. Earlier peer/timeouts may already have closed it;
-		// only diagnostics actually returned by CloseNow can be retained here.
+		// underlying diagnostic. A peer shutdown or request-local timeout may
+		// already have closed it; only returned diagnostics can be retained here.
 		defer s.cancel()
 		if conn != nil {
 			if closeErr := conn.CloseNow(); closeErr != nil {
@@ -156,6 +157,11 @@ func (s *session) check(ctx context.Context) error {
 	if checkErr := ctx.Err(); checkErr != nil {
 		return fail(ErrOffline, checkErr)
 	}
+	if s.parent != nil {
+		if checkErr := s.parent.Err(); checkErr != nil {
+			return fail(ErrOffline, checkErr)
+		}
+	}
 	now := s.now()
 	if s.certificate == nil || now.Before(s.certificate.NotBefore) || !now.Before(s.certificate.NotAfter) {
 		return fail(ErrForbidden, nil)
@@ -176,6 +182,11 @@ func (s *session) check(ctx context.Context) error {
 }
 
 func (s *session) run(ctx context.Context) {
+	// Conn installation and the original caller-deadline handshake precede
+	// this owner hook. Parent cancellation must stop the socket before the
+	// reader context is cancelled; both callbacks are joined before done.
+	joinParent := s.joinParentStop()
+	defer joinParent()
 	// Handshake/request deadlines do not own an established socket. Session
 	// cancellation remains authoritative, while caller values remain inherited.
 	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -188,6 +199,7 @@ func (s *session) run(ctx context.Context) {
 	s.stop(err)
 	workers.Wait()
 	join()
+	joinParent()
 	s.finish()
 }
 
@@ -299,10 +311,21 @@ func (s *session) writeContext(request context.Context) (context.Context, contex
 }
 
 func (s *session) joinCancellation(cancel context.CancelFunc) context.CancelFunc {
+	join := joinedAfterFunc(s.ctx, cancel)
+	return func() { join(); cancel() }
+}
+
+func (s *session) joinParentStop() context.CancelFunc {
+	// The stored session parent owns cancellation. run's separate context
+	// carries request values and must never become this lifetime authority.
+	return joinedAfterFunc(s.parent, func() { s.stop(fail(ErrOffline, s.parent.Err())) })
+}
+
+func joinedAfterFunc(ctx context.Context, action func()) context.CancelFunc {
 	joined := make(chan struct{})
-	stop := context.AfterFunc(s.ctx, func() {
-		cancel()
-		close(joined)
+	stop := context.AfterFunc(ctx, func() {
+		defer close(joined)
+		action()
 	})
 	var once sync.Once
 	return func() {
@@ -310,7 +333,6 @@ func (s *session) joinCancellation(cancel context.CancelFunc) context.CancelFunc
 			if !stop() {
 				<-joined
 			}
-			cancel()
 		})
 	}
 }

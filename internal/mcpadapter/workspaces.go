@@ -15,7 +15,7 @@ func (a *Adapter) registerWorkspaceTools() error {
 	}
 	return errors.Join(
 		register(a, "list_workspaces", "List bounded dated approved workspaces on the explicit owned device. Names and policy revisions are observations; no local paths or execution readiness are returned.", []domain.Scope{domain.InventoryRead}, toolHints{ReadOnly: true, Idempotent: true}, a.workspaces),
-		register(a, "resolve_project", "Pin an existing directory within an approved workspace on the explicit owned device. Retain request_id; retries must keep the same selection. Starts no task. Use returned project_alias for get_capabilities and prepare_dispatch; this immutable identity is not a readiness claim.", []domain.Scope{domain.TaskDispatch}, toolHints{Idempotent: true}, a.resolveProject),
+		register(a, "resolve_project", "Pin an existing directory within an approved workspace on the explicit owned device. Each new request_id consumes one of 1024 retained Gateway request slots per device, including failed attempts; there is no automatic reset. Retry the same ID and selection. Starts no task. Reuse returned project_alias for capabilities and tasks; this immutable identity is not a readiness claim.", []domain.Scope{domain.TaskDispatch}, toolHints{Idempotent: true}, a.resolveProject),
 	)
 }
 

@@ -48,7 +48,9 @@ func TestCancelledConnectionRetainsActualJoinedSocketDiagnostic(t *testing.T) {
 		socket.Store(closed)
 		return closed, nil
 	}
-	client, err := transport.Dial(t.Context(), transport.ClientConfig{URL: f.cfg.WSSURL().String(), GatewayID: f.cfg.Adapter().GatewayID, Certificate: certificate.Leaf, Capabilities: adapter.Capabilities(), Routing: service}, clientHTTP, time.Now)
+	stopped, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	client, err := transport.Dial(stopped, transport.ClientConfig{URL: f.cfg.WSSURL().String(), GatewayID: f.cfg.Adapter().GatewayID, Certificate: certificate.Leaf, Capabilities: adapter.Capabilities(), Routing: service}, clientHTTP, time.Now)
 	require(t, err)
 	t.Cleanup(func() {
 		if closeErr := client.Close(); !errors.Is(closeErr, injected) {
@@ -58,7 +60,6 @@ func TestCancelledConnectionRetainsActualJoinedSocketDiagnostic(t *testing.T) {
 	ready, cancelReady := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancelReady()
 	require(t, f.hub.WaitReady(ready, f.cfg.DeviceID()))
-	stopped, cancel := context.WithCancel(t.Context())
 	cancel()
 	result := connectionLifetime(stopped, f.cfg, f.identity, service, client, deviceRoots)
 	forwarded := connectionFailure(result, true)

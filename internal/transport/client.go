@@ -117,12 +117,12 @@ func dial(ctx context.Context, config ClientConfig, client *http.Client, now fun
 	conn.SetReadLimit(protocol.MaxFrameBytes)
 	if conn.Subprotocol() != subprotocol {
 		s.stop(fail(ErrProtocol, nil))
-		return nil, fail(ErrProtocol, nil)
+		return nil, errors.Join(fail(ErrProtocol, nil), s.closeFailure())
 	}
 	c := &Client{session: s, gateway: config.GatewayID, routing: config.Routing}
 	if checkErr := c.handshake(handshake, config); checkErr != nil {
 		s.stop(checkErr)
-		return nil, checkErr
+		return nil, errors.Join(checkErr, s.closeFailure())
 	}
 	close(s.ready)
 	go s.run(ctx)
