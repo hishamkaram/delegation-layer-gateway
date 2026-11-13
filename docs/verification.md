@@ -113,9 +113,10 @@ Earlier ChatGPT Cloud discovery evidence remains separate.
 Current workspace policy blocks adding that connector there. Neither another
 Cloud client nor the SDK proves a ChatGPT Cloud task. Home GUI-qualified service
 activation, ChatGPT Cloud task execution and final integrated acceptance remain open.
-Fresh installed-provider Gateway-recovery and cancellation acceptance on the
-current deployment, plus CI for subsequent changes, remain pending. Earlier
-dated recovery/cancellation results retain their original source scope.
+The subsequent current-deployment installed-provider recovery and cancellation
+checks passed as recorded below. Home's persistent service, ChatGPT Cloud and
+the final integrated assessment remain open; subsequent documentation CI is
+separate from the passed runtime-source gate.
 Separate Internet connections are operator-attested, not independently verified
 packet paths. Both PRs remain draft and Issue #1 remains open.
 
@@ -146,6 +147,39 @@ as `claude-cloud-native-20261113T075949Z-b6e1fc47/local-assessment.json` and
 This later engineering gate and scoped review do not close the live or release
 gaps above. The earlier checkpoints below retain their original source, dates
 and limitations; they are not relabeled as `ed04ad99` evidence.
+
+## November 13 current-deployment provider fault checks
+
+The unchanged, previously reviewed recovery and cancellation controllers ran
+against the deployed Gateway correction `7061511`, Native `d24a2cc2` and one
+explicit Home connector. Each request used installed `claude:print`, read-only
+permission, a 60-second budget and maximum one task. Office's persistent
+connector was not replaced.
+
+Recovery passed: Native observed the same task running before Gateway stopped
+and after the manager confirmed the old Gateway's normal exit0. The successor
+passed authenticated readiness. An intentional duplicate dispatch preserved the
+original operation/task identity; its accepted 11,952-byte result verified by
+length, digest and canary. Qualified successful Native worker Wait0, closed
+scope, service restoration and task/controller cleanup were confirmed. This
+observed restart/retry window is not deterministic LLM timing or proof of actual
+wire-level acknowledgment loss.
+
+Cancellation then passed on a separate new task: provider activity was observed
+before cancellation, Native matched the original user cancellation request and
+reported requested termination, closed scope and qualified worker Wait with
+exit1 before the deadline. Publication remained `unknown`; closure and requested
+termination are not an accepted provider result. The task and controller cleaned
+up. After both tasks closed, the original holder received `stop` through its
+retained input; the selected connector, SSH owner and controller joined exit0
+with confirmed cleanup. That connector shutdown alone is not task-closure proof.
+
+The first read-only preflight stopped before any Native command or connector
+because it incorrectly required the existing Delegate executable to be mode
+0700. A metadata-only diagnostic established mode0755. The corrected exact-role
+check preserved the installation, retained the failure and passed its regression
+checks and a fresh preflight. No permissions were changed or paid task replayed.
+Private receipts are retained under `home-one-target-20261113T080725Z-0da0fa20`.
 
 ## November 13 frozen-source verification
 
