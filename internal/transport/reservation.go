@@ -81,7 +81,7 @@ func (s *session) reserve(ctx context.Context, frame protocol.Frame) (*Reservati
 	if !s.jobCapacity(binding.class) || !s.correlationCapacity(binding.class) {
 		return nil, fail(ErrCapacity, nil)
 	}
-	encoded, err := protocol.EncodeFrame(frame)
+	encoded, err := protocol.EncodeFrameVersion(frame, s.wireVersion)
 	if err != nil {
 		return nil, fail(ErrProtocol, err)
 	}
@@ -102,7 +102,7 @@ func (s *session) reserve(ctx context.Context, frame protocol.Frame) (*Reservati
 
 func (s *session) outbound(frame protocol.Frame) (replyBinding, error) {
 	if s.gateway {
-		command, err := protocol.DecodeCommand(frame)
+		command, err := protocol.DecodeCommandVersion(frame, s.wireVersion)
 		if err != nil {
 			return replyBinding{}, fail(ErrProtocol, err)
 		}
@@ -314,7 +314,7 @@ func (r *Reservation) validateResponse(frame protocol.Frame) (*protocol.ControlC
 		if decodeErr := protocol.DecodeStrict(frame.Payload, &response, protocol.MaxFrameBytes); decodeErr != nil {
 			return nil, fail(ErrProtocol, decodeErr)
 		}
-		if response.Validate() != nil || response.Reply.Operation != r.binding.operation || response.Completion.ProcessBoot != r.metadata.ProcessBoot || response.Completion.Call != r.metadata.Call {
+		if response.ValidateVersion(r.session.wireVersion) != nil || response.Reply.Operation != r.binding.operation || response.Completion.ProcessBoot != r.metadata.ProcessBoot || response.Completion.Call != r.metadata.Call {
 			return nil, fail(ErrProtocol, nil)
 		}
 		return &response.Completion, nil
@@ -323,7 +323,7 @@ func (r *Reservation) validateResponse(frame protocol.Frame) (*protocol.ControlC
 	if decodeErr := protocol.DecodeStrict(frame.Payload, &reply, protocol.MaxFrameBytes); decodeErr != nil {
 		return nil, fail(ErrProtocol, decodeErr)
 	}
-	if checkErr := reply.Validate(); checkErr != nil || reply.Operation != r.binding.operation {
+	if checkErr := reply.ValidateVersion(r.session.wireVersion); checkErr != nil || reply.Operation != r.binding.operation {
 		return nil, fail(ErrProtocol, checkErr)
 	}
 	return nil, nil

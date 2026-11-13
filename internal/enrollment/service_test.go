@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
 )
 
@@ -22,7 +22,7 @@ type testAdmin struct{}
 
 func (testAdmin) AuthorizeAdmin(context.Context) error { return nil }
 
-func certificateAuthority(t *testing.T, now time.Time) *identity.CertificateAuthority {
+func certificateAuthority(t *testing.T, now time.Time) *devicecert.CertificateAuthority {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -37,7 +37,7 @@ func certificateAuthority(t *testing.T, now time.Time) *identity.CertificateAuth
 	if err != nil {
 		t.Fatal(err)
 	}
-	ca, err := identity.NewCertificateAuthority(certificate, key)
+	ca, err := devicecert.NewCertificateAuthority(certificate, key)
 	if err != nil {
 		t.Fatal(err)
 	}

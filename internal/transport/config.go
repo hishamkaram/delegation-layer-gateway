@@ -46,6 +46,12 @@ func commandClass(command protocol.Command) (trafficClass, error) {
 		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) != nil || body.Task.Validate(false) != nil {
 			return ordinaryTraffic, fail(ErrProtocol, nil)
 		}
+	case protocol.ResolveProject:
+		var body protocol.ResolveProjectRequest
+		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) != nil || body.Validate() != nil {
+			return ordinaryTraffic, fail(ErrProtocol, nil)
+		}
+		return ordinaryTraffic, nil
 	case protocol.ContextInspect, protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
 		return ordinaryTraffic, nil
 	default:
@@ -54,8 +60,13 @@ func commandClass(command protocol.Command) (trafficClass, error) {
 	return protectedTraffic, nil
 }
 
-type CredentialStore interface {
+// CredentialChecker is the session's current authorization read boundary.
+type CredentialChecker interface {
 	CheckCredential(context.Context, domain.CredentialRef, time.Time) (domain.Credential, error)
+}
+
+type CredentialStore interface {
+	CredentialChecker
 	NextConnectionGeneration(context.Context, domain.CredentialRef, domain.BootEpoch, time.Time) (domain.ConnectionGeneration, error)
 }
 
@@ -87,6 +98,9 @@ func settings(s Settings) (Settings, error) {
 
 type (
 	Config struct {
+		// EnableWireV2 explicitly opts this server into the new protocol. A
+		// legacy deployment offers v1 only; negotiation never downgrades v2.
+		EnableWireV2 bool
 		// CredentialDenied observes only a verified new registration rejected by
 		// the registry with a sole policy denial. It never changes authorization.
 		CredentialDenied func(domain.CredentialRef)
@@ -99,13 +113,16 @@ type (
 		Settings           Settings
 	}
 	ClientConfig struct {
-		Routing      ConnectorRouting
-		URL          string
-		GatewayID    domain.GatewayID
-		Certificate  *x509.Certificate
-		Mode         domain.CredentialMode
-		Capabilities protocol.CapabilityReport
-		Settings     Settings
+		// Zero retains the original v1 wire contract.
+		WireVersion    int
+		Routing        ConnectorRouting
+		URL            string
+		GatewayID      domain.GatewayID
+		Certificate    *x509.Certificate
+		Mode           domain.CredentialMode
+		Capabilities   protocol.CapabilityReport
+		CapabilitiesV2 *protocol.CapabilityReportV2
+		Settings       Settings
 	}
 )
 

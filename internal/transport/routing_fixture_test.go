@@ -17,8 +17,8 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/instance"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
@@ -79,7 +79,7 @@ func routedFixtureOptions(t *testing.T, decorate func(RoutingAuthority) RoutingA
 	if decorate != nil {
 		authority = decorate(store)
 	}
-	hub, hubErr := NewHub(t.Context(), Config{GatewayID: generatedID, BootEpoch: "boot-one", Routing: authority}, store, ownedClock.now)
+	hub, hubErr := newTestHub(t, t.Context(), Config{GatewayID: generatedID, BootEpoch: "boot-one", Routing: authority}, store, ownedClock.now)
 	if hubErr != nil {
 		t.Fatal(hubErr)
 	}
@@ -116,7 +116,7 @@ func issueRoutingCredential(t *testing.T, store *registry.Store, now time.Time, 
 		t.Fatal(caErr)
 	}
 	caCertificate := parseCertificate(t, caDER)
-	ca, authorityErr := identity.NewCertificateAuthority(caCertificate, caKey)
+	ca, authorityErr := devicecert.NewCertificateAuthority(caCertificate, caKey)
 	if authorityErr != nil {
 		t.Fatal(authorityErr)
 	}
@@ -125,7 +125,7 @@ func issueRoutingCredential(t *testing.T, store *registry.Store, now time.Time, 
 	if csrErr != nil {
 		t.Fatal(csrErr)
 	}
-	info, infoErr := identity.ParseCSR(csr)
+	info, infoErr := devicecert.ParseCSR(csr)
 	if infoErr != nil {
 		t.Fatal(infoErr)
 	}

@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 )
 
 // replacementRecord is only a local CAS retry receipt. It is not evidence that
@@ -36,7 +36,7 @@ func (r record) credential() (domain.CredentialRef, error) {
 	if parseErr != nil {
 		return domain.CredentialRef{}, ErrInvalid
 	}
-	ref, refErr := identity.CredentialFromCertificate(leaf)
+	ref, refErr := devicecert.CredentialFromCertificate(leaf)
 	if refErr != nil {
 		return domain.CredentialRef{}, ErrInvalid
 	}

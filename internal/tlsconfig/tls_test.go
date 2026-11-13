@@ -1,6 +1,7 @@
 package tlsconfig
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -18,9 +19,42 @@ import (
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 )
+
+func TestPublicDeviceCAProjectsOnlyValidatedCertificate(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	dir := t.TempDir()
+	server := writeFixture(t, dir, "server", false, now)
+	ca := writeFixture(t, dir, "devices", true, now)
+	publicPEM, err := os.ReadFile(ca.files.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePEM, err := os.ReadFile(ca.files.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// X509KeyPair accepts non-certificate PEM blocks; discovery must not echo
+	// those source bytes, even when operators accidentally append private data.
+	input := append(bytes.Clone(publicPEM), privatePEM...)
+	input = append(input, []byte("private-canary")...)
+	if err = os.WriteFile(ca.files.Certificate, input, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := Load(server.files, ca.files, "localhost", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bundle.DeviceCAPEM != string(publicPEM) || bytes.Contains([]byte(bundle.DeviceCAPEM), []byte("PRIVATE")) || bytes.Contains([]byte(bundle.DeviceCAPEM), []byte("private-canary")) {
+		t.Fatal("public CA projection copied source material")
+	}
+	block, rest := pem.Decode([]byte(bundle.DeviceCAPEM))
+	if block == nil || block.Type != "CERTIFICATE" || len(rest) != 0 || !bytes.Equal(block.Bytes, ca.certificate.Raw) {
+		t.Fatal("projection changed the validated trust anchor")
+	}
+}
 
 type certificateFixture struct {
 	files       config.TLSFiles
@@ -139,7 +173,7 @@ func deviceCertificate(t *testing.T, ca certificateFixture, now time.Time) tls.C
 	if err != nil {
 		t.Fatal(err)
 	}
-	uris, err := identity.CredentialURIs(domain.CredentialRef{Device: "device", Epoch: "epoch", Generation: 1})
+	uris, err := devicecert.CredentialURIs(domain.CredentialRef{Device: "device", Epoch: "epoch", Generation: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

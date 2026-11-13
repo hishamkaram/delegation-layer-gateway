@@ -72,6 +72,7 @@ type fakePeer struct {
 	closed     atomic.Bool
 	mu         sync.Mutex
 	reports    []protocol.CapabilityReport
+	reported   chan struct{}
 }
 
 func (p *fakePeer) generation() domain.ConnectionGeneration {
@@ -97,6 +98,12 @@ func (p *fakePeer) report(_ context.Context, r protocol.CapabilityReport) error 
 	p.mu.Lock()
 	p.reports = append(p.reports, r)
 	p.mu.Unlock()
+	if p.reported != nil {
+		select {
+		case p.reported <- struct{}{}:
+		default:
+		}
+	}
 	return nil
 }
 

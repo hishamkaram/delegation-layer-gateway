@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/observability"
 )
 
@@ -17,7 +17,7 @@ func TestVerifiedRevokedRegistrationRecordsExactCredentialIdentity(t *testing.T)
 	f := configFixture(t)
 	f.start(t)
 	_, certificate := f.enrollDevice(t)
-	ref, err := identity.CredentialFromCertificate(certificate.Leaf)
+	ref, err := devicecert.CredentialFromCertificate(certificate.Leaf)
 	require(t, err)
 	if got := credentialDenials(t, f); len(got) != 0 {
 		t.Fatal("fixture contained denial evidence before revocation")

@@ -16,6 +16,7 @@ import (
 )
 
 type session struct {
+	wireVersion            int
 	routing                RoutingAuthority
 	strictRouting          bool
 	processBoot            string
@@ -29,7 +30,7 @@ type session struct {
 	generation             domain.ConnectionGeneration
 	gateway                bool
 	mode                   domain.CredentialMode
-	store                  CredentialStore
+	store                  CredentialChecker
 	now                    func() time.Time
 	settings               Settings
 	budget                 *budget
@@ -98,7 +99,7 @@ func (s *session) correlationCapacity(class trafficClass) bool {
 
 func newSession(ctx context.Context, config Settings, now func() time.Time, b *budget, incoming chan *Received) *session {
 	owned, cancel := context.WithCancel(ctx)
-	return &session{ctx: owned, cancel: cancel, settings: config, now: now, budget: b, incoming: incoming, writeQueue: make(chan *writeJob, QueueFrames), done: make(chan struct{}), ready: make(chan struct{}), jobs: make(map[*writeJob]struct{}), pending: make(map[string]*Reservation), received: make(map[*Received]struct{}), seen: make(map[uint64]struct{})}
+	return &session{wireVersion: protocol.Version, ctx: owned, cancel: cancel, settings: config, now: now, budget: b, incoming: incoming, writeQueue: make(chan *writeJob, QueueFrames), done: make(chan struct{}), ready: make(chan struct{}), jobs: make(map[*writeJob]struct{}), pending: make(map[string]*Reservation), received: make(map[*Received]struct{}), seen: make(map[uint64]struct{})}
 }
 
 func (s *session) stop(reason error) {
@@ -345,7 +346,7 @@ func (s *session) reader(ctx context.Context) error {
 		if checkErr := s.check(ctx); checkErr != nil {
 			return checkErr
 		}
-		frame, err := protocol.DecodeFrame(data)
+		frame, err := protocol.DecodeFrameVersion(data, s.wireVersion)
 		if err != nil || frame.Generation != wireGeneration(s.generation) {
 			return fail(ErrProtocol, err)
 		}
@@ -366,8 +367,7 @@ func (s *session) route(ctx context.Context, frame protocol.Frame, data []byte, 
 		if !s.gateway {
 			return fail(ErrProtocol, nil)
 		}
-		var report protocol.CapabilityReport
-		if checkErr := protocol.DecodeStrict(frame.Payload, &report, protocol.MaxFrameBytes); checkErr != nil || report.Validate() != nil {
+		if checkErr := validateCapabilityPayload(frame.Payload, s.wireVersion); checkErr != nil {
 			return fail(ErrProtocol, checkErr)
 		}
 		s.mu.Lock()

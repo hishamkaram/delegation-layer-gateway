@@ -40,6 +40,10 @@ const help = `Usage:
   gateway migrate --database ABS
   gateway begin-recovery --database ABS --recovery-id ID
   gateway serve --config ABS
+  gateway users allow --config ABS --subject SUBJECT --provider ID [--max-budget-seconds N] [--max-devices N]
+  gateway users show|disable --config ABS --subject SUBJECT
+  gateway devices enrollment-token --config ABS --subject SUBJECT --name NAME --output-file ABS
+  gateway devices revoke --config ABS --device DEVICE_ID
   gateway connector enroll --config ABS --token-file ABS [--replace-existing]
   gateway connector run --config ABS
   gateway admin --socket ABS --action ENUM --input-file ABS [--output-file ABS]
@@ -118,6 +122,10 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return connector(ctx, args[1:], stdout)
 	case "admin":
 		return admin(ctx, args[1:], stdout)
+	case "users":
+		return users(ctx, args[1:], stdout)
+	case "devices":
+		return devicesCommand(ctx, args[1:], stdout)
 	default:
 		return problem(exitUsage, "invalid_arguments", nil)
 	}

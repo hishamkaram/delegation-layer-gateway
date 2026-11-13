@@ -1,4 +1,6 @@
-package identity
+// Package devicecert validates and signs device certificates.
+// Registry retains issuance, revocation and activation authority.
+package devicecert
 
 import (
 	"bytes"

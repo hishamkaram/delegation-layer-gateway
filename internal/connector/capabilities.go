@@ -10,6 +10,11 @@ import (
 // from its current config generation mutate it; service reads immutable copies.
 // The aggregate timestamp is the oldest retained per-project observation.
 func (a *Adapter) observeProject(generation uint64, project protocol.ProjectCapability) {
+	if a.WorkspaceMode() {
+		// Workspace mode returns targeted observations to the caller. Pins
+		// never accumulate in the periodic inventory or a second policy cache.
+		return
+	}
 	if project.Validate() != nil {
 		return
 	}

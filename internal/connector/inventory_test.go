@@ -120,7 +120,7 @@ func TestDecodePublicInventoryReceiptStrictlyBeforeNormalization(t *testing.T) {
 		t.Fatal(receiptErr)
 	}
 	fixture = strings.ReplaceAll(strings.ReplaceAll(fixture, "ORIGIN", string(origin)), "RECEIPT", string(receipt))
-	decoded, decodeErr := decodeResponse([]byte(fixture), "origin")
+	decoded, decodeErr := decodeResponse([]byte(fixture), "origin", MaxStdoutBytes)
 	if decodeErr != nil || r.translateOrigin(decoded).Error != nil {
 		t.Fatal("inspected public entry receipt failed strict decoding")
 	}
@@ -128,7 +128,7 @@ func TestDecodePublicInventoryReceiptStrictlyBeforeNormalization(t *testing.T) {
 		strings.Replace(fixture, `"budget_nanoseconds":1000000001`, `"budget_nanoseconds":1000000001,"budget_nanoseconds":1`, 1),
 		strings.Replace(fixture, `"execution_options":`, `"local_path":"canary","execution_options":`, 1),
 	} {
-		if _, invalidErr := decodeResponse([]byte(invalid), "origin"); invalidErr == nil {
+		if _, invalidErr := decodeResponse([]byte(invalid), "origin", MaxStdoutBytes); invalidErr == nil {
 			t.Fatal("duplicate or unknown local receipt field accepted")
 		}
 	}

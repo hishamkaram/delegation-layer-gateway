@@ -28,6 +28,7 @@ func (a *Adapter) registerTools() error {
 		register(a, "collect_result", "Collect an accepted immutable result descriptor. Execution may still be closing; use read_result_chunk for verified bytes.", observe, read, a.collect),
 		register(a, "read_result_chunk", "Read at most 65536 accepted bytes after whole-result verification. Each range costs a full bounded scan; authorization is rechecked before output.", observe, read, a.readResult),
 		register(a, "cancel_task", "Cancel an authorized operation with a stable cancellation ID. Requested stop, definitely-unsent draft and confirmed termination remain separate facts.", []domain.Scope{domain.TaskCancel}, execute, a.cancel),
+		a.registerWorkspaceTools(),
 	)
 }
 

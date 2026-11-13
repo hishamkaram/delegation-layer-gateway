@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
+
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
 )
 
 func TestReenrollExpiredRecordLostResponseAndSameRefRetry(t *testing.T) {
@@ -87,7 +88,7 @@ func TestReenrollExpiredRecordLostResponseAndSameRefRetry(t *testing.T) {
 
 func TestOrdinaryEnrollNeverImplicitlyReplacesAndReenrollCASRejectsRace(t *testing.T) {
 	a := newCA(t)
-	var output enrollment.EnrollmentResponse
+	var output protocol.EnrollmentResponse
 	var beforeResponse func()
 	transportCA := newCA(t)
 	server := newTLSServer(t, transportCA, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +138,7 @@ func TestOrdinaryEnrollNeverImplicitlyReplacesAndReenrollCASRejectsRace(t *testi
 
 func TestReenrollSameRefExpiredDERCannotClaimSuccess(t *testing.T) {
 	a := newCA(t)
-	var output enrollment.EnrollmentResponse
+	var output protocol.EnrollmentResponse
 	transportCA := newCA(t)
 	server := newTLSServer(t, transportCA, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enrollmentInput(t, r)
@@ -171,7 +172,7 @@ func TestReenrollSameRefExpiredDERCannotClaimSuccess(t *testing.T) {
 type reenrollmentResponder struct {
 	t           *testing.T
 	originalCSR []byte
-	output      enrollment.EnrollmentResponse
+	output      protocol.EnrollmentResponse
 	calls       int
 }
 

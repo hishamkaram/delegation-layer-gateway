@@ -8,7 +8,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/hishamkaram/delegation-layer-gateway/internal/connectorconfig"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
@@ -33,7 +32,7 @@ func nextRenewal(store *deviceidentity.Store, certificate *x509.Certificate, now
 
 // renew persists one ID+CSR before reserving a frame. All uncertainty leaves the
 // intent intact; a reconnect retries the same semantic request with a new frame.
-func renew(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity.Store, client *transport.Client, roots *x509.CertPool, now func() time.Time) error {
+func renew(ctx context.Context, cfg Configuration, store *deviceidentity.Store, client *transport.Client, roots *x509.CertPool, now func() time.Time) error {
 	certificate, ref, err := store.Certificate(roots, now())
 	if err != nil || ref.Device != cfg.DeviceID() || certificate.Leaf == nil {
 		return failed(ErrRenewal, err)
@@ -52,7 +51,7 @@ func renew(ctx context.Context, cfg *connectorconfig.Config, store *deviceidenti
 	}
 	observation, cancel := context.WithTimeout(ctx, cfg.NetworkTimeout())
 	defer cancel()
-	reservation, err := client.Reserve(observation, protocol.Frame{Version: protocol.Version, Type: protocol.RenewCertificate, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload})
+	reservation, err := client.Reserve(observation, protocol.Frame{Version: client.WireVersion(), Type: protocol.RenewCertificate, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload})
 	if err != nil {
 		return failed(ErrRenewal, err)
 	}

@@ -90,7 +90,7 @@ func (p ProjectCapability) validContext() bool {
 }
 
 func (p ProjectCapability) executionReady(compatible bool) bool {
-	return p.ContractVersion == Version && compatible && p.AdmissionOpen && identifier(p.AdmissionGeneration) && guardToken(p.Context.Root) && guardToken(p.Context.Project)
+	return p.ContractVersion == NativeContractVersion && compatible && p.AdmissionOpen && identifier(p.AdmissionGeneration) && guardToken(p.Context.Root) && guardToken(p.Context.Project)
 }
 
 func (p ProviderCapability) Validate() error {
@@ -140,7 +140,11 @@ func (f Failure) Validate() error {
 }
 
 func (r Reply) Validate() error {
-	if r.Operation.Validate() != nil {
+	return r.ValidateVersion(WireVersion2)
+}
+
+func (r Reply) ValidateVersion(version int) error {
+	if r.Operation.ValidateVersion(version) != nil {
 		return ErrInvalid
 	}
 	if r.Error != nil {
@@ -258,7 +262,7 @@ type RootCapability struct {
 }
 
 func (r RootCapability) Validate() error {
-	if !guardToken(r.Root) || r.ContractVersion != Version || len(r.Features) > 100 || r.OriginRegistered != (r.Origin != nil) {
+	if !guardToken(r.Root) || r.ContractVersion != NativeContractVersion || len(r.Features) > 100 || r.OriginRegistered != (r.Origin != nil) {
 		return ErrInvalid
 	}
 	for _, feature := range r.Features {

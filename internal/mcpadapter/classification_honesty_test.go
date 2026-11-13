@@ -55,10 +55,10 @@ func TestClassifyKnownFailuresRequiresSoleCause(t *testing.T) {
 		{name: "custom-remote-projection", err: projectedClassificationError{remote: remote}, want: ToolError{Code: "internal_error"}},
 		{name: "nil-policy", err: nilPolicy, want: ToolError{Code: "internal_error"}},
 		{name: "nil-remote", err: nilRemote, want: ToolError{Code: "internal_error"}},
-		{name: "timeout-priority", err: errors.Join(policy, context.DeadlineExceeded), want: ToolError{Code: "timeout", Retryable: true}},
-		{name: "canceled-priority", err: errors.Join(remote, context.Canceled), want: ToolError{Code: "timeout", Retryable: true}},
-		{name: "invalid-priority", err: errors.Join(policy, domain.ErrInvalid), want: ToolError{Code: "invalid_request"}},
-		{name: "oversize-priority", err: errors.Join(remote, protocol.ErrTooLarge), want: ToolError{Code: "resource_limit"}},
+		{name: "mixed-policy-timeout", err: errors.Join(policy, context.DeadlineExceeded), want: ToolError{Code: "internal_error"}},
+		{name: "mixed-remote-canceled", err: errors.Join(remote, context.Canceled), want: ToolError{Code: "internal_error"}},
+		{name: "mixed-policy-invalid", err: errors.Join(policy, domain.ErrInvalid), want: ToolError{Code: "internal_error"}},
+		{name: "mixed-remote-oversize", err: errors.Join(remote, protocol.ErrTooLarge), want: ToolError{Code: "internal_error"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			defer func() {

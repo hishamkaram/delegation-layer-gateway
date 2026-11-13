@@ -25,6 +25,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpguard"
@@ -85,6 +86,8 @@ func (a fixtureAuthenticator) AuthenticateToken(_ context.Context, token string)
 		actor.Scopes = domain.ScopeSet{domain.TaskRead}
 	case "dispatch":
 		actor.Scopes = domain.ScopeSet{domain.TaskDispatch}
+	case "management":
+		actor.Scopes = domain.ScopeSet{domain.DeviceEnroll, domain.DeviceManage}
 	case "bob":
 		actor = a.bob
 	case "expired":
@@ -253,6 +256,11 @@ func newFixture(t *testing.T, count int) *fixture {
 
 func newRecordedFixture(t *testing.T, count int, recorder Recorder) *fixture {
 	t.Helper()
+	return newConfiguredFixture(t, count, recorder, nil)
+}
+
+func newConfiguredFixture(t *testing.T, count int, recorder Recorder, configure func(*Options)) *fixture {
+	t.Helper()
 	f := &fixture{clock: &fixtureClock{value: time.Now().UTC().Truncate(time.Second)}, link: &fixtureLink{}}
 	store, err := registry.Create(t.Context(), filepath.Join(t.TempDir(), "registry.sqlite"), registry.CreateOptions{Admin: fixtureAdmin{}})
 	f.store = checked(t, store, err)
@@ -275,7 +283,11 @@ func newRecordedFixture(t *testing.T, count int, recorder Recorder) *fixture {
 	f.server = httptest.NewUnstartedServer(mux)
 	f.server.StartTLS()
 	t.Cleanup(f.server.Close)
-	adapter, err := New(Options{Registry: f.store, Operations: f.service, Presence: f.link, Authenticator: fixtureAuthenticator{alice: f.alice, bob: f.bob, clock: f.clock}, ResourceURL: f.server.URL + "/mcp", Issuer: "https://issuer.example/", Timeout: 30 * time.Second, Now: f.clock.now, Recorder: recorder})
+	options := Options{Registry: f.store, Operations: f.service, Presence: f.link, Authenticator: fixtureAuthenticator{alice: f.alice, bob: f.bob, clock: f.clock}, ResourceURL: f.server.URL + "/mcp", Issuer: "https://issuer.example/", Timeout: 30 * time.Second, Now: f.clock.now, Recorder: recorder}
+	if configure != nil {
+		configure(&options)
+	}
+	adapter, err := New(options)
 	f.adapter = checked(t, adapter, err)
 	guard, err := httpguard.New(httpguard.Options{PublicOrigin: f.server.URL, ConcurrentRequests: 128, Timeout: 35 * time.Second, MaxBodyBytes: 1 << 20})
 	secure := checked(t, guard, err)
@@ -309,7 +321,7 @@ func (f *fixture) enrollPrimary(t *testing.T) {
 	private := checked(t, key, err)
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, private)
 	csrDER := checked(t, csr, err)
-	info, err := identity.ParseCSR(csrDER)
+	info, err := devicecert.ParseCSR(csrDER)
 	parsed := checked(t, info, err)
 	token := domain.Hash([]byte("fixture enrollment"))
 	now := f.clock.now()
@@ -325,7 +337,7 @@ func (f *fixture) enrollPrimary(t *testing.T) {
 	caDER := checked(t, der, err)
 	certificate, err := x509.ParseCertificate(caDER)
 	certificateCA := checked(t, certificate, err)
-	ca, err := identity.NewCertificateAuthority(certificateCA, signer)
+	ca, err := devicecert.NewCertificateAuthority(certificateCA, signer)
 	authority := checked(t, ca, err)
 	der, err = authority.Sign(t.Context(), reserved, csrDER, new(big.Int).SetBytes(serial), rand.Reader)
 	leaf := checked(t, der, err)

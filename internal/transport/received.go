@@ -120,7 +120,7 @@ func (r *Received) unclaimedResponse(ctx context.Context, payload []byte) error 
 		return fail(ErrExpired, nil)
 	}
 	r.replied = true
-	frame := protocol.Frame{Version: protocol.Version, Type: protocol.Response, RequestID: r.frame.RequestID, Generation: r.frame.Generation, OperationID: r.frame.OperationID, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}
+	frame := protocol.Frame{Version: s.wireVersion, Type: protocol.Response, RequestID: r.frame.RequestID, Generation: r.frame.Generation, OperationID: r.frame.OperationID, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}
 	r.discardLocked()
 	s.mu.Unlock()
 	return s.sendClass(ctx, frame, r.class)
@@ -208,7 +208,7 @@ func (s *session) inbound(frame protocol.Frame) (protocol.Operation, string, err
 		}
 		return "", renewal.RenewalID, nil
 	}
-	command, err := protocol.DecodeCommand(frame)
+	command, err := protocol.DecodeCommandVersion(frame, s.wireVersion)
 	if err != nil {
 		return "", "", fail(ErrProtocol, err)
 	}
@@ -238,7 +238,7 @@ func (r *Received) Reply(ctx context.Context, reply protocol.Reply) error {
 	if r.session.strictRouting {
 		return fail(ErrProtocol, nil)
 	}
-	if r.frame.Type != protocol.Request || reply.Validate() != nil || reply.Operation != r.operation {
+	if r.frame.Type != protocol.Request || reply.ValidateVersion(r.session.wireVersion) != nil || reply.Operation != r.operation {
 		return fail(ErrProtocol, nil)
 	}
 	payload, err := protocol.Encode(reply, protocol.MaxFrameBytes)
@@ -260,7 +260,7 @@ func (r *Received) replyPayload(reply protocol.Reply, disposition protocol.Contr
 		return protocol.Encode(reply, protocol.MaxFrameBytes)
 	}
 	response := protocol.ControlResponse{Completion: protocol.ControlCompletion{ProcessBoot: r.session.processBoot, Call: r.call, Disposition: disposition}, Reply: reply}
-	if response.Validate() != nil {
+	if response.ValidateVersion(r.session.wireVersion) != nil {
 		return nil, fail(ErrProtocol, nil)
 	}
 	return protocol.Encode(response, protocol.MaxFrameBytes)
@@ -271,7 +271,7 @@ func (r *Received) ReplyControl(ctx context.Context, reply protocol.Reply, compl
 		return fail(ErrProtocol, nil)
 	}
 	response := protocol.ControlResponse{Completion: completion, Reply: reply}
-	if response.Validate() != nil {
+	if response.ValidateVersion(r.session.wireVersion) != nil {
 		return fail(ErrProtocol, nil)
 	}
 	payload, encodeErr := protocol.Encode(response, protocol.MaxFrameBytes)
@@ -307,7 +307,7 @@ func (r *Received) reply(ctx context.Context, kind protocol.Kind, payload []byte
 		return fail(ErrConflict, nil)
 	}
 	r.replied = true
-	frame := protocol.Frame{Version: protocol.Version, Type: kind, RequestID: r.frame.RequestID, Generation: r.frame.Generation, OperationID: r.frame.OperationID, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}
+	frame := protocol.Frame{Version: s.wireVersion, Type: kind, RequestID: r.frame.RequestID, Generation: r.frame.Generation, OperationID: r.frame.OperationID, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}
 	s.mu.Unlock()
 	return s.sendClass(ctx, frame, r.class)
 }
@@ -320,7 +320,7 @@ func (s *session) sendClass(ctx context.Context, frame protocol.Frame, class tra
 	if checkErr := s.check(ctx); checkErr != nil {
 		return checkErr
 	}
-	encoded, err := protocol.EncodeFrame(frame)
+	encoded, err := protocol.EncodeFrameVersion(frame, s.wireVersion)
 	if err != nil {
 		return fail(ErrProtocol, err)
 	}

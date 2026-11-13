@@ -140,7 +140,7 @@ func TestSnapshotClosingReadySessionIsOffline(t *testing.T) {
 	s.routingReady = true
 	close(s.ready)
 	s.stop(fail(ErrOffline, nil))
-	hub := &Hub{sessions: map[domain.DeviceID]*session{"device-one": s}}
+	hub := &Server{sessions: map[domain.DeviceID]*session{"device-one": s}}
 	snapshot, err := hub.Snapshot("device-one")
 	if err != nil {
 		t.Fatal(err)

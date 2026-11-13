@@ -18,7 +18,11 @@ type ControlCall struct {
 }
 
 func (c ControlCall) Validate() error {
-	if c.Generation.Validate() != nil || c.Operation.Validate() != nil || !lowerHex(c.RequestSHA256, 64) || (c.OperationID != "" && !identifier(c.OperationID)) {
+	return c.ValidateVersion(WireVersion2)
+}
+
+func (c ControlCall) ValidateVersion(version int) error {
+	if c.Generation.Validate() != nil || c.Operation.ValidateVersion(version) != nil || !lowerHex(c.RequestSHA256, 64) || (c.OperationID != "" && !identifier(c.OperationID)) {
 		return ErrInvalid
 	}
 	if len(c.RequestID) < 3 || len(c.RequestID) > 128 || c.RequestID[:2] != "g:" {
@@ -44,12 +48,16 @@ type ControlInventory struct {
 }
 
 func (r ControlInventory) Validate() error {
-	if r.PolicyVersion != RoutingPolicyVersion || !lowerHex(r.ProcessBoot, 32) || !lowerHex(r.BarrierID, 32) || r.Generation.Validate() != nil || !r.Complete || len(r.Active) > MaxActiveControls {
+	return r.ValidateVersion(WireVersion2)
+}
+
+func (r ControlInventory) ValidateVersion(version int) error {
+	if !r.validHeader(version) {
 		return ErrInvalid
 	}
 	seen := make(map[ControlCall]bool)
 	for _, call := range r.Active {
-		if call.Validate() != nil || call.Generation == r.Generation || seen[call] {
+		if call.ValidateVersion(version) != nil || call.Generation == r.Generation || seen[call] {
 			return ErrInvalid
 		}
 		for previous := range seen {
@@ -60,6 +68,10 @@ func (r ControlInventory) Validate() error {
 		seen[call] = true
 	}
 	return nil
+}
+
+func (r ControlInventory) validHeader(version int) bool {
+	return (version == Version || version == WireVersion2) && r.PolicyVersion == RoutingPolicyVersion && lowerHex(r.ProcessBoot, 32) && lowerHex(r.BarrierID, 32) && r.Generation.Validate() == nil && r.Complete && len(r.Active) <= MaxActiveControls
 }
 
 type ControlDisposition string
@@ -80,7 +92,11 @@ type ControlCompletion struct {
 }
 
 func (c ControlCompletion) Validate() error {
-	if !lowerHex(c.ProcessBoot, 32) || c.Call.Validate() != nil {
+	return c.ValidateVersion(WireVersion2)
+}
+
+func (c ControlCompletion) ValidateVersion(version int) error {
+	if !lowerHex(c.ProcessBoot, 32) || c.Call.ValidateVersion(version) != nil {
 		return ErrInvalid
 	}
 	switch c.Disposition {
@@ -97,7 +113,7 @@ func (o Operation) ScanConsumer() bool {
 	switch o {
 	case Admit, Resolve, ResumeExisting, FenceAbsent, Status, Collect, ResultChunk, Cancel:
 		return true
-	case ContextInspect, OriginBarrier, OriginInventory, OriginReopen:
+	case ContextInspect, OriginBarrier, OriginInventory, OriginReopen, ResolveProject:
 		return false
 	}
 	return false
@@ -154,7 +170,11 @@ type ControlResponse struct {
 }
 
 func (r ControlResponse) Validate() error {
-	if r.Completion.Validate() != nil || r.Reply.Validate() != nil || r.Completion.Call.Operation != r.Reply.Operation {
+	return r.ValidateVersion(WireVersion2)
+}
+
+func (r ControlResponse) ValidateVersion(version int) error {
+	if r.Completion.ValidateVersion(version) != nil || r.Reply.ValidateVersion(version) != nil || r.Completion.Call.Operation != r.Reply.Operation {
 		return ErrInvalid
 	}
 	if r.Completion.Disposition == ControlNotClaimed && r.Reply.Error == nil {

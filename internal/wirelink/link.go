@@ -43,15 +43,26 @@ func (l *Link) Snapshot(device domain.DeviceID) (gateway.LinkSnapshot, error) {
 			capabilities.Projects[i].Ready = false
 		}
 	}
-	return gateway.LinkSnapshot{ProcessBoot: snapshot.ProcessBoot, Credential: snapshot.Credential, Connection: snapshot.Generation, Capabilities: capabilities, ObservedAt: snapshot.CapabilitiesObservedAt}, nil
+	return gateway.LinkSnapshot{WireVersion: snapshot.WireVersion, CapabilitiesV2: snapshot.CapabilitiesV2, ProcessBoot: snapshot.ProcessBoot, Credential: snapshot.Credential, Connection: snapshot.Generation, Capabilities: capabilities, ObservedAt: snapshot.CapabilitiesObservedAt}, nil
 }
 
 func (l *Link) Reserve(ctx context.Context, device domain.DeviceID, operation domain.OperationID, command protocol.Command) (gateway.Reservation, error) {
+	snapshot, snapshotErr := l.hub.Snapshot(device)
+	if snapshotErr != nil {
+		return nil, publicError(snapshotErr)
+	}
+	version := snapshot.WireVersion
+	if version == 0 {
+		version = protocol.Version // Original in-process Hub implementations.
+	}
+	if command.ValidateVersion(version) != nil {
+		return nil, publicError(transport.ErrProtocol)
+	}
 	payload, err := protocol.Encode(command, protocol.MaxFrameBytes)
 	if err != nil {
 		return nil, err
 	}
-	frame := protocol.Frame{Version: protocol.Version, Type: protocol.Request, OperationID: string(operation), TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}
+	frame := protocol.Frame{Version: version, Type: protocol.Request, OperationID: string(operation), TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}
 	reserved, err := l.hub.Reserve(ctx, device, frame)
 	if err != nil {
 		return nil, publicError(err)
@@ -102,7 +113,7 @@ func (r *reservation) Await(ctx context.Context) (protocol.Reply, error) {
 		return protocol.Reply{}, publicError(err)
 	}
 	var response protocol.ControlResponse
-	if frame.Type != protocol.Response || protocol.DecodeStrict(frame.Payload, &response, protocol.MaxFrameBytes) != nil || response.Validate() != nil {
+	if frame.Type != protocol.Response || protocol.DecodeStrict(frame.Payload, &response, protocol.MaxFrameBytes) != nil || response.ValidateVersion(frame.Version) != nil {
 		return protocol.Reply{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	return response.Reply, nil

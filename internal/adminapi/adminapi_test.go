@@ -67,7 +67,7 @@ func newFixtureOptions(t *testing.T, disconnect disconnectFunc, configure func(*
 	if disconnect == nil {
 		disconnect = func(context.Context, domain.DeviceID) error { return nil }
 	}
-	options := adminapi.Options{Store: f.store, Authority: f.authority, Disconnector: disconnect, Random: rand.Reader, Now: func() time.Time { return f.now }}
+	options := adminapi.Options{Store: f.store, OwnerPolicies: f.store, OwnedEnrollments: f.store, Authority: f.authority, Disconnector: disconnect, Random: rand.Reader, Now: func() time.Time { return f.now }}
 	if configure != nil {
 		configure(&options)
 	}

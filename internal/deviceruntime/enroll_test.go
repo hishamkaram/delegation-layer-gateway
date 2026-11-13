@@ -27,8 +27,8 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connectorconfig"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
+
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -44,7 +44,7 @@ func checked[T any](t *testing.T, value T, err error) T { t.Helper(); require(t,
 type testCA struct {
 	certificate *x509.Certificate
 	key         *ecdsa.PrivateKey
-	signer      *identity.CertificateAuthority
+	signer      *devicecert.CertificateAuthority
 	now         time.Time
 }
 
@@ -58,7 +58,7 @@ func newCA(t *testing.T) testCA {
 	data := checked(t, der, err)
 	cert, err := x509.ParseCertificate(data)
 	certificate := checked(t, cert, err)
-	ca, err := identity.NewCertificateAuthority(certificate, signer)
+	ca, err := devicecert.NewCertificateAuthority(certificate, signer)
 	return testCA{certificate: certificate, key: signer, signer: checked(t, ca, err), now: now}
 }
 
@@ -73,7 +73,7 @@ func (a testCA) serverCertificate(t *testing.T) tls.Certificate {
 
 func (a testCA) sign(ctx context.Context, t *testing.T, csr []byte, ref domain.CredentialRef, notBefore time.Time) []byte {
 	t.Helper()
-	info, err := identity.ParseCSR(csr)
+	info, err := devicecert.ParseCSR(csr)
 	parsed := checked(t, info, err)
 	serial := big.NewInt(3)
 	intent := domain.IssuanceIntent{ID: "fixture", Credential: ref, Mode: domain.Regular, Serial: serial.Bytes(), CSRHash: parsed.CSRHash, PublicKeyHash: parsed.PublicKeyHash, NotBefore: notBefore, NotAfter: notBefore.Add(domain.CertificateLifetime)}
@@ -161,26 +161,26 @@ func openStore(t *testing.T, cfg *connectorconfig.Config) *deviceidentity.Store 
 	return owned
 }
 
-func enrollmentInput(t *testing.T, request *http.Request) enrollment.EnrollmentRequest {
+func enrollmentInput(t *testing.T, request *http.Request) protocol.EnrollmentRequest {
 	t.Helper()
 	if request.TLS == nil || request.TLS.Version != tls.VersionTLS13 {
 		t.Error("enrollment was not TLS1.3")
 	}
-	data, err := io.ReadAll(io.LimitReader(request.Body, enrollment.MaxEnrollmentBodyBytes+1))
+	data, err := io.ReadAll(io.LimitReader(request.Body, protocol.MaxEnrollmentBodyBytes+1))
 	require(t, err)
-	var input enrollment.EnrollmentRequest
-	require(t, protocol.DecodeStrict(data, &input, enrollment.MaxEnrollmentBodyBytes))
+	var input protocol.EnrollmentRequest
+	require(t, protocol.DecodeStrict(data, &input, protocol.MaxEnrollmentBodyBytes))
 	return input
 }
 
-func enrollmentOutput(der []byte) enrollment.EnrollmentResponse {
-	return enrollment.EnrollmentResponse{DeviceID: "device", Epoch: "epoch", Generation: 1, Mode: domain.Regular, CertificateDERBase64: base64.StdEncoding.EncodeToString(der)}
+func enrollmentOutput(der []byte) protocol.EnrollmentResponse {
+	return protocol.EnrollmentResponse{DeviceID: "device", Epoch: "epoch", Generation: 1, Mode: domain.Regular, CertificateDERBase64: base64.StdEncoding.EncodeToString(der)}
 }
 
 func TestEnrollmentLostResponseRetriesPersistedCSR(t *testing.T) {
 	a := newCA(t)
 	var csr []byte
-	var output enrollment.EnrollmentResponse
+	var output protocol.EnrollmentResponse
 	calls := 0
 	server := newTLSServer(t, a, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := enrollmentInput(t, r)

@@ -8,8 +8,18 @@ import (
 )
 
 func rootLookup(ctx context.Context, tx *sql.Tx, input domain.RootInitializationLookup) error {
-	if input.Route.Validate() != nil || input.ExpectedContext.Validate() != nil {
+	if input.Validate() != nil {
 		return domain.ErrInvalid
+	}
+	if input.RootRoute != nil {
+		var exists int
+		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM root_admissions WHERE device=? AND root_guard=?", input.RootRoute.Device, input.RootRoute.Root).Scan(&exists); err != nil {
+			return err
+		}
+		if exists != 1 {
+			return domain.Reject(domain.NotFound)
+		}
+		return nil
 	}
 	binding, err := readContext(ctx, tx, input.Route)
 	if err != nil {
@@ -25,8 +35,9 @@ func (s *Store) BeginRootInitialization(ctx context.Context, input domain.RootIn
 	if err := s.requireAdmin(ctx); err != nil {
 		return domain.RootInitializationProgress{}, err
 	}
-	lookup := domain.RootInitializationLookup{Route: input.Route, ExpectedContext: input.ExpectedContext}
-	if input.Now.IsZero() || input.Credential.Device != input.Route.Device {
+	lookup := input.Lookup()
+	root, err := lookup.Namespace()
+	if err != nil || input.Now.IsZero() || input.Credential.Device != root.Device {
 		return domain.RootInitializationProgress{}, domain.ErrInvalid
 	}
 	return transaction(ctx, s, func(tx *sql.Tx) (domain.RootInitializationProgress, error) {
@@ -35,16 +46,20 @@ func (s *Store) BeginRootInitialization(ctx context.Context, input domain.RootIn
 }
 
 func startRootSession(ctx context.Context, tx *sql.Tx, id domain.RecoveryID, input domain.RootInitializationStart) error {
-	if _, err := tx.ExecContext(ctx, "INSERT INTO recoveries(id,kind,started,sealed) VALUES(?,'root',?,1)", id, input.Now.UTC().Format(timestampLayout)); err != nil {
+	root, err := input.Lookup().Namespace()
+	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "INSERT INTO recovery_destinations(recovery,device,root_guard) VALUES(?,?,?)", id, input.Route.Device, input.ExpectedContext.Root); err != nil {
+	if _, err = tx.ExecContext(ctx, "INSERT INTO recoveries(id,kind,started,sealed) VALUES(?,'root',?,1)", id, input.Now.UTC().Format(timestampLayout)); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "UPDATE root_admissions SET session=?,state='pending' WHERE device=? AND root_guard=?", id, input.Route.Device, input.ExpectedContext.Root); err != nil {
+	if _, err = tx.ExecContext(ctx, "INSERT INTO recovery_destinations(recovery,device,root_guard) VALUES(?,?,?)", id, root.Device, root.Root); err != nil {
 		return err
 	}
-	_, err := prepareBarrier(ctx, tx, domain.BarrierPreparation{Destination: domain.RecoveryDestination{Recovery: id, Device: input.Route.Device, Root: input.ExpectedContext.Root}, Credential: input.Credential, Connection: input.Connection, Now: input.Now})
+	if _, err = tx.ExecContext(ctx, "UPDATE root_admissions SET session=?,state='pending' WHERE device=? AND root_guard=?", id, root.Device, root.Root); err != nil {
+		return err
+	}
+	_, err = prepareBarrier(ctx, tx, domain.BarrierPreparation{Destination: domain.RecoveryDestination{Recovery: id, Device: root.Device, Root: root.Root}, Credential: input.Credential, Connection: input.Connection, Now: input.Now})
 	return err
 }
 
@@ -61,12 +76,16 @@ func (s *Store) ReadRootInitializationProgress(ctx context.Context, input domain
 }
 
 func readRootProgress(ctx context.Context, tx *sql.Tx, input domain.RootInitializationLookup) (domain.RootInitializationProgress, error) {
-	result := domain.RootInitializationProgress{Route: input.Route, Context: input.ExpectedContext, Stage: domain.RootNeedsBarrier}
+	root, err := input.Namespace()
+	if err != nil {
+		return domain.RootInitializationProgress{}, err
+	}
+	result := domain.RootInitializationProgress{Route: input.Route, Context: input.ExpectedContext, RootRoute: input.RootRoute, Stage: domain.RootNeedsBarrier}
 	var state domain.RootState
-	if err := tx.QueryRowContext(ctx, "SELECT gateway FROM settings WHERE id=1").Scan(&result.GatewayID); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT gateway FROM settings WHERE id=1").Scan(&result.GatewayID); err != nil {
 		return result, err
 	}
-	if err := tx.QueryRowContext(ctx, "SELECT state,generation,session FROM root_admissions WHERE device=? AND root_guard=?", input.Route.Device, input.ExpectedContext.Root).Scan(&state, &result.Generation, &result.RecoveryID); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT state,generation,session FROM root_admissions WHERE device=? AND root_guard=?", root.Device, root.Root).Scan(&state, &result.Generation, &result.RecoveryID); err != nil {
 		return result, notFound(err)
 	}
 	if state == domain.RootOpen {
@@ -85,12 +104,12 @@ func readRootProgress(ctx context.Context, tx *sql.Tx, input domain.RootInitiali
 	}
 	if session.status == "aborted" {
 		result.Stage = domain.RootRestoreRequired
-		err = tx.QueryRowContext(ctx, "SELECT generation FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", result.RecoveryID, input.Route.Device, input.ExpectedContext.Root).Scan(&result.Generation)
+		err = tx.QueryRowContext(ctx, "SELECT generation FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", result.RecoveryID, root.Device, root.Root).Scan(&result.Generation)
 		return result, err
 	}
 	var barrier, membership, complete, reopened []byte
 	var approved bool
-	if err = tx.QueryRowContext(ctx, "SELECT generation,barrier,membership,cursor,completeness,approved,reopened FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", result.RecoveryID, input.Route.Device, input.ExpectedContext.Root).Scan(&result.Generation, &barrier, &membership, &result.Cursor, &complete, &approved, &reopened); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT generation,barrier,membership,cursor,completeness,approved,reopened FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", result.RecoveryID, root.Device, root.Root).Scan(&result.Generation, &barrier, &membership, &result.Cursor, &complete, &approved, &reopened); err != nil {
 		return result, err
 	}
 	copy(result.Membership[:], membership)
@@ -104,7 +123,7 @@ func readRootProgress(ctx context.Context, tx *sql.Tx, input domain.RootInitiali
 		result.Stage = domain.RootNeedsApproval
 	default:
 		result.Stage = domain.RootNeedsReopen
-		result.Reopen = &domain.ReopenTarget{Destination: domain.RecoveryDestination{Recovery: result.RecoveryID, Device: input.Route.Device, Root: input.ExpectedContext.Root}, Generation: result.Generation, Completeness: result.Completeness, Revision: session.revision}
+		result.Reopen = &domain.ReopenTarget{Destination: domain.RecoveryDestination{Recovery: result.RecoveryID, Device: root.Device, Root: root.Root}, Generation: result.Generation, Completeness: result.Completeness, Revision: session.revision}
 	}
 	return result, nil
 }

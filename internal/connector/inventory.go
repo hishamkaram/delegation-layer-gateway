@@ -32,7 +32,7 @@ func (r request) normalizeInventoryEntry(local inventoryEntry) (protocol.OriginI
 	}
 	if local.Receipt != nil {
 		receipt := local.Receipt
-		if receipt.RootToken != r.project.RootToken || len(receipt.ProjectToken) == 0 || len(receipt.ProjectToken) > 4096 || strings.ContainsAny(receipt.ProjectToken, "\x00\r\n") {
+		if receipt.RootToken != r.project.RootToken || !r.validInventoryProject(receipt) {
 			return protocol.OriginInventoryEntry{}, ErrEvidence
 		}
 		wire.Receipt = &protocol.InventoryReceipt{
@@ -44,4 +44,15 @@ func (r request) normalizeInventoryEntry(local inventoryEntry) (protocol.OriginI
 		return protocol.OriginInventoryEntry{}, ErrEvidence
 	}
 	return wire, nil
+}
+
+func (r request) validInventoryProject(receipt *cliReceipt) bool {
+	if r.config.ProjectStore == nil {
+		return len(receipt.ProjectToken) > 0 && len(receipt.ProjectToken) <= 4096 && !strings.ContainsAny(receipt.ProjectToken, "\x00\r\n") && receipt.WorkspaceConstraint == nil
+	}
+	if !validNativeProjectToken(receipt.ProjectToken) {
+		return false
+	}
+	constraint := receipt.WorkspaceConstraint
+	return constraint == nil || (validNativeProjectToken(constraint.Token) && protocol.ValidRelativeProject(constraint.RelativeProject))
 }

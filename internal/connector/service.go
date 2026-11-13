@@ -37,6 +37,27 @@ func (p clientPeer) report(ctx context.Context, r protocol.CapabilityReport) err
 	return p.client.ReportCapabilities(ctx, r)
 }
 
+func (p clientPeer) reportV2(ctx context.Context, r protocol.CapabilityReportV2) error {
+	return p.client.ReportCapabilitiesV2(ctx, r)
+}
+
+func (s *Service) report(ctx context.Context, p peer) error {
+	if !s.adapter.WorkspaceMode() {
+		return p.report(ctx, s.capabilities())
+	}
+	workspacePeer, ok := p.(interface {
+		reportV2(context.Context, protocol.CapabilityReportV2) error
+	})
+	if !ok {
+		return ErrConfiguration
+	}
+	report, err := s.adapter.CapabilitiesV2(ctx)
+	if err != nil {
+		return err
+	}
+	return workspacePeer.reportV2(ctx, report)
+}
+
 func (p clientPeer) generation() domain.ConnectionGeneration { return p.client.Generation() }
 func (p clientPeer) boot() string                            { return p.client.ProcessBoot() }
 func (p clientPeer) close() error                            { return p.client.Close() }
@@ -175,7 +196,7 @@ func (s *Service) attach(ctx context.Context, p peer) error {
 		s.mu.Unlock()
 		s.intake.Done()
 	}()
-	if err := p.report(intake, s.capabilities()); err != nil {
+	if err := s.report(intake, p); err != nil {
 		return ErrPending
 	}
 	for {
@@ -202,7 +223,11 @@ func (s *Service) refuse(ctx context.Context, incoming control) error {
 
 func (s *Service) queueIncoming(ctx context.Context, attached *connection, incoming control) error {
 	frame := incoming.Frame()
-	command, decodeErr := protocol.DecodeCommand(frame)
+	version := protocol.Version
+	if s.adapter.WorkspaceMode() {
+		version = protocol.WireVersion2
+	}
+	command, decodeErr := protocol.DecodeCommandVersion(frame, version)
 	if decodeErr != nil {
 		if discardErr := incoming.Discard(); discardErr != nil {
 			return ErrPending
@@ -287,14 +312,17 @@ func (s *Service) perform(owner context.Context, j *job) {
 		return err
 	}
 	reply := s.adapter.execute(ctx, j.command, acceptance{generation: j.generation, operationID: j.frame.OperationID, claim: accept, held: &j.held})
-	completion := s.completion(j, claimed)
 	s.mu.Lock()
 	delete(s.active, j)
 	s.mu.Unlock()
+	// A completion nudge may immediately produce a new census. Retire the
+	// joined owner before publishing that transition, so it cannot appear as
+	// unobserved after the census already accounts for its settled CLI.
+	completion := s.completion(j, claimed)
 	response, cancelResponse := context.WithTimeout(context.WithoutCancel(owner), 5*time.Second)
 	if replyErr := j.control.ReplyControl(response, reply, completion); replyErr != nil {
 		s.recordError("reply_unavailable")
-		s.requireReconcile()
+		s.replyUnavailable(j.call)
 		if !claimed {
 			if discardErr := j.control.Discard(); discardErr != nil {
 				s.recordError("discard_unavailable")
@@ -340,7 +368,7 @@ func (s *Service) monitor(owner context.Context) {
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(owner), 5*time.Second)
-			if err := attached.peer.report(ctx, s.capabilities()); err != nil {
+			if err := s.report(ctx, attached.peer); err != nil {
 				s.recordError("capability_unavailable")
 			}
 			cancel()

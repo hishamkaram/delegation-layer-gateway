@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -95,6 +95,11 @@ func parseCertificate(t *testing.T, data []byte) *x509.Certificate {
 
 func newFixture(t *testing.T, settings Settings) *fixture {
 	t.Helper()
+	return newVersionFixture(t, settings, false)
+}
+
+func newVersionFixture(t *testing.T, settings Settings, enableV2 bool) *fixture {
+	t.Helper()
 	now := time.Now().UTC().Truncate(time.Second)
 	caKey := privateKey(t)
 	caTemplate := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "device CA"}, NotBefore: now.Add(-time.Hour), NotAfter: now.AddDate(1, 0, 0), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
@@ -103,7 +108,7 @@ func newFixture(t *testing.T, settings Settings) *fixture {
 		t.Fatal(err)
 	}
 	caCertificate := parseCertificate(t, caDER)
-	ca, err := identity.NewCertificateAuthority(caCertificate, caKey)
+	ca, err := devicecert.NewCertificateAuthority(caCertificate, caKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +117,7 @@ func newFixture(t *testing.T, settings Settings) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info, err := identity.ParseCSR(csr)
+	info, err := devicecert.ParseCSR(csr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +130,7 @@ func newFixture(t *testing.T, settings Settings) *fixture {
 	leaf := parseCertificate(t, leafDER)
 	clock := &clock{value: time.Now()}
 	store := &credentialStore{value: domain.Credential{Ref: ref, Mode: domain.Regular, PublicKeyHash: info.PublicKeyHash, NotBefore: leaf.NotBefore, NotAfter: leaf.NotAfter}}
-	hub, err := NewHub(t.Context(), Config{GatewayID: "gateway-one", BootEpoch: "boot-one", Settings: settings}, store, clock.now)
+	hub, err := newTestHub(t, t.Context(), Config{GatewayID: "gateway-one", BootEpoch: "boot-one", Settings: settings, EnableWireV2: enableV2}, store, clock.now)
 	if err != nil {
 		t.Fatal(err)
 	}

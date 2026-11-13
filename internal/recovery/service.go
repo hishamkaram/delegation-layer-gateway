@@ -12,12 +12,16 @@ import (
 
 type Store interface {
 	exchangeStore
+	namespaceStore
+}
+
+type namespaceStore interface {
 	PrepareRecoveryBarrier(context.Context, domain.BarrierPreparation) (domain.BarrierPlan, error)
 	CheckReopen(context.Context, domain.ReopenCheck) error
 }
 
 type Service struct {
-	store   Store
+	store   namespaceStore
 	wire    *client
 	gateway domain.GatewayID
 }
@@ -56,12 +60,16 @@ func (s *Service) Inspect(ctx context.Context, route domain.Destination, expecte
 // InspectRoot verifies namespace state without attesting a live project. Saved
 // task evidence and root recovery remain available after project removal.
 func (s *Service) InspectRoot(ctx context.Context, route domain.Destination, expected domain.RootGuard) (protocol.RootCapability, domain.Transmission, error) {
+	return s.inspectRoot(ctx, controlRoute{project: &route}, expected)
+}
+
+func (s *Service) inspectRoot(ctx context.Context, route controlRoute, expected domain.RootGuard) (protocol.RootCapability, domain.Transmission, error) {
 	body, err := protocol.Encode(protocol.InspectRequest{GatewayID: string(s.gateway), RootOnly: true}, protocol.MaxFrameBytes)
 	if err != nil || domain.ContextToken(string(expected)) != nil {
 		return protocol.RootCapability{}, domain.Transmission{}, domain.ErrInvalid
 	}
 	var report protocol.RootCapability
-	_, tx, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.ContextInspect, Project: string(route.Project), Body: body}, func(context.Context, domain.Transmission) error { return nil }, func(reply protocol.Reply, _ domain.Transmission) error {
+	_, tx, err := s.wire.exchangeRoute(ctx, route, route.command(protocol.ContextInspect, body), func(context.Context, domain.Transmission) error { return nil }, func(reply protocol.Reply, _ domain.Transmission) error {
 		var candidate protocol.RootCapability
 		if protocol.DecodeStrict(reply.Body, &candidate, protocol.MaxFrameBytes) != nil || candidate.Validate() != nil || candidate.Root != string(expected) || (candidate.Origin != nil && candidate.Origin.GatewayID != string(s.gateway)) {
 			return domain.Reject(domain.EvidenceInvalid)
@@ -78,7 +86,11 @@ func (s *Service) InspectRoot(ctx context.Context, route domain.Destination, exp
 // Barrier persists the expected and replacement generations before any send.
 // Its queued guard accepts only the same durable plan and live connection.
 func (s *Service) Barrier(ctx context.Context, route domain.Destination, input domain.BarrierPreparation) (protocol.OriginStateReport, error) {
-	if route.Device != input.Destination.Device || route.Validate() != nil {
+	return s.barrier(ctx, controlRoute{project: &route}, input)
+}
+
+func (s *Service) barrier(ctx context.Context, route controlRoute, input domain.BarrierPreparation) (protocol.OriginStateReport, error) {
+	if route.validate() != nil || route.device() != input.Destination.Device {
 		return protocol.OriginStateReport{}, domain.ErrInvalid
 	}
 	plan, err := s.store.PrepareRecoveryBarrier(ctx, input)
@@ -90,7 +102,7 @@ func (s *Service) Barrier(ctx context.Context, route domain.Destination, input d
 		return protocol.OriginStateReport{}, err
 	}
 	var report protocol.OriginStateReport
-	_, _, err = s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginBarrier, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
+	_, _, err = s.wire.exchangeRoute(ctx, route, route.command(protocol.OriginBarrier, body), func(call context.Context, tx domain.Transmission) error {
 		if tx.Credential != input.Credential || tx.Connection != input.Connection {
 			return domain.Reject(domain.Conflict)
 		}
@@ -118,7 +130,11 @@ func (s *Service) Barrier(ctx context.Context, route domain.Destination, input d
 // Reopen cannot bypass Registry approval: every send rechecks its revision,
 // complete inventory receipt and exact authenticated destination.
 func (s *Service) Reopen(ctx context.Context, route domain.Destination, expectedRoot domain.RootGuard, target domain.ReopenTarget) (protocol.OriginStateReport, error) {
-	if route.Validate() != nil || route.Device != target.Destination.Device || domain.ContextToken(string(expectedRoot)) != nil || expectedRoot != target.Destination.Root {
+	return s.reopen(ctx, controlRoute{project: &route}, expectedRoot, target)
+}
+
+func (s *Service) reopen(ctx context.Context, route controlRoute, expectedRoot domain.RootGuard, target domain.ReopenTarget) (protocol.OriginStateReport, error) {
+	if route.validate() != nil || route.device() != target.Destination.Device || domain.ContextToken(string(expectedRoot)) != nil || expectedRoot != target.Destination.Root {
 		return protocol.OriginStateReport{}, domain.ErrInvalid
 	}
 	body, err := protocol.Encode(protocol.OriginReopenRequest{GatewayID: string(s.gateway), RecoveryID: string(target.Destination.Recovery), Generation: string(target.Generation), CompletenessReceipt: hex.EncodeToString(target.Completeness[:]), ExpectedRoot: string(target.Destination.Root)}, protocol.MaxFrameBytes)
@@ -126,7 +142,7 @@ func (s *Service) Reopen(ctx context.Context, route domain.Destination, expected
 		return protocol.OriginStateReport{}, err
 	}
 	var reopened protocol.OriginStateReport
-	_, _, err = s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginReopen, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
+	_, _, err = s.wire.exchangeRoute(ctx, route, route.command(protocol.OriginReopen, body), func(call context.Context, tx domain.Transmission) error {
 		return s.store.CheckReopen(call, domain.ReopenCheck{Target: target, Credential: tx.Credential, Connection: tx.Connection, Now: tx.Now})
 	}, func(reply protocol.Reply, _ domain.Transmission) error {
 		var acceptErr error
@@ -138,7 +154,7 @@ func (s *Service) Reopen(ctx context.Context, route domain.Destination, expected
 	}
 	// Only root namespace evidence is needed here. Project availability and
 	// execution readiness are separate, including when every workspace is gone.
-	current, _, err := s.InspectRoot(ctx, route, expectedRoot)
+	current, _, err := s.inspectRoot(ctx, route, expectedRoot)
 	if err != nil {
 		return protocol.OriginStateReport{}, err
 	}
@@ -164,7 +180,11 @@ func (s *Service) Inventory(ctx context.Context, route domain.Destination, plan 
 }
 
 func (s *Service) inventory(ctx context.Context, route domain.Destination, plan domain.BarrierPlan, cursor string) (protocol.OriginInventoryReport, domain.Transmission, error) {
-	if route.Validate() != nil || route.Device != plan.Destination.Device {
+	return s.inventoryRoute(ctx, controlRoute{project: &route}, plan, cursor)
+}
+
+func (s *Service) inventoryRoute(ctx context.Context, route controlRoute, plan domain.BarrierPlan, cursor string) (protocol.OriginInventoryReport, domain.Transmission, error) {
+	if route.validate() != nil || route.device() != plan.Destination.Device {
 		return protocol.OriginInventoryReport{}, domain.Transmission{}, domain.ErrInvalid
 	}
 	request := protocol.OriginInventoryRequest{GatewayID: string(s.gateway), Generation: string(plan.Generation), Cursor: cursor, Limit: domain.MaxPageLimit, ExpectedRoot: string(plan.Destination.Root)}
@@ -173,7 +193,7 @@ func (s *Service) inventory(ctx context.Context, route domain.Destination, plan 
 		return protocol.OriginInventoryReport{}, domain.Transmission{}, err
 	}
 	var report protocol.OriginInventoryReport
-	_, transmission, err := s.wire.exchange(ctx, route, protocol.Command{Operation: protocol.OriginInventory, Project: string(route.Project), Body: body}, func(call context.Context, tx domain.Transmission) error {
+	_, transmission, err := s.wire.exchangeRoute(ctx, route, route.command(protocol.OriginInventory, body), func(call context.Context, tx domain.Transmission) error {
 		current, checkErr := s.store.PrepareRecoveryBarrier(call, domain.BarrierPreparation{Destination: plan.Destination, Credential: tx.Credential, Connection: tx.Connection, ExpectedGeneration: plan.ExpectedGeneration, Now: tx.Now})
 		if checkErr != nil {
 			return checkErr

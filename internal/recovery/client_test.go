@@ -37,6 +37,53 @@ func (s *testStore) CheckConnection(context.Context, domain.CredentialRef, domai
 
 func (s *testStore) AcquireRouting(context.Context, routing.Request) error { s.acquired++; return nil }
 
+type timedAuthorityStore struct {
+	*testStore
+	now            time.Time
+	credentialTime time.Time
+}
+
+func (s *timedAuthorityStore) AuthorizeAdministrative(ctx context.Context) error {
+	err := s.testStore.AuthorizeAdministrative(ctx)
+	s.now = s.now.Add(time.Minute)
+	return err
+}
+
+func (s *timedAuthorityStore) CheckConnection(ctx context.Context, ref domain.CredentialRef, generation domain.ConnectionGeneration, when time.Time) (domain.Credential, error) {
+	s.credentialTime = when
+	return s.testStore.CheckConnection(ctx, ref, generation, when)
+}
+
+func TestAdministrativeConnectionGuardPreservesDecisionAndPostAuthorityClock(t *testing.T) {
+	for _, probe := range []struct {
+		name              string
+		admin, connection bool
+		decision          routing.AuthorizationDecision
+	}{
+		{"admin-denied", false, true, routing.DeniedOrMissing},
+		{"credential-denied", true, false, routing.Allowed},
+		{"allowed", true, true, routing.Allowed},
+	} {
+		t.Run(probe.name, func(t *testing.T) {
+			store := &timedAuthorityStore{testStore: &testStore{admin: probe.admin, connection: probe.connection}, now: time.Unix(100, 0)}
+			check := administrativeConnectionCheck(store, func() time.Time { return store.now })
+			decision, when, err := check(t.Context(), domain.Transmission{})
+			if decision != probe.decision || (err == nil) != (probe.admin && probe.connection) {
+				t.Fatal("guard changed authorization meaning")
+			}
+			if !probe.admin {
+				if !store.credentialTime.IsZero() || !when.IsZero() {
+					t.Fatal("denied admin reached credential check")
+				}
+				return
+			}
+			if !when.Equal(time.Unix(160, 0)) || !store.credentialTime.Equal(when) {
+				t.Fatal("credential check used a timestamp before administrative authorization")
+			}
+		})
+	}
+}
+
 type testLink struct {
 	r        *testReservation
 	reserved int
@@ -215,7 +262,8 @@ func checkExchangePhase(t *testing.T, phase string) {
 	store := &testStore{admin: true, connection: true}
 	reservation := &testReservation{reply: protocol.Reply{Operation: protocol.ContextInspect, Body: []byte(`{"value":true}`)}}
 	link := &testLink{r: reservation}
-	c := &client{observer: gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}), store: store, link: link, now: func() time.Time { return time.Unix(100, 0) }, random: strings.NewReader(strings.Repeat("x", 16))}
+	now := func() time.Time { return time.Unix(100, 0) }
+	c := &client{observer: gateway.RoutingObserverFunc(func(gateway.RoutingObservation) {}), store: store, authorize: store.AuthorizeAdministrative, authorizeConnection: administrativeConnectionCheck(store, now), link: link, now: now, random: strings.NewReader(strings.Repeat("x", 16))}
 	switch phase {
 	case "initial":
 		store.admin = false

@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 )
 
 type authority struct {
-	ca    *identity.CertificateAuthority
+	ca    *devicecert.CertificateAuthority
 	roots *x509.CertPool
 	now   time.Time
 	ref   domain.CredentialRef
@@ -41,7 +41,7 @@ func newAuthority(t *testing.T) authority {
 	if parseErr != nil {
 		t.Fatal(parseErr)
 	}
-	ca, caErr := identity.NewCertificateAuthority(cert, key)
+	ca, caErr := devicecert.NewCertificateAuthority(cert, key)
 	if caErr != nil {
 		t.Fatal(caErr)
 	}
@@ -52,7 +52,7 @@ func newAuthority(t *testing.T) authority {
 
 func (a authority) sign(t *testing.T, csr []byte, serial int64, ref domain.CredentialRef) []byte {
 	t.Helper()
-	info, parseErr := identity.ParseCSR(csr)
+	info, parseErr := devicecert.ParseCSR(csr)
 	if parseErr != nil {
 		t.Fatal(parseErr)
 	}
@@ -168,7 +168,7 @@ func TestReturnedMaterialsCannotMutateStoredIdentity(t *testing.T) {
 	if csrErr != nil {
 		t.Fatal(csrErr)
 	}
-	if _, parseErr := identity.ParseCSR(again); parseErr != nil {
+	if _, parseErr := devicecert.ParseCSR(again); parseErr != nil {
 		t.Fatal("caller mutated stored CSR")
 	}
 	pending, beginErr := store.BeginRenewal(a.ref, rand.Reader)
@@ -180,7 +180,7 @@ func TestReturnedMaterialsCannotMutateStoredIdentity(t *testing.T) {
 	if pendingErr != nil {
 		t.Fatal(pendingErr)
 	}
-	if _, parseErr := identity.ParseCSR(retained.CSRDER); parseErr != nil {
+	if _, parseErr := devicecert.ParseCSR(retained.CSRDER); parseErr != nil {
 		t.Fatal("caller mutated stored renewal")
 	}
 	pair, _, pairErr := store.Certificate(a.roots, a.now)
@@ -243,8 +243,8 @@ func assertStableRenewal(t *testing.T, first *Store, a authority, initialCSR []b
 	if repeatErr != nil || again.ID != intent.ID || !bytes.Equal(again.CSRDER, intent.CSRDER) {
 		t.Fatal("renewal retry changed persisted request")
 	}
-	initialInfo, initialErr := identity.ParseCSR(initialCSR)
-	renewInfo, renewErr := identity.ParseCSR(intent.CSRDER)
+	initialInfo, initialErr := devicecert.ParseCSR(initialCSR)
+	renewInfo, renewErr := devicecert.ParseCSR(intent.CSRDER)
 	if initialErr != nil || renewErr != nil || initialInfo.PublicKeyHash != renewInfo.PublicKeyHash || len(intent.ID) != 32 {
 		t.Fatal("renewal rotated key or invalid identity")
 	}

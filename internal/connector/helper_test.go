@@ -48,6 +48,7 @@ type (
 		Refused             bool
 		CancelTaskFault     string
 		CancelRootFault     string
+		ProjectToken        string
 	}
 	helperCall struct {
 		Command                 string
@@ -278,7 +279,7 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 	for index < len(args) {
 		name := strings.TrimPrefix(args[index], "--")
 		index++
-		if name == "json" || name == "resume-admission" || name == "fence-if-absent" {
+		if name == "json" || name == "resume-admission" || name == "fence-if-absent" || name == "include-workspace-constraint" {
 			flags[name] = "true"
 			continue
 		}
@@ -294,14 +295,7 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 }
 
 func helperResponse(flags map[string]string, command, task, action string, state helperState) map[string]any {
-	features := []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}
-	if state.Features != nil {
-		features = state.Features
-	}
-	if state.Disabled {
-		features = []string{}
-	}
-	connector := map[string]any{"contract_version": 1, "features": features, "root_token": strings.Repeat("a", 64), "project_token": "local-project-token-PRIVATE-CANARY"}
+	connector := helperConnectorHeader(flags, state)
 	response := map[string]any{"schema_version": 1, "command": command, "root_id": "fixture-root-a", "admission": "unknown", "liveness": "undetermined", "publication": "unknown", "connector": connector}
 	if command == "context" {
 		helperContextResponse(flags, state, response, connector)
@@ -389,7 +383,7 @@ func helperContextResponse(flags map[string]string, state helperState, response,
 		if state.LiveProjectMismatch {
 			connector["project_token"] = "replacement-project-PRIVATE-CANARY"
 		}
-	} else {
+	} else if flags["expected-workspace"] == "" {
 		delete(connector, "project_token")
 		if state.ContextFault == "project" {
 			connector["project_token"] = "unexpected-project"
@@ -445,6 +439,7 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 	if !ok {
 		return false
 	}
+	helperAttachWorkspace(flags, receipt)
 	switch state.ReceiptFault {
 	case "root-header":
 		connector["root_token"] = strings.Repeat("f", 64)
@@ -502,4 +497,26 @@ func helperOriginGeneration(state helperState) string {
 		return state.OriginGeneration
 	}
 	return "origin-one"
+}
+
+func helperConnectorHeader(flags map[string]string, state helperState) map[string]any {
+	features := []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}
+	if state.Features != nil {
+		features = state.Features
+	}
+	if state.Disabled {
+		features = []string{}
+	}
+	connector := map[string]any{"contract_version": 1, "features": features, "root_token": strings.Repeat("a", 64), "project_token": "local-project-token-PRIVATE-CANARY"}
+	if state.ProjectToken != "" {
+		connector["project_token"] = state.ProjectToken
+	}
+	helperAttachWorkspace(flags, connector)
+	return connector
+}
+
+func helperAttachWorkspace(flags map[string]string, target map[string]any) {
+	if flags["expected-workspace"] != "" {
+		target["workspace_constraint"] = map[string]string{"token": flags["expected-workspace"], "relative_project": flags["relative-project"]}
+	}
 }

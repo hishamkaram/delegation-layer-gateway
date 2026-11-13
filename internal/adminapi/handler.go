@@ -67,6 +67,13 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/v1/devices/enrollment-tokens" {
+		serve(w, r, http.MethodPost, h.createOwnedEnrollment)
+		return
+	}
+	if h.ownerPolicyRoute(w, r) {
+		return
+	}
 	if h.recoveryRoute(w, r) {
 		return
 	}

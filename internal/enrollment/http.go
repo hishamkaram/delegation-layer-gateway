@@ -10,31 +10,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpguard"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
-const MaxEnrollmentBodyBytes = 32 << 10
+const MaxEnrollmentBodyBytes = protocol.MaxEnrollmentBodyBytes
+
+type Redeemer interface {
+	Redeem(context.Context, string, []byte) (domain.CertificateReceipt, error)
+}
 
 type (
-	Redeemer interface {
-		Redeem(context.Context, string, []byte) (domain.CertificateReceipt, error)
-	}
-	EnrollmentRequest struct {
-		Token        string `json:"token"`
-		CSRDERBase64 string `json:"csr_der_base64"`
-	}
+	EnrollmentRequest  = protocol.EnrollmentRequest
+	EnrollmentResponse = protocol.EnrollmentResponse
 )
-
-type EnrollmentResponse struct {
-	DeviceID             string                `json:"device_id"`
-	Epoch                string                `json:"epoch"`
-	Generation           uint64                `json:"generation"`
-	Mode                 domain.CredentialMode `json:"mode"`
-	CertificateDERBase64 string                `json:"certificate_der_base64"`
-}
 
 // HTTPHandler must be mounted behind the configured HTTPS origin/body/request
 // guard. IPs are read only from the actual socket, never forwarded headers.
@@ -78,7 +69,7 @@ func (h *redemptionHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	csr, decodeErr := base64.StdEncoding.Strict().DecodeString(request.CSRDERBase64)
-	if decodeErr != nil || len(csr) == 0 || len(csr) > identity.MaxCSRBytes {
+	if decodeErr != nil || len(csr) == 0 || len(csr) > devicecert.MaxCSRBytes {
 		http.Error(w, "invalid_request", http.StatusBadRequest)
 		return
 	}
@@ -96,7 +87,7 @@ func (h *redemptionHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func enrollmentError(w http.ResponseWriter, err error) {
 	var failure *domain.Error
-	var certificateFailure *identity.Error
+	var certificateFailure *devicecert.Error
 	if errors.As(err, &failure) || errors.As(err, &certificateFailure) || errors.Is(err, domain.ErrInvalid) {
 		http.Error(w, "enrollment_denied", http.StatusForbidden)
 		return

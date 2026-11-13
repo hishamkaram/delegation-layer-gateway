@@ -150,15 +150,21 @@ const (
 	TaskDispatch  Scope = "task:dispatch"
 	TaskRead      Scope = "task:read"
 	TaskCancel    Scope = "task:cancel"
+	DeviceEnroll  Scope = "device:enroll"
+	DeviceManage  Scope = "device:manage"
 )
 
 func (s Scope) Validate() error {
 	switch s {
-	case InventoryRead, TaskDispatch, TaskRead, TaskCancel:
+	case InventoryRead, TaskDispatch, TaskRead, TaskCancel, DeviceEnroll, DeviceManage:
 		return nil
 	default:
 		return ErrInvalid
 	}
+}
+
+func (s Scope) IsTask() bool {
+	return s == InventoryRead || s == TaskDispatch || s == TaskRead || s == TaskCancel
 }
 
 type ScopeSet []Scope
@@ -173,7 +179,7 @@ func (s ScopeSet) Has(scope Scope) bool {
 }
 
 func (s ScopeSet) Validate() error {
-	if len(s) > 4 {
+	if len(s) > 6 {
 		return ErrInvalid
 	}
 	for i, scope := range s {

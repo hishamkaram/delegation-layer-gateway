@@ -19,6 +19,7 @@ type RoutingObserverFunc func(RoutingObservation)
 func (f RoutingObserverFunc) ObserveRouting(value RoutingObservation) { f(value) }
 
 type RoutingObservation struct {
+	RootOnly       bool
 	Principal      domain.PrincipalID
 	Destination    domain.Destination
 	Operation      domain.OperationID
@@ -42,11 +43,15 @@ type routingAttempt struct {
 }
 
 func (s *Service) startObservation(actor domain.Actor, class routing.ControlClass) *routingAttempt {
+	return newRoutingAttempt(s.observer, actor, class)
+}
+
+func newRoutingAttempt(observer RoutingObserver, actor domain.Actor, class routing.ControlClass) *routingAttempt {
 	principal := actor.Principal
 	if domain.Token(string(principal)) != nil {
 		principal = ""
 	}
-	return &routingAttempt{observer: s.observer, started: time.Now(), value: RoutingObservation{Principal: principal, Control: routing.ControlMetadata{Class: class, Actor: routing.PrincipalActor, Authorization: routing.NotEvaluated, Recheck: routing.NotEvaluated, Transport: routing.NotAttempted, TransferSnapshot: routing.TransferSnapshot{WriteState: routing.WriteNotStarted}}}}
+	return &routingAttempt{observer: observer, started: time.Now(), value: RoutingObservation{Principal: principal, Control: routing.ControlMetadata{Class: class, Actor: routing.PrincipalActor, Authorization: routing.NotEvaluated, Recheck: routing.NotEvaluated, Transport: routing.NotAttempted, TransferSnapshot: routing.TransferSnapshot{WriteState: routing.WriteNotStarted}}}}
 }
 
 func (a *routingAttempt) authorize(err error) {
@@ -145,6 +150,7 @@ func (a *routingAttempt) finish(err error) {
 	if a.value.Control.Authorization == routing.DeniedOrMissing || a.value.Control.Recheck == routing.DeniedOrMissing {
 		a.value.Destination = domain.Destination{}
 		a.value.Operation = ""
+		a.value.RootOnly = false
 	}
 	a.value.ResourceDenied = ResourceDeniedObservation(err)
 	a.value.Failed = err != nil
@@ -186,8 +192,12 @@ func (s *Service) observeAuthorizationFailure(actor domain.Actor, operation prot
 }
 
 func (s *Service) observeClassAuthorizationFailure(actor domain.Actor, class routing.ControlClass, err error) {
+	observeClassAuthorizationFailure(s.observer, actor, class, err)
+}
+
+func observeClassAuthorizationFailure(observer RoutingObserver, actor domain.Actor, class routing.ControlClass, err error) {
 	if AuthorizationObservation(err) == routing.DeniedOrMissing {
-		attempt := s.startObservation(actor, class)
+		attempt := newRoutingAttempt(observer, actor, class)
 		attempt.authorize(err)
 		attempt.finish(err)
 	}

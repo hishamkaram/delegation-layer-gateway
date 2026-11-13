@@ -99,8 +99,7 @@ CREATE TABLE IF NOT EXISTS root_admissions (device TEXT NOT NULL REFERENCES devi
 CREATE TABLE IF NOT EXISTS credential_epochs (epoch TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS recovery_destinations (recovery TEXT NOT NULL, device TEXT NOT NULL, root_guard TEXT NOT NULL, generation TEXT NOT NULL DEFAULT '', expected_generation TEXT NOT NULL DEFAULT '', barrier BLOB, membership BLOB, cursor TEXT NOT NULL DEFAULT '', started INTEGER NOT NULL DEFAULT 0, finished INTEGER NOT NULL DEFAULT 0, completeness BLOB, approved INTEGER NOT NULL DEFAULT 0, reopened BLOB, PRIMARY KEY(recovery,device,root_guard));
 CREATE TABLE IF NOT EXISTS inventory_pages (recovery TEXT NOT NULL, device TEXT NOT NULL, root_guard TEXT NOT NULL, cursor TEXT NOT NULL, digest BLOB NOT NULL, PRIMARY KEY(recovery,device,root_guard,cursor));
-PRAGMA user_version=7;
-`
+` + ownershipSchema + projectResolutionSchema
 
 func (s *Store) validateExisting(ctx context.Context, expected domain.GatewayID) error {
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) {
@@ -108,10 +107,16 @@ func (s *Store) validateExisting(ctx context.Context, expected domain.GatewayID)
 		if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 			return struct{}{}, err
 		}
-		if version != 7 {
+		if version != 9 {
 			return struct{}{}, fmt.Errorf("registry schema requires explicit initialization or offline migration: %w", domain.Reject(domain.Conflict))
 		}
 		if _, err := validateRegistryAuthority(ctx, tx, expected); err != nil {
+			return struct{}{}, err
+		}
+		if err := verifyOwnershipSchema(ctx, tx); err != nil {
+			return struct{}{}, err
+		}
+		if err := verifyProjectResolutionSchema(ctx, tx); err != nil {
 			return struct{}{}, err
 		}
 		return struct{}{}, verifyRoutingConstraints(ctx, tx)

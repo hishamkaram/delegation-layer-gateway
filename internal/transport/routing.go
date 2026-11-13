@@ -29,13 +29,13 @@ func controlCall(frame protocol.Frame, operation protocol.Operation) protocol.Co
 	return protocol.ControlCall{Generation: frame.Generation, RequestID: frame.RequestID, OperationID: frame.OperationID, Operation: operation, RequestSHA256: hex.EncodeToString(hash[:])}
 }
 
-func (h *Hub) routingHandshake(ctx context.Context, s *session) error {
+func (h *Server) routingHandshake(ctx context.Context, s *session) error {
 	frame, readErr := s.readHandshake(ctx)
 	if readErr != nil {
 		return readErr
 	}
 	var inventory protocol.ControlInventory
-	if frame.Type != protocol.RoutingInventory || frame.RequestID != "routing" || frame.OperationID != "" || protocol.DecodeStrict(frame.Payload, &inventory, MaxProtectedFrameBytes) != nil || inventory.Validate() != nil || inventory.Generation != wireGeneration(s.generation) {
+	if frame.Type != protocol.RoutingInventory || frame.RequestID != "routing" || frame.OperationID != "" || protocol.DecodeStrict(frame.Payload, &inventory, MaxProtectedFrameBytes) != nil || inventory.ValidateVersion(s.wireVersion) != nil || inventory.Generation != wireGeneration(s.generation) {
 		return fail(ErrProtocol, nil)
 	}
 	status, reconcileErr := s.routing.ReconcileRouting(ctx, s.ref, inventory, s.now())
@@ -55,7 +55,7 @@ func (h *Hub) routingHandshake(ctx context.Context, s *session) error {
 	s.routingReady = ack.Ready
 	s.routingAck = ack
 	s.mu.Unlock()
-	return s.writeHandshake(ctx, protocol.Frame{Version: protocol.Version, Type: protocol.RoutingInventoryAck, RequestID: "routing", Generation: inventory.Generation, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: encoded})
+	return s.writeHandshake(ctx, protocol.Frame{Version: s.wireVersion, Type: protocol.RoutingInventoryAck, RequestID: "routing", Generation: inventory.Generation, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: encoded})
 }
 
 func (c *Client) routingHandshake(ctx context.Context) error {
@@ -64,14 +64,14 @@ func (c *Client) routingHandshake(ctx context.Context) error {
 	if inventoryErr != nil {
 		return fail(ErrNotReady, inventoryErr)
 	}
-	if inventory.Validate() != nil || inventory.Generation != wireGeneration(s.generation) {
+	if inventory.ValidateVersion(s.wireVersion) != nil || inventory.Generation != wireGeneration(s.generation) {
 		return fail(ErrProtocol, nil)
 	}
 	encoded, encodeErr := protocol.Encode(inventory, MaxProtectedFrameBytes)
 	if encodeErr != nil {
 		return fail(ErrProtocol, encodeErr)
 	}
-	frame := protocol.Frame{Version: protocol.Version, Type: protocol.RoutingInventory, RequestID: "routing", Generation: inventory.Generation, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: encoded}
+	frame := protocol.Frame{Version: s.wireVersion, Type: protocol.RoutingInventory, RequestID: "routing", Generation: inventory.Generation, TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: encoded}
 	if writeErr := s.writeHandshake(ctx, frame); writeErr != nil {
 		return writeErr
 	}

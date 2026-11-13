@@ -128,8 +128,8 @@ func (r AuthorizationRequest) Validate() error {
 	if err := r.Destination.Validate(); err != nil {
 		return err
 	}
-	if err := r.Scope.Validate(); err != nil {
-		return err
+	if !r.Scope.IsTask() {
+		return ErrInvalid
 	}
 	if !r.Actor.Scopes.Has(r.Scope) {
 		return Reject(Forbidden)
@@ -149,6 +149,11 @@ func (g Grant) Validate() error {
 	}
 	if len(g.Scopes) == 0 {
 		return ErrInvalid
+	}
+	for _, scope := range g.Scopes {
+		if !scope.IsTask() {
+			return ErrInvalid
+		}
 	}
 	if g.Scopes.Has(TaskDispatch) {
 		return g.Ceiling.Validate()
@@ -583,6 +588,7 @@ const (
 type RootInitializationStart struct {
 	Route           Destination
 	ExpectedContext ContextBinding
+	RootRoute       *RootRoute
 	Credential      CredentialRef
 	Connection      ConnectionGeneration
 	Now             time.Time
@@ -591,11 +597,13 @@ type (
 	RootInitializationLookup struct {
 		Route           Destination
 		ExpectedContext ContextBinding
+		RootRoute       *RootRoute
 	}
 	RootInitializationProgress struct {
 		GatewayID    GatewayID
 		Route        Destination
 		Context      ContextBinding
+		RootRoute    *RootRoute
 		RecoveryID   RecoveryID
 		Generation   AdmissionGeneration
 		Stage        RootInitializationStage

@@ -44,8 +44,8 @@ func TestOfflineMigrateReportsIdentityAndCurrentVersion(t *testing.T) {
 		To      int    `json:"to_version"`
 	}
 	require(t, json.Unmarshal([]byte(output), &result))
-	if result.Gateway == "" || result.From != 7 || result.To != 7 {
-		t.Fatal("current database migration did not report stable schema7")
+	if result.Gateway == "" || result.From != 9 || result.To != 9 {
+		t.Fatal("current database migration did not report stable schema9")
 	}
 	var original struct {
 		Gateway string `json:"gateway_id"`

@@ -1,4 +1,4 @@
-package identity_test
+package devicecert_test
 
 import (
 	"context"
@@ -7,13 +7,14 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 )
 
 func ecKey(t *testing.T, curve elliptic.Curve) *ecdsa.PrivateKey {
@@ -25,7 +26,7 @@ func ecKey(t *testing.T, curve elliptic.Curve) *ecdsa.PrivateKey {
 	return key
 }
 
-func certificateAuthority(t *testing.T) (*identity.CertificateAuthority, *x509.Certificate) {
+func certificateAuthority(t *testing.T) (*devicecert.CertificateAuthority, *x509.Certificate) {
 	t.Helper()
 	key := ecKey(t, elliptic.P256())
 	now := time.Now().UTC().Truncate(time.Second)
@@ -38,7 +39,7 @@ func certificateAuthority(t *testing.T) (*identity.CertificateAuthority, *x509.C
 	if err != nil {
 		t.Fatal(err)
 	}
-	ca, err := identity.NewCertificateAuthority(certificate, key)
+	ca, err := devicecert.NewCertificateAuthority(certificate, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestSignReservedCredentialAndVerifyTLSClient(t *testing.T) {
 	key := ecKey(t, elliptic.P256())
 	request := csr(t, key, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "ignored CSR subject"}})
 	intent := issuance(t, key, request)
-	info, err := identity.ParseCSR(request)
+	info, err := devicecert.ParseCSR(request)
 	if err != nil || info.CSRHash != intent.CSRHash || info.PublicKeyHash != intent.PublicKeyHash {
 		t.Fatalf("CSR reservation hashes=%+v error=%v", info, err)
 	}
@@ -94,7 +95,7 @@ func assertReservedCertificate(t *testing.T, leaf, parent *x509.Certificate, int
 	if _, serverErr := leaf.Verify(x509.VerifyOptions{Roots: roots, CurrentTime: intent.NotBefore.Add(time.Hour), KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); serverErr == nil {
 		t.Fatal("client identity accepted for server authentication")
 	}
-	ref, err := identity.CredentialFromCertificate(leaf)
+	ref, err := devicecert.CredentialFromCertificate(leaf)
 	if err != nil || ref != intent.Credential {
 		t.Fatalf("binding=%+v error=%v", ref, err)
 	}
@@ -139,17 +140,17 @@ func TestSigningRejectsUntrustedCSRAndConflictingIntent(t *testing.T) {
 			intent := good
 			test.change(&intent)
 			_, err := ca.Sign(t.Context(), intent, request, new(big.Int).SetBytes(intent.Serial), rand.Reader)
-			requireCode(t, err, identity.InvalidCertificate)
+			requireCode(t, err, devicecert.InvalidCertificate)
 		})
 	}
 	_, err := ca.Sign(t.Context(), good, request, big.NewInt(999), rand.Reader)
-	requireCode(t, err, identity.InvalidCertificate)
+	requireCode(t, err, devicecert.InvalidCertificate)
 	_, err = ca.Sign(t.Context(), good, request, new(big.Int).SetBytes(good.Serial), nil)
-	requireCode(t, err, identity.InvalidCertificate)
+	requireCode(t, err, devicecert.InvalidCertificate)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = ca.Sign(ctx, good, request, new(big.Int).SetBytes(good.Serial), rand.Reader)
-	requireCode(t, err, identity.SigningFailed)
+	requireCode(t, err, devicecert.SigningFailed)
 	for _, test := range []struct {
 		name     string
 		key      *ecdsa.PrivateKey
@@ -162,19 +163,19 @@ func TestSigningRejectsUntrustedCSRAndConflictingIntent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			req := csr(t, test.key, test.template)
 			intent := issuance(t, test.key, req)
-			_, parseErr := identity.ParseCSR(req)
-			requireCode(t, parseErr, identity.InvalidCertificate)
+			_, parseErr := devicecert.ParseCSR(req)
+			requireCode(t, parseErr, devicecert.InvalidCertificate)
 			_, signErr := ca.Sign(t.Context(), intent, req, new(big.Int).SetBytes(intent.Serial), rand.Reader)
-			requireCode(t, signErr, identity.InvalidCertificate)
+			requireCode(t, signErr, devicecert.InvalidCertificate)
 		})
 	}
 	corrupt := append([]byte(nil), request...)
 	corrupt[len(corrupt)-1] ^= 1
 	intent := issuance(t, key, corrupt)
-	_, parseErr := identity.ParseCSR(corrupt)
-	requireCode(t, parseErr, identity.InvalidCertificate)
+	_, parseErr := devicecert.ParseCSR(corrupt)
+	requireCode(t, parseErr, devicecert.InvalidCertificate)
 	_, err = ca.Sign(t.Context(), intent, corrupt, new(big.Int).SetBytes(intent.Serial), rand.Reader)
-	requireCode(t, err, identity.InvalidCertificate)
+	requireCode(t, err, devicecert.InvalidCertificate)
 }
 
 func TestCredentialParserRejectsAlternateBindings(t *testing.T) {
@@ -192,25 +193,33 @@ func TestCredentialParserRejectsAlternateBindings(t *testing.T) {
 		{"extra identity", func(c *x509.Certificate) { c.URIs = append(c.URIs, &url.URL{Scheme: "urn", Opaque: "extra"}) }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			uris, err := identity.CredentialURIs(ref)
+			uris, err := devicecert.CredentialURIs(ref)
 			if err != nil {
 				t.Fatal(err)
 			}
 			leaf := &x509.Certificate{KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, URIs: uris}
 			test.change(leaf)
-			_, err = identity.CredentialFromCertificate(leaf)
-			requireCode(t, err, identity.InvalidCertificate)
+			_, err = devicecert.CredentialFromCertificate(leaf)
+			requireCode(t, err, devicecert.InvalidCertificate)
 		})
 	}
 	_, parent := certificateAuthority(t)
 	other := ecKey(t, elliptic.P256())
-	_, err := identity.NewCertificateAuthority(parent, other)
-	requireCode(t, err, identity.InvalidConfiguration)
+	_, err := devicecert.NewCertificateAuthority(parent, other)
+	requireCode(t, err, devicecert.InvalidConfiguration)
 }
 
 func TestParseCSRRejectsMalformedAndOversizedDER(t *testing.T) {
-	for _, encoded := range [][]byte{nil, {1, 2, 3}, make([]byte, identity.MaxCSRBytes+1)} {
-		_, err := identity.ParseCSR(encoded)
-		requireCode(t, err, identity.InvalidCertificate)
+	for _, encoded := range [][]byte{nil, {1, 2, 3}, make([]byte, devicecert.MaxCSRBytes+1)} {
+		_, err := devicecert.ParseCSR(encoded)
+		requireCode(t, err, devicecert.InvalidCertificate)
+	}
+}
+
+func requireCode(t *testing.T, err error, code devicecert.ErrorCode) {
+	t.Helper()
+	var typed *devicecert.Error
+	if !errors.As(err, &typed) || typed.Code != code {
+		t.Fatalf("expected code %s, got %v", code, err)
 	}
 }

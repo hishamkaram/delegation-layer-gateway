@@ -1,4 +1,4 @@
-package transport
+package devicehub
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/transport"
 )
 
 func TestConnectionFailureWithoutVerifiedIdentity(t *testing.T) {
@@ -33,21 +34,32 @@ func TestConnectionFailureWithoutVerifiedIdentity(t *testing.T) {
 type observedConnection struct {
 	value     ConnectionObservation
 	locksFree bool
+	joined    bool
 }
 
-func observeConnectionLocks(h *Hub, value ConnectionObservation) bool {
+func observeConnectionLocks(f *fixture, value ConnectionObservation) bool {
+	h := f.hub
 	if !h.mu.TryLock() {
 		return false
 	}
-	s := h.sessions[value.Credential.Device]
 	h.mu.Unlock()
-	if s != nil {
-		if !s.mu.TryLock() {
-			return false
-		}
-		s.mu.Unlock()
+	done := make(chan error, 1)
+	f.probes.Add(1)
+	go func() { defer f.probes.Done(); _, err := h.Snapshot(value.Credential.Device); done <- err }()
+	select {
+	case err := <-done:
+		return err == nil || errors.Is(err, transport.ErrOffline)
+	case <-time.After(time.Second):
+		return false
 	}
-	return true
+}
+
+func observed(f *fixture, value ConnectionObservation) observedConnection {
+	snapshot, err := f.hub.Snapshot(value.Credential.Device)
+	if err != nil {
+		return observedConnection{value: value, locksFree: observeConnectionLocks(f, value)}
+	}
+	return observedConnection{value: value, locksFree: observeConnectionLocks(f, value), joined: snapshot.Joined}
 }
 
 func nextConnection(t *testing.T, events <-chan observedConnection) observedConnection {
@@ -65,28 +77,22 @@ func TestConnectionObservationsBindJoinedSessionOutsideMutexes(t *testing.T) {
 	f := newFixture(t, Settings{})
 	events := make(chan observedConnection, 2)
 	f.hub.config.ConnectionObserved = func(value ConnectionObservation) {
-		events <- observedConnection{value: value, locksFree: observeConnectionLocks(f.hub, value)}
+		events <- observed(f, value)
 	}
 	client := f.dial(t)
 	established := nextConnection(t, events)
 	if established.value.State != ConnectionEstablished || !established.locksFree || established.value.Credential != f.store.value.Ref || established.value.Generation != client.Generation() {
 		t.Fatal("established observation lost verified binding or held an owner mutex")
 	}
-	s, err := f.hub.current("device-one")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = client.Close(); err != nil {
+	if err := client.Close(); err != nil {
 		t.Fatal(err)
 	}
 	closed := nextConnection(t, events)
 	if closed.value.State != ConnectionClosed || !closed.locksFree || closed.value.Credential != established.value.Credential || closed.value.Generation != established.value.Generation || closed.value.Duration < established.value.Duration {
 		t.Fatal("closed observation lost the original connection or held an owner mutex")
 	}
-	select {
-	case <-s.done:
-	default:
-		t.Fatal("closed observation preceded the original session worker join")
+	if !closed.joined {
+		t.Fatal("closed observation preceded the original socket worker join")
 	}
 }
 
@@ -116,7 +122,7 @@ func TestConnectionFailedHandshakeNeverAdvertisesEstablishedOrClosed(t *testing.
 	f := newFixture(t, Settings{})
 	events := make(chan observedConnection, 3)
 	f.hub.config.ConnectionObserved = func(value ConnectionObservation) {
-		events <- observedConnection{value: value, locksFree: observeConnectionLocks(f.hub, value)}
+		events <- observed(f, value)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
@@ -150,16 +156,13 @@ func TestActiveConnectionsCountsOnlyReadyUnclosedOwner(t *testing.T) {
 	if f.hub.ActiveConnections() != 1 {
 		t.Fatal("ready connection was not counted")
 	}
-	s, err := f.hub.current("device-one")
-	if err != nil {
+	if err := f.hub.DisconnectContext(t.Context(), "device-one"); err != nil {
 		t.Fatal(err)
 	}
-	s.stop(fail(ErrOffline, nil))
 	if f.hub.ActiveConnections() != 0 {
-		t.Fatal("closing connection retained an active gauge slot")
+		t.Fatal("closed connection retained an active gauge slot")
 	}
-	waitClosed(t, s)
-	if err = f.hub.Close(); err != nil {
+	if err := f.hub.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if f.hub.ActiveConnections() != 0 {

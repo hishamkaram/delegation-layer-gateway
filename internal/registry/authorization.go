@@ -139,23 +139,26 @@ func (s *Store) SetDeviceRevoked(ctx context.Context, id domain.DeviceID, revoke
 		return err
 	}
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) {
-		device, err := readDevice(ctx, tx, id)
-		if err != nil || device.Revoked == revoked {
-			return struct{}{}, err
-		}
-		if device.CredentialGeneration >= math.MaxInt64 {
-			return struct{}{}, domain.Reject(domain.ResourceLimit)
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE devices SET revoked=?,credential_generation=credential_generation+1 WHERE id=?", revoked, id)
-		if err != nil {
-			return struct{}{}, err
-		}
-		if _, err = tx.ExecContext(ctx, "DELETE FROM credentials WHERE device=?", id); err != nil {
-			return struct{}{}, err
-		}
-		_, err = tx.ExecContext(ctx, "DELETE FROM enrollment WHERE device=?", id)
-		return struct{}{}, err
+		return struct{}{}, changeDeviceRevocation(ctx, tx, id, revoked)
 	})
+	return err
+}
+
+func changeDeviceRevocation(ctx context.Context, tx *sql.Tx, id domain.DeviceID, revoked bool) error {
+	device, err := readDevice(ctx, tx, id)
+	if err != nil || device.Revoked == revoked {
+		return err
+	}
+	if device.CredentialGeneration >= math.MaxInt64 {
+		return domain.Reject(domain.ResourceLimit)
+	}
+	if _, err = tx.ExecContext(ctx, "UPDATE devices SET revoked=?,credential_generation=credential_generation+1 WHERE id=?", revoked, id); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "DELETE FROM credentials WHERE device=?", id); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "DELETE FROM enrollment WHERE device=?", id)
 	return err
 }
 
@@ -187,6 +190,13 @@ func (s *Store) PutGrant(ctx context.Context, grant domain.Grant) error {
 		}
 		if device.Revoked {
 			return struct{}{}, domain.Reject(domain.Forbidden)
+		}
+		owner, ownerErr := deviceOwner(ctx, tx, device.ID)
+		if ownerErr != nil {
+			return struct{}{}, ownerErr
+		}
+		if owner != "" {
+			return struct{}{}, domain.Reject(domain.Conflict)
 		}
 		_, err = tx.ExecContext(ctx, "INSERT INTO grants(principal,device,project,value) VALUES(?,?,?,?) ON CONFLICT(principal,device,project) DO UPDATE SET value=excluded.value", grant.Key.Principal, grant.Key.Destination.Device, grant.Key.Destination.Project, value)
 		return struct{}{}, err
@@ -229,6 +239,13 @@ func authorize(ctx context.Context, tx *sql.Tx, request domain.AuthorizationRequ
 	if device.Revoked {
 		return result, domain.Reject(domain.NotFound)
 	}
+	owner, err := deviceOwner(ctx, tx, device.ID)
+	if err != nil {
+		return result, err
+	}
+	if owner != "" {
+		return authorizeOwned(ctx, tx, request, owner)
+	}
 	var value []byte
 	err = tx.QueryRowContext(ctx, "SELECT value FROM grants WHERE principal=? AND device=? AND project=?", request.Actor.Principal, request.Destination.Device, request.Destination.Project).Scan(&value)
 	if err != nil {
@@ -255,7 +272,6 @@ func (s *Store) Authorize(ctx context.Context, request domain.AuthorizationReque
 }
 
 func credential(ctx context.Context, tx *sql.Tx, ref domain.CredentialRef, now time.Time) (domain.Credential, error) {
-	var value []byte
 	if err := ref.Validate(); err != nil {
 		return domain.Credential{}, err
 	}
@@ -273,7 +289,15 @@ func credential(ctx context.Context, tx *sql.Tx, ref domain.CredentialRef, now t
 	if device.Revoked || ref.Epoch != epoch || ref.Generation != device.CredentialGeneration {
 		return domain.Credential{}, domain.Reject(domain.Forbidden)
 	}
-	if err = tx.QueryRowContext(ctx, "SELECT value FROM credentials WHERE device=? AND epoch=? AND generation=?", ref.Device, ref.Epoch, ref.Generation).Scan(&value); err != nil {
+	if err = checkDeviceOwner(ctx, tx, device.ID); err != nil {
+		return domain.Credential{}, err
+	}
+	return readCredential(ctx, tx, ref, now)
+}
+
+func readCredential(ctx context.Context, tx *sql.Tx, ref domain.CredentialRef, now time.Time) (domain.Credential, error) {
+	var value []byte
+	if err := tx.QueryRowContext(ctx, "SELECT value FROM credentials WHERE device=? AND epoch=? AND generation=?", ref.Device, ref.Epoch, ref.Generation).Scan(&value); err != nil {
 		return domain.Credential{}, notFound(err)
 	}
 	result, err := decode[domain.Credential](value)

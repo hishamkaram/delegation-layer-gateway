@@ -36,6 +36,16 @@ func (a *Adapter) device(ctx context.Context, actor domain.Actor, device domain.
 	if !snapshot.ObservedAt.IsZero() {
 		result.ObservedAt = &snapshot.ObservedAt
 	}
+	if snapshot.WireVersion == protocol.WireVersion2 {
+		if _, err = a.options.Registry.AuthorizeOwnedDevice(ctx, domain.OwnedDeviceRequest{Actor: actor, Device: device.ID, Scope: domain.InventoryRead}); err != nil {
+			return Device{}, err
+		}
+		result.DelegateReady = snapshot.CapabilitiesV2.Root != nil
+		if result.DelegateReady {
+			result.ExecutionReadiness = "unknown"
+		}
+		return result, nil
+	}
 	// Device-level readiness must not reveal a hidden project's capabilities.
 	// Authorize the bounded advertised set, rather than assuming the first
 	// registry page contains every advertised alias.
@@ -97,6 +107,9 @@ func (a *Adapter) capabilities(ctx context.Context, actor domain.Actor, input Ca
 	if !snapshot.ObservedAt.IsZero() {
 		result.ObservedAt = &snapshot.ObservedAt
 	}
+	if snapshot.WireVersion == protocol.WireVersion2 && a.options.Workspaces != nil {
+		return a.targetedCapabilities(ctx, actor, destination)
+	}
 	capability, found := findProject(snapshot, destination.Project)
 	if !found {
 		return result, nil
@@ -115,14 +128,19 @@ func (a *Adapter) capabilities(ctx context.Context, actor domain.Actor, input Ca
 func (a *Adapter) snapshot(device domain.DeviceID) (gateway.LinkSnapshot, bool, error) {
 	snapshot, err := a.options.Presence.Snapshot(device)
 	if err != nil {
-		var failure *gateway.RemoteError
-		if errors.As(err, &failure) && failure.Failure.Code == "device_offline" {
+		if soleDeviceOffline(err) {
 			return gateway.LinkSnapshot{}, false, nil
 		}
 		return snapshot, false, err
 	}
 	if snapshot.Credential.Device != device || snapshot.Credential.Validate() != nil || snapshot.Connection.Validate() != nil {
 		return snapshot, false, domain.Reject(domain.EvidenceInvalid)
+	}
+	if snapshot.WireVersion == protocol.WireVersion2 {
+		if snapshot.CapabilitiesV2 == nil || snapshot.CapabilitiesV2.Validate() != nil || snapshot.ObservedAt.IsZero() {
+			return snapshot, false, domain.Reject(domain.EvidenceInvalid)
+		}
+		return snapshot, true, nil
 	}
 	if snapshot.Capabilities.ObservedAt.IsZero() && len(snapshot.Capabilities.Projects) == 0 {
 		return snapshot, true, nil
@@ -131,6 +149,11 @@ func (a *Adapter) snapshot(device domain.DeviceID) (gateway.LinkSnapshot, bool, 
 		return snapshot, false, domain.Reject(domain.EvidenceInvalid)
 	}
 	return snapshot, true, nil
+}
+
+func soleDeviceOffline(err error) bool {
+	var failure *gateway.RemoteError
+	return errors.As(gateway.SoleError(err), &failure) && failure != nil && failure.Failure.Code == "device_offline"
 }
 
 func visibilityDenied(err error) bool {
@@ -228,6 +251,16 @@ func (a *Adapter) projectSummary(ctx context.Context, actor domain.Actor, projec
 	}
 	if !snapshot.ObservedAt.IsZero() {
 		entry.ObservedAt = &snapshot.ObservedAt
+	}
+	if snapshot.WireVersion == protocol.WireVersion2 {
+		if _, err := a.options.Registry.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: project.Destination, Scope: domain.InventoryRead}); err != nil {
+			return Project{}, err
+		}
+		entry.DelegateReady = snapshot.CapabilitiesV2.Root != nil
+		if entry.DelegateReady {
+			entry.ExecutionReadiness = "unknown"
+		}
+		return entry, nil
 	}
 	capability, found := findProject(snapshot, project.Destination.Project)
 	if !found {

@@ -80,15 +80,22 @@ type cliConnector struct {
 	ResultRange             *cliRange                  `json:"result_range,omitempty"`
 	ExecutionClosure        *protocol.ExecutionClosure `json:"execution_closure,omitempty"`
 	ExecutionClosurePending string                     `json:"execution_closure_pending,omitempty"`
+	WorkspaceConstraint     *workspaceConstraint       `json:"workspace_constraint,omitempty"`
 }
 type cliReceipt struct {
-	ExecutionOptions executionOptions `json:"execution_options"`
-	RootToken        string           `json:"root_token"`
-	ProjectToken     string           `json:"project_token"`
-	TaskID           string           `json:"task_id"`
-	Origin           protocol.Origin  `json:"origin"`
-	SpecSHA256       string           `json:"spec_sha256"`
-	BriefSHA256      string           `json:"brief_sha256"`
+	ExecutionOptions    executionOptions     `json:"execution_options"`
+	RootToken           string               `json:"root_token"`
+	ProjectToken        string               `json:"project_token"`
+	TaskID              string               `json:"task_id"`
+	Origin              protocol.Origin      `json:"origin"`
+	SpecSHA256          string               `json:"spec_sha256"`
+	BriefSHA256         string               `json:"brief_sha256"`
+	WorkspaceConstraint *workspaceConstraint `json:"workspace_constraint,omitempty"`
+}
+
+type workspaceConstraint struct {
+	Token           string `json:"token"`
+	RelativeProject string `json:"relative_project"`
 }
 type (
 	executionOptions struct {
@@ -177,9 +184,9 @@ type (
 	}
 )
 
-func decodeResponse(data []byte, command string) (cliResponse, error) {
+func decodeResponse(data []byte, command string, limit int) (cliResponse, error) {
 	var response cliResponse
-	if err := protocol.DecodeStrict(data, &response, MaxStdoutBytes); err != nil || response.SchemaVersion != 1 || response.Command != command {
+	if err := protocol.DecodeStrict(data, &response, limit); err != nil || response.SchemaVersion != 1 || response.Command != command {
 		return cliResponse{}, ErrEvidence
 	}
 	return response, nil

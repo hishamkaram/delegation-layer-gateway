@@ -37,14 +37,14 @@ func routingGeneration(g protocol.Generation) domain.ConnectionGeneration {
 }
 
 func validateRoutingRequest(input routing.Request) (protocol.Command, error) {
-	if input.Credential.Validate() != nil || !routing.ValidProcessBoot(input.ProcessBoot) || input.Call.Validate() != nil || input.Now.IsZero() {
+	if input.Credential.Validate() != nil || !routing.ValidProcessBoot(input.ProcessBoot) || input.Call.ValidateVersion(input.ProtocolVersion()) != nil || input.Now.IsZero() {
 		return protocol.Command{}, domain.ErrInvalid
 	}
 	digest := domain.Hash(input.Payload)
 	if hex.EncodeToString(digest[:]) != input.Call.RequestSHA256 {
 		return protocol.Command{}, domain.Reject(domain.EvidenceInvalid)
 	}
-	command, err := protocol.DecodeCommand(protocol.Frame{Type: protocol.Request, Payload: input.Payload})
+	command, err := protocol.DecodeCommandVersion(protocol.Frame{Version: input.ProtocolVersion(), Type: protocol.Request, Payload: input.Payload}, input.ProtocolVersion())
 	if err != nil || command.Operation != input.Call.Operation {
 		return command, domain.ErrInvalid
 	}
@@ -153,6 +153,18 @@ func insertRoutingPermit(ctx context.Context, tx *sql.Tx, input routing.Request)
 }
 
 func (s *Store) acquireRouting(ctx context.Context, tx *sql.Tx, input routing.Request) error {
+	return acquireRouting(ctx, tx, input, func() error {
+		if input.Call.Operation.Administrative() {
+			return s.requireAdmin(ctx)
+		}
+		return nil
+	})
+}
+
+// acquireRouting enforces shared credential, census, quota and replay rules.
+// Its caller supplies either Unix admin or exact owned-root authorization in
+// this same transaction; it is never an exported authorization bypass.
+func acquireRouting(ctx context.Context, tx *sql.Tx, input routing.Request, authorize func() error) error {
 	generation := routingGeneration(input.Call.Generation)
 	credential, err := checkConnection(ctx, tx, input.Credential, generation, input.Now)
 	if err != nil {
@@ -165,7 +177,10 @@ func (s *Store) acquireRouting(ctx context.Context, tx *sql.Tx, input routing.Re
 	if err != nil {
 		return err
 	}
-	if err = s.authorizeRoutingReadiness(ctx, input.Call.Operation, status); err != nil {
+	if !status.Ready {
+		return domain.Reject(domain.Pending)
+	}
+	if err = authorize(); err != nil {
 		return err
 	}
 	if status.ProcessBoot != input.ProcessBoot {
@@ -217,16 +232,4 @@ func (s *Store) AcquireRouting(ctx context.Context, input routing.Request) error
 	}
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) { return struct{}{}, s.acquireRouting(ctx, tx, input) })
 	return err
-}
-
-// Full routing coverage precedes every routed CLI control. Fenced census and
-// protected local drain attestations establish that coverage without CLI slots.
-func (s *Store) authorizeRoutingReadiness(ctx context.Context, operation protocol.Operation, status routing.Readiness) error {
-	if !status.Ready {
-		return domain.Reject(domain.Pending)
-	}
-	if operation.Administrative() {
-		return s.requireAdmin(ctx)
-	}
-	return nil
 }
