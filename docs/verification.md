@@ -1,5 +1,45 @@
 # Verification and delivery gates
 
+## November 13 ChatGPT Cloud task checkpoint
+
+**Not release-ready.** The operator connected another ChatGPT workspace and
+provided its completed tool report for one Office/acceptance Claude probe.
+The client retrieved `UE9ORw==`, reported whole-result verification and finished
+with resolved delivery, terminal observation, a `registered-native` closure and
+no remaining reservation. The earlier `possible_send` and `closure_unproven`
+observations were intermediate states of that same operation.
+
+Independent Native metadata matched the exact root, Gateway, operation and task,
+committed publication/outcome and accepted four-byte PONG descriptor. Canonical
+evidence reports a closed scope and qualified successful worker Wait0, observed
+52.854297 seconds before the Native deadline. The existing helper, public status
+and their sole SSH owner all joined exit0 with no cleanup faults. No new task or
+provider execution was launched to verify this report.
+
+A retained current audit snapshot contains 1,162 complete validated records.
+The operation has one full-identity preparation and one admission reply;
+completed controls are admit1, resolve1, status2, collect1 and result_chunk1,
+with no cancel or admission recovery completion. Protected health reported zero
+audit/metric failures. Selected PONG bytes and Mac user-path prefixes were absent.
+The three metadata segments and their prefix lengths/digests were retained for
+independent recomputation; this does not establish older retention or packet
+history.
+
+The reported base64 independently decodes to PONG and hashes to
+`95784973cc639977bff93619700168505cb8f7855e44fa643d34622a43706c87`.
+Root verified those reported bytes and the independent Native descriptor; it
+did not retrieve Native payload bytes itself. The client identity is
+operator-attested and no raw ChatGPT MCP transcript is available. The selected
+interfaces do not expose the UI closure-reference digest; the separate outcome
+evidence digest is not substituted for it. Advertised provider authentication
+remains `unknown` and is separate from this successful execution.
+
+This supplies the actual ChatGPT task category alongside the earlier Claude.ai
+Cloud and SDK categories. Home's persistent GUI-qualified connector, physical
+IP migration and final criterion reconciliation remain open. Earlier dated
+checkpoints retain their original evidence and limitations; current milestones
+below reflect this later task proof.
+
 ## November 13 Office runtime and service checkpoint
 
 **Not release-ready.** The selected isolated Office root completed a fresh,
@@ -944,15 +984,19 @@ manual run omitted distribution jobs and is separate evidence.
 
 ## Milestones
 
+Current implementation status follows the November 13 evidence above. Earlier
+checkpoint failures retain their original scope; this table does not replace
+the missing live acceptance or approve release.
+
 | ID | Work | State |
 | --- | --- | --- |
 | M0 | Gateway engineering harness, contracts, architecture and instructions | Implemented; structural/workflow checks and source-backed review passed |
-| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open; all 19 exact-head checks passed at `ad255598`; local App timeout and cleanup gap retained |
+| M1 | Public Delegate boundary in its dedicated worktree, own harness and PR | [PR #179](https://github.com/hishamkaram/delegation-layer/pull/179) open as draft at `d24a2cc2`; all 19 exact-head checks passed. Earlier failures and cleanup uncertainty remain recorded separately. |
 | M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; real enrollment and public Auth0 SDK inventory/revocation verified; full live matrix open |
-| M3 | WSS connector, local ceilings and Delegate adapter | Local and two-Mac fixture flows passed; installed-provider accounts remain open |
-| M4 | MCP orchestration and recovery across real processes | Local recovery and physical restart/reconnect/dedupe/cancel/revocation passed; external proof open |
-| M5 | Integrated hardening, docs and independent code reviews | Current write-lifetime/connector-harness corrections reviewed with no known P0/P1/P2; fresh native CI and live gates remain |
-| M6 | Live evidence matrix and release assessment | Fixture, public SDK and Cloud inventory evidence recorded; provider execution and remaining live matrix unverified |
+| M3 | WSS connector, local ceilings and Delegate adapter | Current local/two-Mac fixture flows and installed-Claude SDK execution on both devices passed. Office persistent-service lifecycle passed; Home persistence remains open. |
+| M4 | MCP orchestration and recovery across real processes | Current controlled-provider matrices passed; current installed-Claude Gateway restart/same-identity duplicate and requested cancellation passed on Home. Actual Claude.ai Cloud returned verified PONG on Office. |
+| M5 | Integrated hardening, docs and independent code reviews | Complete configured gates and Linux/macOS CI passed. Final scoped Sol, Opus5.5 high and native reviews found no open actionable P0/P1/P2 in inspected changes; review agreement is not acceptance evidence. |
+| M6 | Live evidence matrix and release assessment | Incomplete: Home GUI-qualified persistent service, physical IP migration and final criterion reconciliation remain open. Actual ChatGPT Cloud task proof is recorded above; separate WANs remain operator-attested. |
 
 Root owns integration and Git. Native implementers own bounded packages and
 tests. Independent Sol and Opus 5.5 high-effort reviews examine each current
@@ -962,6 +1006,18 @@ rerun invalidated checks and review corrections before opening a PR.
 Delegate changes use a separate branch/worktree and its existing AGENTS, skills,
 configured tools and mandatory checks. The original checkout remains untouched.
 Gateway uses adapted generic practices; it does not replace Delegate's harness.
+
+Selected source-backed acceptance boundaries:
+
+| Requirement | Evidence and limit |
+| --- | --- |
+| 0/1/200 authorized-device pagination | [MCP inventory test](../internal/mcpadapter/inventory_test.go) checks exact counts, page bounds, duplicates, another principal's empty inventory and an excessive limit through local HTTPS MCP and SQLite. [Registry pagination](../internal/registry/boundaries_test.go) rechecks a revoked grant. These are local integration fixtures, not 200 physical devices or a capacity claim. |
+| Restore and stale preparation | [Registry recovery](../internal/registry/recovery_test.go), [root resumption](../internal/registry/resume_root_test.go) and [pending-root guards](../internal/registry/root_test.go) exercise credential reset, barriers, inventory completeness, original identity and refusal of stale creation. These are controlled local store tests. |
+| Retry and delayed creation | [Gateway dispatch](../internal/gateway/dispatch_test.go) persists possible-send and reopens SQLite after a simulated lost acknowledgment; [registry confirmation](../internal/registry/store_test.go) checks concurrent confirmation/restart. Native's separate [connector tests](https://github.com/hishamkaram/delegation-layer/blob/d24a2cc2d568d1327c58e6520f6e48fb50d0606a/internal/taskdir/connector_test.go) exercise permanent refusal and generation barriers before fragments. The later real-provider retry remains intentional same-operation duplication, not actual wire acknowledgment loss. |
+| Physical network/IP migration | Two physical Macs and reconnect/restart are evidenced above. Separate Internet connections are operator-attested. The remote fixture restarts Gateway; it does not change a device's network/IP. Actual physical IP migration remains unverified. |
+
+These anchors explain selected test coverage; they do not close the complete
+acceptance checklist or broaden any dated live receipt.
 
 ## Engineering commands
 
@@ -976,8 +1032,10 @@ Gateway uses adapted generic practices; it does not replace Delegate's harness.
 
 The local process harness passed its bounded fixture flow. The opt-in live
 drivers and their recovery commands are documented in
-[live acceptance](live-acceptance.md). Actual installed-provider and external
-acceptance remain unverified. Delegate retains its own gates.
+[live acceptance](live-acceptance.md). Current installed-provider and Claude.ai
+Cloud evidence is recorded above; these commands alone do not establish live
+acceptance. Home persistence and physical IP migration remain open.
+Delegate retains its own gates.
 
 The complete configured Gateway gate passed on an earlier candidate on Go
 1.27.4 in 1539.166 seconds. After subsequent Native-feature compatibility changes,
