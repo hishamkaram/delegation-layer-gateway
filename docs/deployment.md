@@ -5,6 +5,10 @@ Implementation and acceptance are in progress. Check the current
 Gateway and each connector as their own intended service account. Keep private
 configuration, identity, audit and database files outside this public checkout.
 
+For the new Native `delegate gateway connect` experience and dynamic projects,
+follow [Native connection setup](native-connect.md). The static connector
+configuration below remains the legacy v1 path.
+
 ## Gateway configuration
 
 Create owned 0700 directories for the database, admin socket and audit output.
@@ -81,6 +85,12 @@ recovery; replacing them does not repair an insufficient CA validity window.
 The Nginx proxy preserves the public Host while connecting to the loopback TLS
 listener. Gateway validates TLS, that exact Host and any supplied Origin before
 authentication; the MCP SDK defers its loopback-host check to this guard.
+For the generated loopback proxy, enable
+`"trust_loopback_proxy_client_ip": true` in the private Gateway configuration.
+The proxy overwrites `X-Real-IP` with its socket client's address. Gateway accepts
+that header only from loopback with this explicit option, and uses it only for
+enrollment rate limits. Direct deployment keeps the default false. Authentication
+and authorization always use the verified token or device certificate.
 Supported MCP versions and the single-message HTTP policy are specified in
 [architecture](architecture.md#connectivity-and-identity).
 

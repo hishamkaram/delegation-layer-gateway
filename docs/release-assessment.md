@@ -1,20 +1,49 @@
 # Candidate release assessment — 13 November 2026
 
-**Root verdict: MVP engineering acceptance complete within the recorded scopes;
-ready for PR review.** The Gateway and its Delegate prerequisite have real
-process, provider, physical-device and Cloud-client evidence. Final scoped Sol,
-Opus5.5 high and native assessments found no actionable P0/P1/P2. Root retains
-the documented historical P3 uncertainties and their paths without claiming
-closure. Merge, issue closure and release publication are separate actions;
-the compatible Delegate prerequisite must be integrated before a Gateway release.
-This is not a zero-defect claim or an automated release approval.
+**Current Native-connect extension: not release-ready.** The candidate adds
+owner enrollment and policy, schema-9 project-resolution state, wire-v2
+workspace routing, targeted capabilities and the Native-owned embedded-service
+path. Gateway's complete engineering gate and the final local literal-fixture
+process scenario passed. Native's aggregate Linux gate was interrupted, and
+its remaining gates and extension-specific external acceptance are incomplete.
+Two P2 obligations remain: the directory-identity product decision and Native
+Linux service recovery after an interrupted manager reload. Actual Sol,
+Opus5.5 high and native reviews identified and challenged these boundaries;
+their scoped clearances are not global approval or a release verdict.
+See [Native connect](native-connect.md) for the intended operator paths and
+[verification](verification.md) for dated evidence.
+
+**Historical MVP assessment:** before this extension, Root recorded engineering
+acceptance complete within its documented scopes and ready for PR review. That
+MVP had actual process, provider, physical-device and Cloud-client evidence,
+and its recorded final scoped Sol, Opus5.5 high and native assessments found no
+actionable P0/P1/P2 within their scope. Those results apply to the recorded MVP
+revisions; they do not validate the new extension or its current working tree.
+Historical P3 uncertainties remain retained without invented closure. Merge,
+issue closure and release publication remain separate actions; the compatible
+Delegate prerequisite must be integrated before a Gateway release.
+
+## Extension acceptance still required
+
+- Run the complete configured gates on frozen integrated Gateway and Native
+  extension sources, then review the actual code and correction evidence.
+- Exercise OAuth device login, headless approval and browserless token redemption,
+  owner-policy/revocation enforcement, explicit workspace resolution/replay,
+  targeted capabilities and current local policy through CLI Start.
+- Prove the Native-owned embedded user-service lifecycle and creator joins on
+  the supported platforms, including retained identity after interruption.
+- Keep fixture, installed-provider, physical-device/network and Cloud-client
+  results separate. Earlier MVP evidence supplies no automatic pass for the
+  new enrollment, dynamic-project or service flows.
 
 ## Design and ownership
 
 The approved design remains [MCP over HTTPS plus outbound device mTLS
 WSS](architecture.md). Gateway owns enrollment, authorization, routing,
-correlation and metadata observability. The connector owns its local aliases
-and stricter grant ceiling. Delegate alone owns task admission, execution,
+correlation and metadata observability. Native owns its local profile, approved workspaces, immutable project pins,
+embedded service and stricter local ceiling; legacy connector aliases remain
+supported. Registry owns immutable device ownership and live owner policy,
+without duplicating that policy into project grants. Delegate alone owns task admission, execution,
 supervision, cancellation and accepted outcomes. The Gateway is trusted with
 plaintext; additional end-to-end encryption is deferred.
 
@@ -28,7 +57,7 @@ and replaced practices, dependency validation and supported agents. Gateway
 inherits engineering discipline without taking over Delegate execution.
 Delegate changes remain in their dedicated worktree using its own harness.
 
-## Changes and review
+## Historical MVP changes and review
 
 - [Gateway PR #2](https://github.com/hishamkaram/delegation-layer-gateway/pull/2)
   contains the implementation, harness, protocols, tests and operations guidance.
@@ -45,10 +74,11 @@ Delegate changes remain in their dedicated worktree using its own harness.
   Four optional installer findings were also corrected. Scoped review is not
   proof of absent defects across every possible execution.
 
-## Verification
+## Historical MVP verification
 
 The [verification ledger](verification.md) retains commands, exact source scope,
-failed attempts, corrections, environment and limitations. Key completed checks:
+failed attempts, corrections, environment and limitations. The following completed checks apply to the recorded MVP revisions, not the
+Native-connect extension:
 
 | Evidence | Result and scope |
 | --- | --- |
@@ -72,7 +102,7 @@ module-only findings remain separately reported.
 
 The examples below are not an exhaustive replacement for the failed-run ledger
 in [verification](verification.md). Root accepts these as disclosed P3
-operational/provenance limits: current acceptance does not require reconstructing
+operational/provenance limits: the historical MVP acceptance did not require reconstructing
 unavailable original Waits. Failed cleanup is never relabeled as successful.
 
 | Subject | Established fact | Missing proof |
@@ -98,7 +128,7 @@ unproved platform limits. Provider authentication may remain advertised as
 Root accepts operator-attested network selection and Cloud-client provenance
 at their documented evidence levels, with independently matched task/audit
 metadata. Packet-path attribution and raw Cloud transcripts are not claimed.
-The reviewed final prose corrections clarify controller-reported remote joins
+The historical reviewed prose corrections clarify controller-reported remote joins
 and preserve the older watchdog uncertainty; they do not change runtime code.
 
 The [implementation issue](https://github.com/hishamkaram/delegation-layer-gateway/issues/1)

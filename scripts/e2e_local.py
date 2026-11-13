@@ -340,8 +340,9 @@ def require_requested_closure(closure, task_id):
 
 
 class DelegateRoot:
-    def __init__(self, owner, label):
+    def __init__(self, owner, label, *, workspace_constrained=False):
         self.owner = owner
+        self.workspace_constrained = workspace_constrained
         self.base = owner.directory(label)
         self.state = short_root(self.base / "s")
         self.workspace = self.base / "project-canary"
@@ -428,7 +429,10 @@ class DelegateRoot:
             15,
             "foreground private engine readiness",
         )
-        self.command(["context", "enable-connector", "--offline-cutover-confirmed"])
+        cutover = ["context", "enable-connector", "--offline-cutover-confirmed"]
+        if self.workspace_constrained:
+            cutover.append("--workspace-constrained")
+        self.command(cutover)
         self.context = self.command(["context", "inspect", "--cwd", self.workspace])[
             "connector"
         ]
@@ -638,11 +642,16 @@ def gateway_process_joined(arguments, result):
         ["migrate"],
         ["begin-recovery"],
         ["admin"],
+        ["users"],
+        ["devices"],
         ["version"],
     ) or (arguments[:2] == ["connector", "enroll"])
 
 
 class Harness:
+    success_result = "local_recovery_passed"
+    expected_fixture_attempts = 4
+
     def __init__(self, args, interruptions=None):
         self.args = args
         self.interruptions = (
@@ -770,9 +779,10 @@ class Harness:
                 and counts["rejected_limit"] == 0,
                 "fixture attempt budget or concurrency oracle failed",
             )
-            if self.summary.get("result") == "local_recovery_passed":
+            if self.summary.get("result") == self.success_result:
                 require(
-                    counts["attempted"] == 4, "completed recovery attempt count changed"
+                    counts["attempted"] == self.expected_fixture_attempts,
+                    "completed scenario attempt count changed",
                 )
         except (OSError, ValueError, ProofFailure):
             self.summary["result"] = "failed"
@@ -1437,6 +1447,9 @@ class Harness:
                     faults.append({"stage": "native_capture", "kind": "unconfirmed"})
         return faults
 
+    def connector_intake_faults(self):
+        return []
+
     def finish(self):
         with self.interruptions.cleanup():
             return self._finish_owned()
@@ -1478,6 +1491,10 @@ class Harness:
         if gateway_faults:
             intake_joined = False
             faults.extend(gateway_faults)
+        connector_faults = self.connector_intake_faults()
+        if connector_faults:
+            intake_joined = False
+            faults.extend(connector_faults)
         native_faults = self.native_capture_faults()
         if native_faults:
             intake_joined = False
@@ -1530,7 +1547,7 @@ class Harness:
             self.interruptions.checkpoint()
             self.recovery_scenarios()
             self.interruptions.checkpoint()
-            self.summary["result"] = "local_recovery_passed"
+            self.summary["result"] = self.success_result
             passed = True
         except Exception as error:
             self.summary["result"] = "failed"
@@ -1555,7 +1572,7 @@ class Harness:
         return (
             0
             if passed
-            and self.summary["result"] == "local_recovery_passed"
+            and self.summary["result"] == self.success_result
             and not self.summary.get("process_exit_failures")
             else 1
         )

@@ -1,52 +1,73 @@
-# Gateway implementation-candidate diagrams
+# Native-connect extension candidate diagrams
 
-These source-backed diagrams describe Gateway checkpoint
-`96af53f7ca399d036c5b14461bd88d6ede5510c6`. Every node carries up to three
-committed Gateway source ranges. Repository metadata preserves the
-credential-free SSH origin and full revision; source links are **local-only**
-because the checkpoint is unpublished. This is an implementation candidate,
-not release approval.
+The editable sources describe committed Gateway checkpoint
+`21b16ef9dbaf590af08ceff366e445a008203add`. Both sources were regenerated with the maintained
+renderer and passed normal strict/provenance/browser gates and canonical SVG
+export. Fresh HTML/SVG images were inspected in both themes. The six-row
+workflow needs vertical scrolling; the fixed navigation dock overlaps its last
+row near the initial viewport edge, and scrolling reveals it fully.
 
-| Diagram | Interactive HTML | Editable source | SVG export |
+Every node has at most three committed Gateway source ranges. Repository
+metadata preserves the credential-free SSH origin and full revision with
+`local-only` source links. The checkpoint is published; local-only links remain
+an explicit authoring choice, not a claim that it is unpublished.
+
+| Diagram | Editable source | Interactive HTML | SVG export |
 | --- | --- | --- | --- |
-| Components, trust boundaries and authoritative owners | [Open](components.html) | [JSON](components.json) | [SVG](components.svg) |
-| Admission, uncertainty, restore and CLI-routing ownership | [Open](operation-safety.html) | [JSON](operation-safety.json) | [SVG](operation-safety.svg) |
+| Owners, Native embedded client and local profile | [JSON](components.json) | [HTML](components.html) | [SVG](components.svg) |
+| Enrollment, workspace resolution and task safety | [JSON](operation-safety.json) | [HTML](operation-safety.html) | [SVG](operation-safety.svg) |
 
-Gateway owns grants, immutable operation correlation and two separate resource
-ledgers: uncertain Native execution reservations and durable routed-CLI permits.
-Connector owns local aliases, frozen context pins and stricter execution
-ceilings. Native/Delegate alone owns admission, launch, supervision and accepted
-outcomes. Native nodes cite the Gateway **consumer boundary**, not Native
-implementation at Gateway HEAD. Its public CLI remains an external prerequisite;
-these artifacts do not establish future Native CWD/barrier corrections or
-compatibility of another installed executable.
+Gateway schema 9 owns device ownership, live owner policy, resolution
+correlations, execution reservations and durable CLI-routing permits. Legacy
+wire-v1 devices retain explicit grants and alias pins. Wire v2 adds approved
+workspace routing and immutable project handles; it does not add a task engine.
+Native owns its default service host and embeds the public Gateway `deviceclient`
+SDK. The SDK retains the existing connector runtime and joins its owners before
+releasing identity. Expected SDK shutdown requires the SDK's direct qualified
+Serve cancellation and clean Close; it establishes neither Native task closure
+nor a successful Gateway connection. Session stop owns socket close before
+canceling its read/write contexts, retains independent close diagnostics and
+joins parent-cancellation hooks before reporting done. Operator flows for
+OAuth/headless login, private browserless
+tokens and local service/workspace controls belong in
+[Native connect](../docs/native-connect.md).
 
-Public HTTPS OAuth/JWKS and device mTLS WSS use separate listener trust roles.
-Connectors initiate outbound connections. Two device roles illustrate topology;
-they do not prove two physical devices or networks. The same device account is
-trusted, and a project grant is routing rather than an OS sandbox.
+Local profiles own workspace approvals, current ceilings and immutable pins.
+Same request ID returns the first pin; changed selection conflicts. Native must
+validate the pinned tuple and containment; these Gateway consumer contracts do
+not establish physical delete/recreate detection. Fresh
+targeted capabilities precede execution, and the local policy lease covers
+current-ceiling validation through CLI Start, then releases before Wait.
+Periodic v2 metadata has at most 100 workspaces, not the retained project list.
+Local pins include tombstones and have both 1,024-record and four-MiB encoded
+budgets; Gateway independently caps resolution requests at 1,024/device,
+including pending requests. Capacity reports reserve no slot, and identity is
+not evicted to free capacity. Removed approvals block new resolution/admit/resume
+while authorized saved task controls retain their frozen binding.
 
-Schema 7 requires full prior-fleet routing coverage before **any** routed CLI.
-Changed-process recovery uses an out-of-band frozen operator confirmation of
-local CLI joins bound to current credential, process boot and exact connection
-generation. It supplies no task-closure evidence. Closed older routing rows can
-be compacted; active controls and uncertain task reservations remain retained.
+Native nodes cite Gateway's consumer boundary, never Native implementation at
+Gateway HEAD. Native alone owns admission, launch, supervision, cancellation
+and accepted outcomes. Required public features and service behavior need a
+compatible Native implementation; Gateway source cannot prove another
+installation's behavior. Workspace approval is routing policy in one trusted
+account, not an OS sandbox.
 
-Restore persists root barriers before inventory, conserves per-task canonical
-identity/options and attributable/unattributed visibility, requires current
-mapping/completeness and regular credentials before explicit reopen, then
-verifies fresh root state before finish. Recovery-only credentials cannot
-admit, resume or reopen. Current grants and authenticated connection identity
-are rechecked around sends and response acceptance. The diagrams show related
-procedures, not an automatic recovery engine.
+Separate public HTTPS OAuth/JWKS and device mTLS WSS listeners retain their trust
+roles; devices initiate outbound connections. Full prior-fleet coverage precedes
+any routed CLI. Census/ACK and frozen prior-CLI join attestations do not prove
+task closure. Closed older routing records may compact while active controls and
+uncertain execution reservations remain held. Restore keeps barrier, canonical
+inventory, mapping/drain and guarded reopen ordering. Recovery-only credentials
+cannot admit, resume or reopen. Scoped owned-root initialization does not bypass
+active fleet restore or acquire general administration authority.
 
-The [architecture guide](../docs/architecture.md) owns the wider explanation;
-[verification](../docs/verification.md) owns current evidence and open gates.
-At the pinned checkpoint it records Go 1.27.4 `make check` and 151 Python tests.
-The latest completed controlled local process run used Go 1.27.3; the newer
-active-execution restart harness has not run live. These diagram checks do not
-establish Native prerequisite completion, release readiness, real provider
-accounts, ChatGPT Cloud acceptance or physical-device behavior.
+**This extension is not release-ready.** Its full integrated engineering gates,
+extension live flows and final independent review remain pending. Historical MVP
+process/provider/physical-device/Cloud acceptance remains scoped to its original
+revisions. No obsolete test count or earlier pending-live statement is projected
+onto the extension. The [architecture guide](../docs/architecture.md),
+[verification ledger](../docs/verification.md) and
+[release assessment](../docs/release-assessment.md) own those distinctions.
 
 ## Regeneration
 
@@ -86,13 +107,22 @@ The renderer source pin owns that provenance.
 
 ## Validation and visual review
 
-[Validation summary](validation.json) records exact current JSON/HTML hashes,
-renderer revision, observed strict/browser gates and browser scope.
-[SVG receipts](svg-exports.json) bind canonical exports to their source HTML.
-Raw receipts contain local paths and are intentionally unpublished; maintained
-paths are relative. These records describe a local run, not a new check on every
-checkout.
+The [validation summary](validation.json) records current source/HTML hashes,
+normal gates and renderer provenance. [SVG receipts](svg-exports.json) bind each
+canonical export to its current HTML. The [visual-review record](visual-review.json)
+binds actual image inspection to source/HTML/SVG hashes, including fresh light
+and dark HTML captures at 1440×900 and 2048×1320, standalone SVG captures and
+scrolled workflow captures. Supporting cards were also inspected at 2048×1320
+in both themes. No delivered HTML/SVG was rewritten after receipt.
 
-The maintained [visual-review record](visual-review.json) distinguishes fresh
-browser captures and image inspection from automated checks. SVG exports are
-communication assets, not substitutes for checked HTML or runtime evidence.
+Labels and routes were readable at reviewed sizes. The workflow requires page
+scrolling: the fixed navigation dock can overlap the last row at the initial
+viewport edge; scrolling exposes it completely. SVG exports show all rows
+without that dock but omit the HTML title/cards/source explorer. Supporting
+cards continue below the figure; the interactive source explorer was not
+visually inspected. This is scoped perceptual review, not an
+accessibility audit, other-platform proof or runtime acceptance.
+
+Keep JSON, HTML, SVG and byte-bound summaries together. Raw receipts/captures
+remain private ignored evidence. Root owns final integrated docs/check gates;
+diagram validation does not make the extension release-ready.

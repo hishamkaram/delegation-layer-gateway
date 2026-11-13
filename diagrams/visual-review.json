@@ -1,39 +1,41 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-11-11T14:28:44.095994+00:00",
-  "repositoryRevision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
+  "reviewedAt": "2026-11-13T19:46:33.763531+00:00",
+  "repositoryRevision": "21b16ef9dbaf590af08ceff366e445a008203add",
   "reviewer": "Image-capable repository agent",
-  "method": "Fresh strict-provenance Archify visual-check HTML captures; standalone canonical SVG opened in Chrome with emulated prefers-color-scheme light/dark; every listed image inspected with view_image",
+  "method": "Fresh strict-provenance Archify visual-check HTML captures at two sizes/both themes; additional current HTML captures of supporting cards and workflow after scrolling 420px; canonical Auto SVG opened in Chrome with emulated prefers-color-scheme light/dark; every listed image inspected with view_image",
   "captureStorage": "Raw captures/contact sheets/receipts retained as ignored private evidence; no unpublished capture paths linked from maintained documentation",
   "findings": [
-    "Main figures: no clipped labels or route-through-node collisions observed in either theme at reviewed sizes.",
-    "Component figure: HTTPS MCP entrance, JWT/JWKS and admin paths, outbound mTLS WSS from both connector roles, external Native prerequisite labels and canonical-evidence branches are readable.",
-    "Workflow figure: admission and restore rows, passive resolve / conditional absent-fence branch and separate CLI-routing ownership/phase-4 retention row are readable; arrowheads and branch label remain distinct in light/dark.",
-    "Canonical Auto SVG exports render both themes with the same labels/routes as the corresponding HTML figure."
+    "Component figure: SDK-hosted device client and local-profile branches, dual-wire outbound WSS routes, schema-9 Registry and external Native prerequisite labels are readable in both themes; no label clipping or route-through-node collision observed.",
+    "Workflow: enrollment, frozen-selector workspace resolution, targeted capability/current Start guard, admission, uncertainty, restore and CLI ownership rows are readable in both themes; the conditional present/uncertain branch remains distinct.",
+    "Workflow lower row is below/near the initial viewport edge; the fixed navigation dock overlaps part of that row in unscrolled captures. Scrolling 420px brings the complete lower row and legend into clear view in both themes.",
+    "Standalone canonical Auto SVG exports show all figure rows/routes without the interactive navigation dock in both themes.",
+    "Supporting cards at 2048x1320 show the source4 pin, SDK shutdown/socket ownership and pinned-tuple/containment limits without clipped text in both themes."
   ],
   "limitations": [
-    "Perceptual judgment covers only the listed browser captures; it is not an accessibility audit or proof on other screens/browsers.",
-    "Supporting cards continue below the captured viewport and require ordinary page scrolling; not all supporting card text is included in these captures.",
-    "Standalone SVG exports contain the main diagram and legend, not the HTML title/cards/source explorer. Preserve HTML/JSON alongside SVG so candidate status and source/contract limits stay available.",
-    "No Gateway runtime, Native implementation, installed-provider, physical-device/network, Cloud or release acceptance is established by this visual review."
+    "Workflow HTML requires vertical page scrolling; this review does not claim the whole figure is unobscured in one initial viewport.",
+    "Supporting cards were inspected at 2048x1320 in both themes; the interactive source explorer was not visually inspected.",
+    "Perceptual judgment covers only the listed images; no accessibility audit or other-browser/screen proof is claimed.",
+    "Standalone SVG omits HTML title/cards/source explorer. Preserve HTML/JSON alongside SVG to retain candidate status and source/contract limits.",
+    "No Gateway runtime, Native implementation, provider, physical-device/network, Cloud or release acceptance is established by diagram checks or this visual review."
   ],
   "diagrams": [
     {
       "id": "components",
       "source": {
         "path": "components.json",
-        "sha256": "4b0c72a06e14192b129ba2dbde10ce4919bc7414d6c6d2ca0f2559f27c07513f",
-        "bytes": 11678
+        "sha256": "07cc4c79ba73f4da814967383d29f63119f52e1661c32a90a4d0dc63813f6cc0",
+        "bytes": 15024
       },
       "html": {
         "path": "components.html",
-        "sha256": "c7f78ca502b65bb57ab0098f4eebb97316790becf2e6e827518c4f07a97fc6f2",
-        "bytes": 836301
+        "sha256": "1516a7091afc8357ebc945885f34d6c7410d92fd9674cfb7e33b0c2c8c093f78",
+        "bytes": 843703
       },
       "svg": {
         "path": "components.svg",
-        "sha256": "060e39d98dfb943e03796395b9955b8b56542caba7f5253d37f2f13a70e95fa9",
-        "bytes": 181864
+        "sha256": "d16b314814424c0af4594f8f1aaec569dc47708f70f18fa9aea1456eaad59753",
+        "bytes": 188932
       },
       "htmlCaptureGate": {
         "status": "pass",
@@ -52,8 +54,8 @@
           "theme": "light",
           "width": 1440,
           "height": 900,
-          "sha256": "295732a58ee02fb48a42dcc12ca3f2383e152acf6f0ac6428738886efc921743",
-          "bytes": 127825,
+          "sha256": "8d8ca5c0d468b588fc2190fb279083fddc4f8bf8993d6734f981a0f3c9ecaedb",
+          "bytes": 146137,
           "imageInspected": true
         },
         {
@@ -61,8 +63,8 @@
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "ee853a4fba436e678efb93a9273852ccb18c23a4f9107259b5abdfff314b94d9",
-          "bytes": 139867,
+          "sha256": "40ee0293276334bdabbba7171601288c5a5d2877aae201b4e4b870f0d07c4885",
+          "bytes": 159317,
           "imageInspected": true
         },
         {
@@ -70,8 +72,8 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "591ba5666ba38edf9495ae21edeb4833079efa40459d75d1fdd1435924e13362",
-          "bytes": 222521,
+          "sha256": "afe5a90b2c8529768af29cf06dd5efc455833970c34ad443fc1d8f5387367e8d",
+          "bytes": 251542,
           "imageInspected": true
         },
         {
@@ -79,27 +81,47 @@
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "66c0bf2e5d0014a714880b07da126ea81cebff99e659a015e98e83e0957a024b",
-          "bytes": 245387,
+          "sha256": "7680165f3910ccea6bbedef2ae4f591347b3280254af6863c31ef7940944eb8e",
+          "bytes": 277047,
           "imageInspected": true
         },
         {
-          "id": "svg-auto-light",
+          "id": "svg-1600x1200-light",
           "theme": "light",
-          "sha256": "44ac42dfe9a0718c35c268773dad3eeadc62553ba0d5e5e65edec61c461c4dac",
-          "bytes": 94201,
-          "imageInspected": true,
           "width": 1600,
-          "height": 1200
+          "height": 1200,
+          "sha256": "8e1069efc455974f7540b285dec99291d3b41eebef95d3dd9eeae76c5c12876e",
+          "bytes": 108496,
+          "imageInspected": true
         },
         {
-          "id": "svg-auto-dark",
+          "id": "svg-1600x1200-dark",
           "theme": "dark",
-          "sha256": "405c562b42426824bdaef8444a8d54bcffccf346e0ad67be90ed6ab84fdad230",
-          "bytes": 94740,
-          "imageInspected": true,
           "width": 1600,
-          "height": 1200
+          "height": 1200,
+          "sha256": "cbae073afdccc817e146ce50e738b88f77e84d43bb5ef075c55e292b6a087344",
+          "bytes": 109186,
+          "imageInspected": true
+        },
+        {
+          "id": "html-cards-2048x1320-light",
+          "theme": "light",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "3571a2fd766e76bd2059ba3280040c384fd613d54441e22b2c5455d517831ac0",
+          "bytes": 308142,
+          "imageInspected": true,
+          "scrollY": 771
+        },
+        {
+          "id": "html-cards-2048x1320-dark",
+          "theme": "dark",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "4bc949ea73961172fa925b70f0ae9a556aaece0033e49dfa096e62fe7cc5c5e9",
+          "bytes": 314500,
+          "imageInspected": true,
+          "scrollY": 815
         }
       ]
     },
@@ -107,18 +129,18 @@
       "id": "operation-safety",
       "source": {
         "path": "operation-safety.json",
-        "sha256": "91a7922a898fbff94ae00aa05123e079c7b280a846d07a3fcc00172cb545be08",
-        "bytes": 18284
+        "sha256": "fb694155add1837db83c09a5fecb3df7d0386bd22922604173f1070d6bdf3a66",
+        "bytes": 26777
       },
       "html": {
         "path": "operation-safety.html",
-        "sha256": "6f1fe5f5fe60612500b75cd1ed2ac7363e326911452611d51cec16a8a5ea80df",
-        "bytes": 854279
+        "sha256": "d72cf17b3175c3e0e0dc553e3741e5b7cedbf25e40bb720a8a2333f1307e80e4",
+        "bytes": 878097
       },
       "svg": {
         "path": "operation-safety.svg",
-        "sha256": "d048f3e3be9e9f17bcd7f42a87879a0757178bbce24506c10b51579089eb0a0c",
-        "bytes": 209033
+        "sha256": "fe19550ffb4ed46d887d3fe18f1b272c32dd7a350ab0a77605d62e732c4db3fa",
+        "bytes": 241077
       },
       "htmlCaptureGate": {
         "status": "pass",
@@ -137,8 +159,8 @@
           "theme": "light",
           "width": 1440,
           "height": 900,
-          "sha256": "14d5512121f774ad04557e76e903fd0536965981505822a2b162b9d023c472f6",
-          "bytes": 183777,
+          "sha256": "b881e7cae40526ada4111bb47fd4c5fb5bf559f232eddbf2b4a92b3a2ad2a2db",
+          "bytes": 243692,
           "imageInspected": true
         },
         {
@@ -146,8 +168,8 @@
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "bbedfb9f8fcb67662b1eddfcb9e625ebb2799c1bc33ae6cd01fe0dfb0ec0e054",
-          "bytes": 208089,
+          "sha256": "be257cbf7cd92d5c60a40169152180bd4099060ee32e61643f3f3f86e6677d93",
+          "bytes": 276415,
           "imageInspected": true
         },
         {
@@ -155,8 +177,8 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "01b1da7cfde6c641d04d4fdf1960f48cf68700b88a63b81e2e5872acf3ad0a0b",
-          "bytes": 301409,
+          "sha256": "89247ad9eba9e4fd57bd63ebefd5e0f621b4737b1f746e1105dc679ed6dd2a5e",
+          "bytes": 324560,
           "imageInspected": true
         },
         {
@@ -164,27 +186,67 @@
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "4d49e901afab3a703a82218e7f645a37ee272b7c8a222066079e1e6eb283f697",
-          "bytes": 338050,
+          "sha256": "0f4fedc5189b5410716252256ee0d644c7d627a03fcab2e958094997ed9403b0",
+          "bytes": 370786,
           "imageInspected": true
         },
         {
-          "id": "svg-auto-light",
+          "id": "svg-1600x1200-light",
           "theme": "light",
-          "sha256": "57ac27adaeb6febb1ab921c6ac3381848d989db26dab8b16322d66a7133f5e63",
-          "bytes": 125738,
-          "imageInspected": true,
           "width": 1600,
-          "height": 1200
+          "height": 1200,
+          "sha256": "46d4ddbb684a105b340a59ff583385e17bd5cddc48f7c335d4dc0703e9ddcae5",
+          "bytes": 179230,
+          "imageInspected": true
         },
         {
-          "id": "svg-auto-dark",
+          "id": "svg-1600x1200-dark",
           "theme": "dark",
-          "sha256": "561c164fc44a3b2fc99d4e78f83f565a6730564b541ae652e9a76be7fd609b05",
-          "bytes": 127951,
-          "imageInspected": true,
           "width": 1600,
-          "height": 1200
+          "height": 1200,
+          "sha256": "6bc53c973217ed6719610f627134b582a5f2fd0b1865dffa9c82356f4bbbf0e2",
+          "bytes": 181905,
+          "imageInspected": true
+        },
+        {
+          "id": "html-cards-2048x1320-light",
+          "theme": "light",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "ec5c08fb0a9ab9ef3c4aef7bc76bf569cabfa480a2de70920bf966ba0b01e3e0",
+          "bytes": 361248,
+          "imageInspected": true,
+          "scrollY": 1489
+        },
+        {
+          "id": "html-scrolled-1440x900-light",
+          "theme": "light",
+          "width": 1440,
+          "height": 900,
+          "sha256": "797535919aeb06ce339d51abe7512fa50976a2841999e8bded3d45d301af87c9",
+          "bytes": 219956,
+          "imageInspected": true,
+          "scrollY": 420
+        },
+        {
+          "id": "html-cards-2048x1320-dark",
+          "theme": "dark",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "76c9cad86ca38f08dd7a98b83f5c8257bae40ff018ad71944476d7c4de158a9c",
+          "bytes": 366560,
+          "imageInspected": true,
+          "scrollY": 1489
+        },
+        {
+          "id": "html-scrolled-1440x900-dark",
+          "theme": "dark",
+          "width": 1440,
+          "height": 900,
+          "sha256": "d314c354ccdc029c57934a5ca5aeb2f819ca2ae16a5fd50317b3f8e9341dbc5d",
+          "bytes": 243794,
+          "imageInspected": true,
+          "scrollY": 420
         }
       ]
     }

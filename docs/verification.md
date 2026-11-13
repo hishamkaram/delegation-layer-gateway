@@ -1,5 +1,125 @@
 # Verification and delivery gates
 
+## November 13 Native connection and dynamic-project candidate
+
+**This extension is not release-ready.** The historical MVP checkpoints below
+do not verify the new Native login, embedded connector, user service or dynamic
+project flow. The candidate guide is [Native connection](native-connect.md).
+Gateway source checkpoint `21b16ef9dbaf590af08ceff366e445a008203add` is published;
+the dedicated Native worktree pins SDK version
+`v0.0.0-20261113192150-21b16ef9dbaf`, without a module replacement. Native's
+remaining worktree changes and Gateway's documentation/controller changes are
+not represented by that Gateway commit alone.
+
+The candidate has focused real-SQLite ownership and quota tests, actual
+TLS/JWKS/WSS/MCP tests, and transport/runtime race checks. The latest full
+transport, runtime and device-hub race runs passed in 97.335, 22.023 and 1.619
+seconds. The earlier complete SDK package race run passed in 160.247 seconds;
+it predates the final parent-cancellation correction. Native service filesystem
+and manager-cache race tests passed in 31.340 seconds. These are package and
+fault-boundary results, not a completed repository gate or actual desktop
+service acceptance.
+
+Actual Sol (`gpt-6.1-sol`, high) and Opus (`claude-opus-5-5`, high) reviewed the
+integrated source through Delegate. The first integrated turns were
+`8087649fc285daa917cef1cd17fe0c71` and
+`90924d45dbc248970e918dfeee78fcbd`. Their corrections exposed ownership,
+proxy-rate-limit, service publication and shutdown errors; accepted follow-ups
+and independent native source reviews cover the repaired boundaries. A timed
+out Opus correction turn did not yield an accepted answer; its exact-session
+successor `e1af6f2e8222018db862c10ff4cfd5fc` did. No reviewer consensus replaces
+the remaining verification or constitutes final approval of later changes.
+
+A further directory-identity question remains open. A controlled empty-directory
+experiment reused the original inode on the first delete/recreate. Native's
+canonical-path/device/inode tuple cannot distinguish that replacement between
+commands. Existing no-retarget wording therefore overstates the guarantee.
+Both Sol and Opus recommend retaining read-only tuple checks and explicitly
+narrowing that guarantee, including the effect on saved-task resume. This is a
+product decision awaiting the operator; the candidate does not claim the
+finding resolved. No project metadata marker has been introduced.
+
+The maintained `scripts/e2e_native_connect.py` exercises actual Gateway and
+Native processes with two local embedded connectors and a bounded zero-cost
+literal provider fixture. It covers token enrollment, workspace resolution,
+stable-operation retries, result digests, restart/reconnection and cancellation
+after workspace removal. It does not establish browser authorization, actual
+Linux/macOS service operation, an installed provider, separate physical devices
+or a Cloud MCP client. At this checkpoint its two initial runs failed before
+any provider attempt: one controller expected JSON from a deliberately silent
+token-file command; the next encountered a null workspace list. Both defects
+were corrected, but original process-owner cleanup was not proved and their
+private paths remain retained.
+
+A corrected run completed with `native_connect_passed`, exactly three recorded
+fixture attempts, two successful accepted-result tasks and one requested
+cancellation. Native reported all three scopes empty and retained the original
+worker-Wait records; controller cleanup was confirmed with no cleanup errors.
+The private evidence directory remains retained. This run used source-built
+candidates and the published SDK pin above. An independent controller review
+then found two general proof gaps: the final attempt count was not constrained
+to three after teardown, and a failure recording a newly started embedded
+connector could bypass the pre-root cleanup gate. The observed successful
+run's count remains three. Both gaps and a further missing-registry-evidence
+case were repaired, with regressions that failed against the preceding code.
+The final controller requires each attempted connector to have original-handle
+or uncertain-start evidence before descendant cleanup, and checks exactly
+three attempts after all joins. Independent native, Sol and Opus source reviews
+cleared these controller corrections. A fresh actual-process run using the
+final guard again reported `native_connect_passed`, exactly three attempts and
+confirmed cleanup with no errors. Full immutable binding replay is checked
+after restart and workspace removal.
+
+The earlier full Go race gate failed on a TCP close-diagnostic race and a metric
+test whose broad identity canary matched fixed metric vocabulary. Focused
+regressions passed after correction; this does not relabel that failed gate.
+The configured Python run executed 425 tests without skips and failed one live
+controller summary assertion. Its focused 46-test file and an ordered 80-test
+prefix subsequently passed; the original failure's root cause remains
+unverified. The assertion was retained, with bounded diagnostic metadata added.
+A subsequent configured run passed all 425 Python tests without skips in
+97.048 seconds, plus harness, docs and pinned Ruff checks (103.438 seconds for
+the four targets). It used the dedicated Native acceptance source explicitly.
+That successful run does not establish the original failure's cause, and it
+predates the controller repairs above.
+
+Gateway's complete `make check` subsequently passed in **413.688 seconds** on
+the final controller and source-`21b16ef9` diagram inputs, explicitly selecting
+the dedicated Native acceptance checkout and `GOWORK=off`. It executed 434
+Python tests without skips in 59.216 seconds, all configured Go race packages,
+the tagged SDK race helper, formatting, vet, both lint scopes, build,
+vulnerability, harness and docs checks. Lint reported zero issues. The scan
+found zero reachable and zero imported-package vulnerabilities, with three
+module-only findings remaining separate. Later prose-only reconciliation is
+not relabeled as that invocation.
+
+Native's complete Linux gate remains incomplete. Its fresh candidate builds,
+static/harness/packaging checks, formatting, full vet, full lint and 80 tooling
+regression checks passed. The aggregate command was interrupted with exit 143
+during its full race stage; the last log write was approximately 900 seconds
+after gate startup. The cause, original aggregate Wait and descendant cleanup
+remain unverified. No timeout or load diagnosis is inferred from that timing;
+the incomplete run and its paths are retained. Later Native Python, CLI/TUI and
+vulnerability stages were not executed by that invocation.
+
+Both final correction reviewers also found a Native Linux service-recovery
+P2: deleting the owned unit before a failed manager reload can leave a stale
+cache that every later command refuses. Their separate design challenge and
+an independent native review recommend a bounded reload-only reconciliation,
+without adopting, stopping or resetting an unverifiable cached unit. A
+controlled systemd 255.4 probe started one owned throwaway `/usr/bin/false`
+unit. After unlink it remained loaded and failed; one reload changed it to
+not-found with empty fragment/drop-in paths while preserving failed state and
+its exit status. All 11 original control commands joined, and cleanup of that
+created probe was confirmed. This proves the observed OS property transition,
+not the proposed Native repair, service lifecycle or provider closure. The
+repair and its regression/review gates remain open at this checkpoint.
+
+Unverified: new browser/headless Auth0 login, browserless token enrollment on the
+deployed host, actual native service lifecycle, installed-provider execution,
+two-device/multi-network recovery and Cloud-client acceptance for this extension.
+The existing MVP evidence below retains its original scope and date.
+
 ## November 13 Home managed-service checkpoint
 
 **Current MVP acceptance is supported within the recorded scopes.** Home passed actual persistent connector start,

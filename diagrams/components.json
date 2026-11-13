@@ -2,13 +2,13 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "IMPLEMENTATION CANDIDATE — Gateway ownership",
+    "title": "EXTENSION CANDIDATE — Native connect and Gateway ownership",
     "output": "diagrams/components.html",
     "locale": "en",
     "quality_profile": "showcase",
     "repository": {
       "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
-      "revision": "5e065e84c9b5130b67aa488a9e478a6391711e2b",
+      "revision": "21b16ef9dbaf590af08ceff366e445a008203add",
       "link_mode": "local-only"
     }
   },
@@ -29,8 +29,8 @@
       "sources": [
         {
           "path": "internal/server/new.go",
-          "line": 93,
-          "end_line": 121
+          "line": 96,
+          "end_line": 141
         }
       ]
     },
@@ -50,13 +50,13 @@
       "sources": [
         {
           "path": "internal/identity/authenticate.go",
-          "line": 70,
-          "end_line": 85
+          "line": 64,
+          "end_line": 86
         },
         {
           "path": "internal/identity/authenticate.go",
           "line": 126,
-          "end_line": 164
+          "end_line": 165
         }
       ]
     },
@@ -76,18 +76,13 @@
       "sources": [
         {
           "path": "internal/server/new.go",
-          "line": 234,
-          "end_line": 263
+          "line": 281,
+          "end_line": 318
         },
         {
-          "path": "internal/registry/routing_drain.go",
-          "line": 35,
-          "end_line": 59
-        },
-        {
-          "path": "internal/adminapi/listener.go",
-          "line": 52,
-          "end_line": 70
+          "path": "internal/registry/ownership.go",
+          "line": 48,
+          "end_line": 67
         }
       ]
     },
@@ -107,18 +102,18 @@
       "sources": [
         {
           "path": "internal/server/new.go",
-          "line": 93,
-          "end_line": 152
+          "line": 96,
+          "end_line": 141
+        },
+        {
+          "path": "internal/server/new.go",
+          "line": 143,
+          "end_line": 159
         },
         {
           "path": "internal/tlsconfig/tls.go",
-          "line": 26,
-          "end_line": 58
-        },
-        {
-          "path": "internal/gateway/dispatch.go",
-          "line": 116,
-          "end_line": 170
+          "line": 30,
+          "end_line": 64
         }
       ]
     },
@@ -126,7 +121,7 @@
       "id": "registry",
       "type": "database",
       "label": "Gateway SQLite",
-      "sublabel": "Schema 7 · grants + two quotas",
+      "sublabel": "Schema 9 · owners / pins / two quotas",
       "pos": [
         410,
         525
@@ -137,27 +132,27 @@
       ],
       "sources": [
         {
-          "path": "internal/registry/store.go",
-          "line": 85,
-          "end_line": 103
+          "path": "internal/registry/project_resolution_schema.go",
+          "line": 9,
+          "end_line": 30
         },
         {
-          "path": "internal/registry/routing.go",
-          "line": 155,
-          "end_line": 231
+          "path": "internal/registry/ownership.go",
+          "line": 158,
+          "end_line": 171
         },
         {
           "path": "internal/registry/operations.go",
-          "line": 301,
-          "end_line": 367
+          "line": 285,
+          "end_line": 330
         }
       ]
     },
     {
       "id": "connectorA",
       "type": "backend",
-      "label": "Device A connector",
-      "sublabel": "Local aliases + policy ceiling",
+      "label": "Embedded device client A",
+      "sublabel": "Native host · Gateway SDK boundary",
       "pos": [
         800,
         100
@@ -168,19 +163,19 @@
       ],
       "sources": [
         {
-          "path": "internal/connector/config.go",
-          "line": 65,
-          "end_line": 88
+          "path": "deviceclient/runtime.go",
+          "line": 114,
+          "end_line": 147
         },
         {
-          "path": "internal/connector/command.go",
-          "line": 169,
-          "end_line": 187
+          "path": "internal/connector/workspace.go",
+          "line": 124,
+          "end_line": 162
         },
         {
-          "path": "internal/connector/cli.go",
-          "line": 163,
-          "end_line": 207
+          "path": "internal/transport/session.go",
+          "line": 318,
+          "end_line": 338
         }
       ]
     },
@@ -200,17 +195,17 @@
       "sources": [
         {
           "path": "internal/connector/command.go",
-          "line": 206,
-          "end_line": 272
+          "line": 224,
+          "end_line": 250
         },
         {
-          "path": "internal/connector/cli.go",
-          "line": 163,
-          "end_line": 192
+          "path": "internal/connector/command.go",
+          "line": 252,
+          "end_line": 283
         },
         {
           "path": "internal/protocol/native_features.go",
-          "line": 5,
+          "line": 11,
           "end_line": 13
         }
       ]
@@ -231,21 +226,26 @@
       "sources": [
         {
           "path": "internal/connector/inventory.go",
-          "line": 9,
-          "end_line": 46
+          "line": 27,
+          "end_line": 47
         },
         {
           "path": "internal/gateway/observation.go",
-          "line": 40,
-          "end_line": 92
+          "line": 41,
+          "end_line": 55
+        },
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 92,
+          "end_line": 94
         }
       ]
     },
     {
       "id": "connectorB",
       "type": "backend",
-      "label": "Device B connector",
-      "sublabel": "Local aliases + policy ceiling",
+      "label": "Embedded device client B",
+      "sublabel": "Native host · Gateway SDK boundary",
       "pos": [
         800,
         450
@@ -256,19 +256,19 @@
       ],
       "sources": [
         {
-          "path": "internal/connector/config.go",
-          "line": 131,
-          "end_line": 168
+          "path": "deviceclient/runtime.go",
+          "line": 155,
+          "end_line": 206
         },
         {
-          "path": "internal/connector/service_routing.go",
-          "line": 141,
-          "end_line": 199
+          "path": "internal/transport/session.go",
+          "line": 101,
+          "end_line": 153
         },
         {
-          "path": "internal/deviceruntime/run.go",
-          "line": 163,
-          "end_line": 190
+          "path": "internal/transport/session.go",
+          "line": 184,
+          "end_line": 204
         }
       ]
     },
@@ -287,19 +287,19 @@
       ],
       "sources": [
         {
-          "path": "internal/connector/command.go",
-          "line": 244,
-          "end_line": 290
-        },
-        {
           "path": "internal/connector/adapter.go",
-          "line": 100,
-          "end_line": 136
+          "line": 115,
+          "end_line": 146
         },
         {
-          "path": "internal/protocol/native_features.go",
-          "line": 5,
-          "end_line": 13
+          "path": "internal/connector/cli.go",
+          "line": 170,
+          "end_line": 229
+        },
+        {
+          "path": "internal/connector/workspace.go",
+          "line": 117,
+          "end_line": 122
         }
       ]
     },
@@ -319,13 +319,80 @@
       "sources": [
         {
           "path": "internal/connector/inventory.go",
-          "line": 9,
-          "end_line": 46
+          "line": 27,
+          "end_line": 47
         },
         {
           "path": "internal/gateway/observation.go",
-          "line": 40,
-          "end_line": 92
+          "line": 41,
+          "end_line": 55
+        },
+        {
+          "path": "internal/gateway/observation.go",
+          "line": 92,
+          "end_line": 94
+        }
+      ]
+    },
+    {
+      "id": "profileA",
+      "type": "database",
+      "label": "Local profile A",
+      "sublabel": "Workspaces / ceilings / saved pins",
+      "pos": [
+        800,
+        255
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "deviceclient/workspaces.go",
+          "line": 184,
+          "end_line": 209
+        },
+        {
+          "path": "deviceclient/projects.go",
+          "line": 252,
+          "end_line": 286
+        },
+        {
+          "path": "internal/connector/workspace.go",
+          "line": 137,
+          "end_line": 162
+        }
+      ]
+    },
+    {
+      "id": "profileB",
+      "type": "database",
+      "label": "Local profile B",
+      "sublabel": "Workspaces / ceilings / saved pins",
+      "pos": [
+        800,
+        605
+      ],
+      "size": [
+        220,
+        68
+      ],
+      "sources": [
+        {
+          "path": "deviceclient/workspaces.go",
+          "line": 184,
+          "end_line": 209
+        },
+        {
+          "path": "deviceclient/projects.go",
+          "line": 252,
+          "end_line": 286
+        },
+        {
+          "path": "internal/connector/workspace.go",
+          "line": 137,
+          "end_line": 162
         }
       ]
     }
@@ -346,7 +413,8 @@
       "wraps": [
         "connectorA",
         "delegateA",
-        "storeA"
+        "storeA",
+        "profileA"
       ],
       "pad": 24
     },
@@ -356,7 +424,8 @@
       "wraps": [
         "connectorB",
         "delegateB",
-        "storeB"
+        "storeB",
+        "profileB"
       ],
       "pad": 24
     }
@@ -393,14 +462,14 @@
       "id": "outboundA",
       "from": "connectorA",
       "to": "gateway",
-      "label": "Outbound mTLS WSS",
+      "label": "Outbound WSS v1/v2",
       "variant": "security"
     },
     {
       "id": "outboundB",
       "from": "connectorB",
       "to": "gateway",
-      "label": "Outbound mTLS WSS",
+      "label": "Outbound WSS v1/v2",
       "variant": "security"
     },
     {
@@ -428,6 +497,18 @@
       "to": "storeB",
       "label": "Required evidence",
       "variant": "dashed"
+    },
+    {
+      "id": "profile-ownerA",
+      "from": "connectorA",
+      "to": "profileA",
+      "label": "Reads / persists"
+    },
+    {
+      "id": "profile-ownerB",
+      "from": "connectorB",
+      "to": "profileB",
+      "label": "Reads / persists"
     }
   ],
   "cards": [
@@ -435,28 +516,44 @@
       "dot": "cyan",
       "title": "Separate authoritative owners",
       "items": [
-        "Gateway Registry owns grants, immutable operation correlation, execution reservations and durable CLI-routing permits. Observations are dated caches; Native alone owns task admission, launch, supervision and accepted outcomes.",
-        "Connector owns immutable local alias pins and a stricter provider/permission/budget ceiling. Effective execution rights require both current Gateway grants and the local ceiling; no automatic repin or failover.",
-        "Schema 7 keeps routing permits separate from task reservations. CLI Wait/cleanup, definite non-publication or fenced same-process census can settle routing; only canonical task closure, matching confirmed stop or permanent refusal settles transmitted execution uncertainty."
+        "Gateway Registry schema 9 owns immutable device ownership, live owner policy, resolution correlations and separate execution reservations / durable CLI-routing permits. Legacy devices keep explicit project grants; login or migration never adopts them.",
+        "Native owns its service host. The public Gateway deviceclient SDK embeds the existing connector runtime and joins Serve before releasing identity. Expected SDK shutdown requires qualified Serve cancellation and clean Close; it proves neither task closure nor a successful connection.",
+        "The local profile owns workspace approval, current ceilings and immutable pins. Native alone owns admission, launch, supervision and accepted outcomes. Gateway observations are dated caches."
       ]
     },
     {
       "dot": "rose",
-      "title": "Trust, fleet coverage and joins",
+      "title": "Enrollment and transport",
       "items": [
-        "Separate TLS 1.3 listeners: public HTTPS OAuth/JWKS MCP and device mTLS WSS. Each connector initiates outbound WSS; Gateway sees plaintext. Two device roles illustrate topology, not physical-device/network acceptance.",
-        "Complete prior-fleet routing coverage precedes ANY routed CLI, including protected recovery controls. Changed process identity needs explicit out-of-band frozen local CLI-join attestation bound to current credential, process boot and exact connection generation.",
-        "Connector census/ACK gates claims. Accepted controls retain ownership through actual Wait and cleanup; timeout/socket closure never proves task closure. Phase-4 schema-7 compaction deletes only closed older routing rows, never active controls or task evidence.",
-        "Same account is a trusted device boundary. Project grants route requests; they are not an OS sandbox. Native CLI is a separately reviewed prerequisite, not an embedded second engine."
+        "Optional device_login exposes a public descriptor plus authenticated self-enrollment and owner revocation. Verified device:enroll and live owner policy gate enrollment; replacement also requires device:manage and exact prior generation. OAuth/headless or private-token flows preserve CSR/request identity.",
+        "Public HTTPS OAuth/JWKS and device mTLS WSS have separate trust roles. Negotiated v1 preserves legacy aliases; v2 adds workspace resolution and root-addressed controls. Native public-contract version remains 1. Devices initiate WSS; Gateway sees plaintext. Session owners close sockets before canceling read/write contexts and join parent-cancellation hooks before reporting done; independent close errors remain visible.",
+        "Current owner policy or legacy grant intersects the local ceiling. Disablement/revocation denies authority without proving task closure. Same-account workspace approval is routing policy, not an OS sandbox."
       ]
     },
     {
       "dot": "amber",
-      "title": "Source-backed candidate, bounded evidence",
+      "title": "Immutable pins; current policy",
       "items": [
-        "Gateway source is pinned to commit 5e065e84 (full revision in metadata). All node references resolve against committed Gateway bytes with local-only links. External Native nodes cite the Gateway consumer contract, not foreign implementation.",
-        "Native is an external prerequisite: namespace-admission-v1 and namespace-mutation-lease-v1 are both required. The reviewed Native prerequisite is commit 62b11d34 (PR 179); an arbitrary installed CLI is not presumed compatible.",
-        "Gateway enforces frozen task guards, root-only namespace probes and live project checks for new execution. Current commands, results and remaining acceptance limits belong in docs/verification.md; this diagram supplies source provenance, not runtime or release proof."
+        "Approve a workspace locally; resolve an explicit device/workspace/relative directory using a saved request ID. Native must validate the pinned tuple and containment. Gateway does not scan or create directories. Same-ID replay retains the first pin; changed selectors conflict. These contracts do not establish physical delete/recreate detection.",
+        "V2 periodic metadata has at most 100 workspaces plus a dated budget, never all retained projects. Fresh targeted capabilities precede prepare/send. The local policy lease reloads the current ceiling through CLI Start, then releases before Wait.",
+        "Retained local pins include tombstones: 1,024 records and 4 MiB encoded data, with no eviction. Gateway independently caps resolution requests at 1,024/device including pending. Removed approvals block new resolution/admit/resume while authorized saved task controls retain identity."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Recovery conserves two ledgers",
+      "items": [
+        "Full prior-fleet coverage precedes every routed CLI. Census/ACK or explicit out-of-band prior-CLI join attestation binds current credential, process boot and exact generation; neither supplies task closure.",
+        "Routing permits remain through actual Wait/output cleanup. Only closed older routing rows compact; active controls and uncertain execution reservations remain held. Execution release requires canonical closure, exact confirmed stop or permanent refusal.",
+        "Restore persists barriers before inventory, mapping/drain and guarded reopen. Recovery-only cannot admit/resume/reopen. Owned-root initialization is narrowly scoped and cannot bypass active fleet restore."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Source and acceptance scope",
+      "items": [
+        "Source: Gateway 21b16ef9, full revision in metadata, local-only links with SSH origin. External Native nodes cite Gateway consumer contracts, not Native implementation at Gateway HEAD. Both namespace features are mandatory; v2 also requires workspace-constrained-connector-v1.",
+        "This extension is not release-ready. Complete engineering gates, extension live acceptance and final independent review remain pending. Historical MVP process/provider/device/Cloud evidence does not validate this extension; docs/verification.md owns dated results."
       ]
     }
   ]

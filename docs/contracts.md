@@ -1,8 +1,9 @@
 # Public integration contracts
 
-Status: frozen target v1; these additions are not yet available in a released
-Delegate installation. Gateway must refuse execution readiness without the
-required version/features. No import of Delegate `internal/` packages or use of
+Status: Native-connect extension candidate, with negotiated WSS v1/v2 and
+Native public contract version 1. Extension engineering gates, live acceptance
+and final review remain pending; earlier MVP evidence does not cover it.
+Gateway must refuse execution readiness without the required version/features. No import of Delegate `internal/` packages or use of
 its private SSH server is allowed.
 
 This candidate requires both `namespace-admission-v1` and
@@ -18,6 +19,7 @@ remain present. Capability checks do not establish provider or cloud acceptance.
 | Tools | Required behavior |
 | --- | --- |
 | `list_devices`, `list_projects`, `get_capabilities` | Authorized paginated inventory and dated readiness; aliases only, no local paths |
+| `list_workspaces`, `resolve_project` | Owned-device workspace inventory and durable existing-directory pin; explicit device/workspace/request identity, no task start |
 | `prepare_dispatch` | Validate explicit device/project and immutable request; persist random handle; no launch |
 | `dispatch_task` | Confirm the existing handle; no new identity, silent failover or offline work queue |
 | `list_operations`, `resolve_operation`, `get_task_status` | Current-owner/current-grant observation; passive resolution cannot launch or fence |
@@ -28,11 +30,13 @@ remain present. Capability checks do not establish provider or cloud acceptance.
 Schemas are strict and versioned. Model-supplied identity is not authentication.
 Operation handles are not bearer capabilities. User principal is validated
 `(issuer, subject)`; inventory, dispatch, read and cancellation scopes remain
-separate and also require per-device/project grants.
+separate. Legacy devices require per-device/project grants; self-enrolled devices
+require their immutable owner and current enabled owner policy. The local
+workspace/provider ceiling can only narrow execution authority.
 
 `get_capabilities` reports `task_read_allowed` and `task_cancel_allowed` for the
 selected device/project. Each is the intersection of the verified token scopes
-and the current Registry grant, even when the device is offline or has no
+and current Registry authority (legacy grant or owner policy), even when the device is offline or has no
 provider report. They are request-time authorization observations, independent
 of provider authentication and execution readiness. Later controls recheck
 authority; these fields cannot promise cleanup after expiry or revocation.
@@ -77,13 +81,20 @@ then normalizes their bindings; remote arguments never become local paths.
 
 ## WSS protocol
 
-Required subprotocol: `delegate-gateway.v1`. Envelope fields: `version`, `type`,
+Negotiated subprotocols: `delegate-gateway.v1` and `delegate-gateway.v2`.
+A session validates every frame against its negotiated version; v2 is not
+accepted under v1. Native public-contract compatibility remains version 1,
+independent of wire version. Envelope fields: `version`, `type`,
 `request_id`, `connection_generation`, optional `operation_id`, `ttl_ms`, `payload`.
 Use tagged strict payloads, one reader and bounded writers; compression is off.
 
 Operations: `context_inspect`, `admit`, `resolve`, `resume_existing`,
 `fence_absent`, `status`, `collect`, `result_chunk`, `cancel`, `origin_barrier`,
 `origin_inventory`, `origin_reopen`, and typed certificate renewal messages.
+Wire v2 adds `resolve_project` and root-addressed controls; v1 rejects those
+additions. V2 capability reports carry root/workspace inventory and dated pin
+budget only. Targeted project inspection carries one immutable pin and a
+current policy revision, never an expanded periodic project list.
 Recovery-only credentials cannot admit, resume or reopen. Admin operations are
 never MCP-callable. Superseded generations and stale completeness receipts fail
 closed.
@@ -107,11 +118,43 @@ ownership while receiving stop requests; a refusal fence is not a prerequisite
 for stopping complete existing work. All sequential native controls retain the
 same protected permit through actual Wait and cleanup.
 
+## Owner enrollment and project pins
+
+The optional public descriptor at `/.well-known/delegation-gateway` advertises
+configured HTTPS issuer/resource/enrollment URLs, the same-host device WSS URL,
+device CA and supported wires. `/v1/self/enroll` requires verified device-enroll
+scope plus current Registry eligibility; `/v1/self/devices/revoke` requires
+device-manage scope and exact ownership. Enrollment request replay is bound to
+the first owner and CSR/key/selection, and replacement requires the expected
+credential generation. Neither route exposes private administration.
+See [public DTOs](../internal/selfservice/contract/types.go) and
+[Registry authorization](../internal/registry/ownership.go).
+
+The default Native-owned embedded service uses OAuth device login (including
+headless approval) or an explicit private one-device enrollment token. Those
+operator flows and their lifecycle limits are maintained in
+[Native connect](native-connect.md); the standalone legacy connector is not the
+default installation requirement.
+
+`resolve_project` requires a saved 32-lowercase-hex request ID, explicit device,
+workspace ID and clean existing relative directory (`.` is allowed). Absolute
+paths, traversal and remote filesystem creation are excluded. Native checks
+actual ancestry and symlinks. Its first durable pin is replay identity, not
+execution permission. Changed selector replay conflicts; removed/replaced
+paths never silently replace a pin. Schema 9 stores the Gateway correlation
+and routes by reference to that pin; local paths/tokens remain with Native.
+Fresh targeted inspection rechecks that exact identity and current policy.
+See [wire validation](../internal/protocol/workspace.go),
+[resolution storage](../internal/registry/project_resolution.go) and
+[local pin/Start ownership](../internal/connector/workspace_contract.go).
+
 ## Limits and errors
 
 | Limit | Default |
 | --- | --- |
 | UTF-8 brief / encoded frame or HTTP body | 256 KiB / 1 MiB; validate both before possible-send |
+| Workspace inventory / retained local project pins | 100 workspaces; 1,024 pins including tombstones, also bounded to 4 MiB encoded pin data; no eviction |
+| Gateway durable resolution requests | 1,024/device, including pending requests; a capacity observation reserves no slot |
 | Result chunk | 64 KiB, full-payload verification before returning bytes |
 | Outstanding operations | 2/device, 32 global; uncertainty retains reservations |
 | Gateway-routed ordinary CLI controls / reserved cancellation-fence controls | Outer ceilings: 32 / 8 globally, held through actual Wait and cleanup |
@@ -151,3 +194,11 @@ Return bounded typed errors, never native error strings or paths. OAuth HTTP
 challenges and tool authentication metadata remain protocol fields outside the
 application error object. Unsupported Delegate features mean not ready, never a
 private-protocol fallback.
+
+Operational error classification uses only a qualified sole cause. A known
+timeout, invalid-input, size-limit or public policy error joined with an
+independent operational failure becomes `internal_error`. Actual request
+validation, token expiry and context cancellation are checked independently at
+the tool boundary; they keep their priority without trusting mixed error graphs.
+Keep a retained operation or resolution request ID after uncertainty; do not
+replace it because a response was lost.

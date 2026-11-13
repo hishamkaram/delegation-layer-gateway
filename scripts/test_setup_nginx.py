@@ -7,11 +7,13 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import stat
 import socket
 import subprocess
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import setup_nginx as setup
@@ -43,11 +45,15 @@ class NginxSetupTests(unittest.TestCase):
             "proxy_ssl_protocols TLSv1.3;",
             "proxy_next_upstream off;",
             "proxy_buffering off;",
+            "proxy_set_header X-Real-IP $remote_addr;",
             "access_log off;",
             "error_log /dev/null crit;",
             "location = /mcp",
             "location = /v1/enroll",
             "location = /.well-known/oauth-protected-resource/mcp",
+            "location = /.well-known/delegation-gateway",
+            "location = /v1/self/enroll",
+            "location = /v1/self/devices/revoke",
             "location / { return 404; }",
         ):
             self.assertIn(required, config)
@@ -80,6 +86,51 @@ class NginxSetupTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             setup.existing_configuration(self.settings)
         self.assertEqual(other.read_text(), "keep")
+
+    def test_exact_legacy_vhost_can_upgrade_but_edited_legacy_is_refused(self) -> None:
+        settings = setup.Settings(TEST_HOST, "https")
+        current = settings.configuration(forward_client_ip=False)
+        legacy = current
+        for path in (
+            "/.well-known/delegation-gateway",
+            "/v1/self/enroll",
+            "/v1/self/devices/revoke",
+        ):
+            legacy = legacy.replace(
+                f"    location = {path} {{ proxy_pass https://127.0.0.1:9443; }}\n",
+                "",
+            )
+        self.assertNotEqual(legacy, current)
+        self.assertEqual(
+            settings.configuration(native_login=False, forward_client_ip=False), legacy
+        )
+        self.target.write_text(legacy)
+        owned = SimpleNamespace(
+            st_mode=stat.S_IFREG | 0o644,
+            st_uid=0,
+            st_nlink=1,
+            st_size=len(legacy),
+        )
+        with patch.object(Path, "lstat", return_value=owned):
+            self.assertEqual(setup.existing_configuration(settings), legacy.encode())
+            self.target.write_text(legacy.replace("ssl_verify on;", "ssl_verify off;"))
+            with self.assertRaises(RuntimeError):
+                setup.existing_configuration(settings)
+
+    def test_exact_native_vhost_before_client_ip_forwarding_can_upgrade(self) -> None:
+        settings = setup.Settings(TEST_HOST, "https")
+        prior = settings.configuration(forward_client_ip=False)
+        self.target.write_text(prior)
+        owned = SimpleNamespace(
+            st_mode=stat.S_IFREG | 0o644, st_uid=0, st_nlink=1, st_size=len(prior)
+        )
+        with patch.object(Path, "lstat", return_value=owned):
+            self.assertEqual(setup.existing_configuration(settings), prior.encode())
+            self.target.write_text(
+                prior.replace('X-Real-IP "";', "X-Real-IP $http_x_real_ip;")
+            )
+            with self.assertRaises(RuntimeError):
+                setup.existing_configuration(settings)
 
     def test_exact_once_inclusion_is_required(self) -> None:
         content = self.settings.configuration().encode()
