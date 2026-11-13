@@ -1,5 +1,77 @@
 # Verification and delivery gates
 
+## November 13 frozen-source verification
+
+**Not release-ready.** Production correction
+[`7061511`](https://github.com/hishamkaram/delegation-layer-gateway/commit/7061511844b82210e72de96c921d368c521edd28)
+is committed and pushed. All 384 committed file contents match the frozen input
+manifest used for the complete engineering gate. Independent Sol, Opus and native
+reviews found no remaining actionable P0/P1/P2 in their inspected production scope.
+That is a scoped review result, not a claim of zero defects.
+
+| Check | Actual result | Scope |
+| --- | --- | --- |
+| `make check` | Exit0, 478.119s; no inputs changed during the run. 406 Python tests, all Go race packages, tagged SDK helper, formatting, vet, lint, build, vulnerability, harness and docs checks passed. | Pinned Go 1.27.4 and Python 3.12.13; `GOTOOLCHAIN=local`, `GOMAXPROCS=4`, `GOFLAGS=-p=4`. Zero reachable/imported-package vulnerabilities; three module-only findings. |
+| [Exact-head CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43330190412) | All three jobs passed: harness, Ubuntu 24.04 and macOS 15 runtime. | Commit `7061511`; CI does not prove Cloud-client or installed-provider acceptance. |
+| Fresh source builds | Two Linux and three Darwin compiler commands completed with original Wait0; source-before/after manifests matched. | Creator-owned Gateway, SDK client and Native candidates. Cross-builds are separate from native execution. |
+| Current local process fixture | Four tasks; canonical closure, creator cleanup and all original process joins confirmed. | Actual Gateway/Delegate/supervisor/SDK processes with a controlled provider. |
+| Current two-Mac fixture | Four tasks; both peers confirmed cleanup. Fourteen remote children, two SSH owners and seventeen outer children joined naturally with exit0. | Two physical Macs. Client response loss is simulated; installed provider, independent network paths and Cloud remain separate categories. |
+| Actual producer through strict reader | Local: 301 complete records and three prepare/admit identity matches. Two-Mac: 341 records and four matches. | Correlation includes operation, principal, device and project. Qualified connection rows were observed; row counts do not prove paired connection closure or Native task success. |
+| Native upstream and harness | Dedicated worktree remains clean at `d24a2cc2`, includes fetched main `68e572a1`, and retains its own engineering harness. | No further Native production change was needed for the Gateway correction. The fixture pinned 483 Python/data inputs, including 448 Native acceptance modules. |
+
+The first two private fixture wrappers stopped before controller/SSH/task start:
+they incorrectly required a top-level Native `scripts/__init__.py`. Clean Native
+uses a namespace package there. The corrected wrapper records that absence,
+retains all real harness inputs and uses new receipt/work directories. Its
+filesystem regression failed before the fix and passed afterward. Those failed
+preflight records remain failed; the fresh successful runs are separate evidence.
+
+The private service-upgrade helper now checks the selected unit parent before
+effects, immediately before stop and again before replacement. Eleven controlled
+tests and the actual file-only preflight passed. Opus and an independent native
+review cleared the corrected helper. The additional Sol continuation was refused
+before task creation with `predecessor_session_handoff_failed`; its accepted
+production review remains valid. Canonical collection subsequently completed the
+release bookkeeping without changing that outcome. One exact continuation retry
+completed its accepted review. Sol and Opus cleared the exact corrected upgrade
+helper; the original refusal's underlying cause remains unverified.
+
+The actual service upgrade then passed: the manager proved the old process's
+normal exit0 before replacement, a new invocation started afterward, and public
+system-TLS authentication and inventory checks passed. The same registry, TLS
+configuration and device identities were retained. Both current Mac connectors
+subsequently passed authenticated readiness. Protected metrics reported two
+active connections, two registered/authorized devices and two repeat-generation
+establishments, with zero audit or metric failures at that dated sample.
+
+Home's new installed-Claude request passed through the upgraded service with a
+verified 60-byte result and canonical execution closure. A separate same-task
+Native observer confirmed committed publication, a closed scope and qualified
+successful worker Wait with exit0 before the deadline. Office's separate new
+request failed: the operation reached canonical Native closure without an
+accepted result. Its controller and task cleanup were confirmed. A bounded public
+Native status observation reports a rejected outcome with
+`provider_authentication_failed`; why that execution context could not authenticate
+remains unverified. No failed task was replayed. Both
+finite connector holders later reported original connector/SSH Wait0 and clean
+controller cleanup. These facts do not prove successful Office execution.
+
+A subsequent protected read verified healthy sinks, zero active/WSS connections
+after the finite holders closed, two registered/authorized devices and a
+repeat-generation aggregate of two. The strict reader validated 704 complete
+audit rows, including 122 after the pre-task cursor. Both new operation identities
+had exactly one matched preparation and admit observation with positive duration
+and frame lengths. Fixed metric labels passed; selected brief/path canaries and
+stored token values were absent. The token comparison concerns the retained file
+values, not independently captured historical request bytes. The Office control
+observations do not establish provider success.
+
+GUI-qualified Mac service activation and an actual ChatGPT Cloud task remain
+open. The earlier real-provider results below retain their exact baseline scope.
+Both PRs stay draft and Issue #1 stays open.
+
+The earlier dated sections below preserve their original evidence and limitations.
+
 ## November 12 Office and audit correction checkpoint
 
 **Not release-ready.** Office's authorized isolated Native root now passed the

@@ -150,6 +150,10 @@ filtering. Known public policy/provider error categories require a qualified
 single cause; otherwise their response is `internal_error`. Existing timeout,
 input-validation and size-limit priorities remain separate.
 
+A remote control failure joined with a release failure can therefore become a
+non-retryable `internal_error`. Keep the existing operation handle and explicitly
+resolve or inspect it; that error never authorizes a replacement task identity.
+
 A supplemented failure can emit both its earlier control observation and a
 principal-only denial. Event counters count observations, not unique requests.
 An authorized alias missing from the device's advertisement is a concealed
