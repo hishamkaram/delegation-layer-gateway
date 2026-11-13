@@ -672,6 +672,7 @@ class HoldTests(unittest.TestCase):
             }
             for index, channel in enumerate(channels)
         ]
+        controller.targets = tuple(link["target"] for link in controller.links)
         final = controller.finish()
         self.assertFalse(final["cleanup_confirmed"])
         for channel in channels:
@@ -682,9 +683,11 @@ class HoldTests(unittest.TestCase):
         self.assertTrue((self.base / "controller-final.json").exists())
         self.assertIs(controller.finish(), final)
 
-    def two_peer_controller(self, *, seconds=8, run=True):
+    def peer_controller(
+        self, *, seconds=8, run=True, target_aliases=("local-0", "local-1")
+    ):
         targets = []
-        for index in range(2):
+        for index, alias in enumerate(target_aliases):
             external = self.base / ("external-" + str(index))
             external.mkdir(mode=0o700)
             identity = external / "identity"
@@ -703,7 +706,7 @@ class HoldTests(unittest.TestCase):
             run_id = str(index + 1) * 16
             targets.append(
                 hold.Target(
-                    "local-" + str(index),
+                    alias,
                     str(self.base),
                     os.getuid(),
                     run_id,
@@ -774,8 +777,226 @@ class HoldTests(unittest.TestCase):
             os.close(writer)
         return controller
 
+    def test_real_one_target_stdin_stop_joins_only_selected_home(self):
+        controller = self.peer_controller(run=False, target_aliases=("mac-home",))
+        self.assertIsInstance(controller.targets, tuple)
+        self.assertEqual(
+            [target.ssh_alias for target in controller.targets], ["mac-home"]
+        )
+        reader, writer = os.pipe()
+        try:
+            os.write(writer, b"stop\n")
+            with (
+                os.fdopen(reader, "rb") as source,
+                tempfile.TemporaryFile() as output,
+                redirect_stdout(output),
+                mock.patch.object(
+                    controller, "start_ssh", wraps=controller.start_ssh
+                ) as start,
+            ):
+                controller.run(source)
+            self.assertEqual(
+                [call.args[0] for call in start.call_args_list], ["mac-home"]
+            )
+            self.assertEqual(len(controller.links), 1)
+            self.assertEqual(len(controller.processes.entries), 1)
+            channel = controller.links[0]["channel"]
+            with mock.patch.object(
+                channel, "close_input", wraps=channel.close_input
+            ) as close:
+                final = controller.finish()
+            close.assert_called_once()
+            self.assertTrue(final["cleanup_confirmed"])
+            self.assertFalse(final["task_stop_proven"])
+            self.assertEqual(len(final["peers"]), 1)
+            record = final["peers"][0]
+            self.assertEqual(record["run_id"], controller.targets[0].run_id)
+            self.assertTrue(record["ssh_wait"]["natural_wait"])
+            self.assertEqual(record["ssh_wait"]["exit_code"], 0)
+            self.assertTrue(record["remote_final"]["cleanup_confirmed"])
+            remote_waits = record["remote_final"]["remote_wait_receipts"]
+            self.assertEqual(len(remote_waits), 1)
+            self.assertTrue(remote_waits[0]["natural_wait"])
+            self.assertEqual(remote_waits[0]["exit_code"], 0)
+            self.assertTrue(controller.processes.finished_naturally())
+        finally:
+            os.close(writer)
+
+    def test_controller_rejects_invalid_rosters_before_owners_or_source_staging(self):
+        from dataclasses import replace
+
+        home = hold.Target(
+            "mac-home",
+            str(self.base),
+            os.getuid(),
+            "1" * 16,
+            str(self.gateway),
+            str(self.config),
+            str(self.base / ("gh-" + "1" * 16)),
+            8,
+            "home",
+            "gateway",
+        )
+        office = replace(
+            home, ssh_alias="mac-office", run_id="2" * 16, device_id="office"
+        )
+        third = replace(home, ssh_alias="third", run_id="3" * 16, device_id="third")
+        for targets in [
+            [],
+            [home, office, third],
+            [home, replace(office, ssh_alias=home.ssh_alias)],
+            [home, replace(office, run_id=home.run_id)],
+            [home, replace(office, device_id=home.device_id)],
+        ]:
+            with (
+                self.subTest(targets=targets),
+                mock.patch.object(hold, "source_snapshot") as snapshot,
+                mock.patch.object(hold, "load_owners") as owners,
+            ):
+                with self.assertRaises(local.ProofFailure):
+                    hold.HoldController(
+                        NATIVE,
+                        self.base / "never-created",
+                        targets,
+                        local.Interruptions(),
+                    )
+                snapshot.assert_not_called()
+                owners.assert_not_called()
+                self.assertFalse((self.base / "never-created").exists())
+
+    def test_controller_selection_freezes_the_validated_caller_roster(self):
+        from dataclasses import replace
+        import e2e_remote as remote
+
+        home = hold.Target(
+            "mac-home",
+            str(self.base),
+            os.getuid(),
+            "1" * 16,
+            str(self.gateway),
+            str(self.config),
+            str(self.base / ("gh-" + "1" * 16)),
+            8,
+            "home",
+            "gateway",
+        )
+        office = replace(
+            home, ssh_alias="mac-office", run_id="2" * 16, device_id="office"
+        )
+        selected = [home, office]
+        with (
+            mock.patch.object(hold, "source_snapshot", return_value=(b"source", ())),
+            mock.patch.object(
+                hold, "load_owners", return_value=(mock.Mock(), mock.Mock())
+            ),
+            mock.patch.object(hold, "private_json"),
+            mock.patch.object(remote, "installed_ssh"),
+        ):
+            controller = hold.HoldController(
+                NATIVE, self.base / "uncreated", selected, local.Interruptions()
+            )
+        selected.clear()
+        self.assertEqual(controller.targets, (home, office))
+
+    def test_cli_passes_one_explicit_target_to_the_controller(self):
+        from dataclasses import asdict
+
+        home = hold.Target(
+            "mac-home",
+            str(self.base),
+            os.getuid(),
+            "1" * 16,
+            str(self.gateway),
+            str(self.config),
+            str(self.base / ("gh-" + "1" * 16)),
+            8,
+            "home",
+            "gateway",
+        )
+        controller_config = self.base / "single-hold-controller.json"
+        controller_config.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "delegate_repository": str(NATIVE),
+                    "receipt_directory": str(self.base / "uncreated-controller"),
+                    "targets": [asdict(home)],
+                }
+            )
+        )
+        controller_config.chmod(0o600)
+        selected = []
+
+        class ControllerBoundary:
+            def __init__(self, _source, _base, targets, _interruptions):
+                self.processes = object()
+                selected.extend(targets)
+
+            def run(self, _stream):
+                pass
+
+            def finish(self):
+                return {"cleanup_confirmed": True}
+
+        with (
+            mock.patch.object(
+                sys, "argv", ["connector-hold", "--config", str(controller_config)]
+            ),
+            mock.patch.object(hold, "HoldController", ControllerBoundary),
+            mock.patch.object(hold.signal, "signal"),
+        ):
+            self.assertEqual(hold.main(), 0)
+        self.assertEqual(selected, [home])
+        self.assertFalse((self.base / "uncreated-controller").exists())
+
+    def test_cli_rejects_empty_oversized_and_duplicate_rosters_before_actors(self):
+        from dataclasses import asdict
+
+        home = hold.Target(
+            "mac-home",
+            str(self.base),
+            os.getuid(),
+            "1" * 16,
+            str(self.gateway),
+            str(self.config),
+            str(self.base / ("gh-" + "1" * 16)),
+            8,
+            "home",
+            "gateway",
+        )
+        for targets in [[], [asdict(home)] * 3, [asdict(home)] * 2]:
+            controller_config = self.base / "hold-controller.json"
+            controller_config.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "delegate_repository": str(NATIVE),
+                        "receipt_directory": str(self.base / "uncreated-controller"),
+                        "targets": targets,
+                    }
+                )
+            )
+            controller_config.chmod(0o600)
+            with (
+                self.subTest(targets=len(targets)),
+                mock.patch.object(
+                    sys, "argv", ["connector-hold", "--config", str(controller_config)]
+                ),
+                mock.patch.object(hold, "source_snapshot") as snapshot,
+                mock.patch.object(hold, "load_owners") as owners,
+                mock.patch.object(hold.signal, "signal"),
+            ):
+                if len(targets) in (0, 3):
+                    with self.assertRaises(local.ProofFailure):
+                        hold.main()
+                else:
+                    self.assertEqual(hold.main(), 1)
+                snapshot.assert_not_called()
+                owners.assert_not_called()
+                self.assertFalse((self.base / "uncreated-controller").exists())
+
     def test_real_two_peer_controller_explicit_stop_joins_both(self):
-        controller = self.two_peer_controller()
+        controller = self.peer_controller()
         final = controller.finish()
         self.assertTrue(final["cleanup_confirmed"])
         self.assertFalse(final["task_stop_proven"])
@@ -789,7 +1010,7 @@ class HoldTests(unittest.TestCase):
         self.assertTrue(controller.processes.finished_naturally())
 
     def test_real_controller_signal_checkpoint_cleans_both_isolated_sessions(self):
-        controller = self.two_peer_controller()
+        controller = self.peer_controller()
         for link in controller.links:
             process = link["channel"].process
             self.assertEqual(os.getsid(process.pid), process.pid)
@@ -802,7 +1023,7 @@ class HoldTests(unittest.TestCase):
         self.assertTrue(controller.processes.finished_naturally())
 
     def test_full_borrowed_stdout_is_bounded_and_both_connector_children_join(self):
-        controller = self.two_peer_controller(seconds=60, run=False)
+        controller = self.peer_controller(seconds=60, run=False)
         reader, writer = os.pipe()
         control_read, control_write = os.pipe()
 
@@ -867,7 +1088,7 @@ class HoldTests(unittest.TestCase):
             os.close(reader)
 
     def test_first_input_close_fault_still_joins_both_peers_and_preserves_failure(self):
-        controller = self.two_peer_controller(seconds=60)
+        controller = self.peer_controller(seconds=60)
         first = controller.links[0]["channel"]
         second = controller.links[1]["channel"]
         close_first = first.close_input
@@ -900,7 +1121,7 @@ class HoldTests(unittest.TestCase):
         )
 
     def test_finished_observation_fault_still_releases_and_persists_both_joins(self):
-        controller = self.two_peer_controller(seconds=60)
+        controller = self.peer_controller(seconds=60)
         with (
             mock.patch.object(
                 controller.processes,
@@ -926,7 +1147,7 @@ class HoldTests(unittest.TestCase):
         )
 
     def test_release_fault_still_persists_both_joins_and_failure(self):
-        controller = self.two_peer_controller(seconds=60)
+        controller = self.peer_controller(seconds=60)
         release = controller.ownership.release
 
         def released_then_failed():
@@ -951,7 +1172,7 @@ class HoldTests(unittest.TestCase):
         )
 
     def test_real_two_peer_missing_final_still_joins_sibling_and_retains_locators(self):
-        controller = self.two_peer_controller()
+        controller = self.peer_controller()
         first = controller.links[0]["channel"]
         original = first.expect
 
@@ -972,7 +1193,7 @@ class HoldTests(unittest.TestCase):
             )
 
     def test_changed_shutdown_receipt_cannot_be_replaced_by_a_successful_final(self):
-        controller = self.two_peer_controller(seconds=60)
+        controller = self.peer_controller(seconds=60)
         first = controller.links[0]["channel"]
         original = first.expect
 
@@ -1051,7 +1272,7 @@ class HoldTests(unittest.TestCase):
             os.close(writer)
 
     def test_real_controller_refreshes_sibling_without_extending_hold(self):
-        controller = self.two_peer_controller(seconds=60)
+        controller = self.peer_controller(seconds=60)
         first = controller.links[0]
         deadline = first["deadline"]
         first["last_activity"] = time.monotonic() - 36
@@ -1061,7 +1282,7 @@ class HoldTests(unittest.TestCase):
         self.assertTrue(controller.finish()["cleanup_confirmed"])
 
     def test_real_controller_leaves_deadline_margin_instead_of_racing_a_final(self):
-        controller = self.two_peer_controller()
+        controller = self.peer_controller()
         first = controller.links[0]
         first["last_activity"] = time.monotonic() - 36
         controller.pump()

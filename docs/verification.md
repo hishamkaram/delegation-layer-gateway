@@ -30,8 +30,25 @@ and controller cleanup completed with joined helpers. The result SHA-256 is
 No provider login or credential copying was performed. This proves the tested
 execution path; the exact historical authentication-failure mechanism remains
 unverified. The temporary operator tmux server is setup infrastructure outside
-the Gateway protocol. Its removal and subsequent connectivity/Cloud execution
-checks remain pending at this checkpoint.
+the Gateway protocol. After the operator stopped it, a separate joined probe
+observed no listener on that exact socket and then verified authenticated public
+SDK routability for Office. It makes no claim about the former server process's
+original Wait or birth identity.
+
+The operator then ran the probe through the actual Claude.ai Cloud connector.
+Its UI reported one preparation and dispatch, uncertain `possible_send` delivery,
+resolution of the same operation, an accepted `PONG` and a `registered-native`
+closure reference. The reported four-byte result digest independently matches
+local SHA-256 of `PONG`. Independent Native metadata and server-side correlation
+checks of that exact Cloud operation remain pending at this checkpoint; there
+is no raw Cloud MCP transcript. This is separate from ChatGPT Cloud acceptance.
+
+A fresh protected read after the Office SDK provider task validated 869 complete
+audit records, exactly one full-identity prepare/admit match for that operation,
+and zero audit/metric failures. The selected brief, result canary, current stored
+access token and Mac user-path prefix were absent from that audit snapshot.
+This comparison is not independent historical packet capture, and no fresh
+metric-series scrape was performed by that command.
 
 The LaunchAgent retains `RunAtLoad=true`, `KeepAlive=false`, `ExitTimeOut=0` and
 `AbandonProcessGroup=true`. It survives SSH disconnection and is configured to
@@ -56,12 +73,12 @@ accepted review bytes with an ancillary continuation-claim error. A later
 canonical collection returned the identical accepted outcome without that error;
 the original error and its unverified historical cause remain recorded.
 
-The operator's actual Claude.ai UI reached OAuth, tool discovery, inventory and
-Office capabilities. That is Cloud read evidence only; no provider task was sent
-in that screenshot. Earlier ChatGPT Cloud discovery evidence remains separate.
+The earlier Claude.ai UI screenshot established OAuth, tool discovery, inventory
+and Office capabilities only; the later Cloud task evidence is described above.
+Earlier ChatGPT Cloud discovery evidence remains separate.
 Current workspace policy blocks adding that connector there. Neither another
 Cloud client nor the SDK proves a ChatGPT Cloud task. Home GUI-qualified service
-activation, Cloud task execution and final integrated acceptance remain open.
+activation, ChatGPT Cloud task execution and final integrated acceptance remain open.
 Separate Internet connections are
 operator-attested, not independently verified packet paths. Both PRs remain
 draft and Issue #1 remains open.

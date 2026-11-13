@@ -108,7 +108,7 @@ modules already cached in the test runner.
 
 ## Already-enrolled connector hold
 
-`scripts/e2e_connector_hold.py` is a separate finite owner for two existing
+`scripts/e2e_connector_hold.py` is a separate finite owner for one or two existing
 connector configurations. It transfers allowlisted Python source and Native's
 maintained process/directory owners, then starts the selected owned Gateway
 candidate with fixed arguments `connector run --config ABS`. It does not enroll
@@ -118,7 +118,7 @@ readiness and provider evidence.
 
 Its private 0600 JSON configuration contains exactly `schema_version: 1`,
 `delegate_repository`, `receipt_directory` and `targets`. The local receipt
-directory must not exist. `targets` contains exactly two entries, each with:
+directory must not exist. `targets` contains one or two entries, each with:
 
 | Field | Required value |
 | --- | --- |
@@ -138,13 +138,18 @@ so installed provider paths remain available. The older fixture mode keeps its
 separate minimal environment. Neither mode accepts a caller-supplied environment
 map.
 
+SSH aliases, run identities and device identities must be distinct within the
+selected roster. The controller freezes that roster before starting anything;
+it starts no unselected peer. A one-device hold can therefore leave another
+device's existing connector untouched.
+
 ```sh
 python3 scripts/e2e_connector_hold.py --config /absolute/private/hold.json
 ```
 
 Keep this foreground command's stdin open during acceptance. Send `stop` followed
 by a newline, or close stdin, to request shutdown. Closed stdin at startup stops
-the hold after both targets have been started: the controller first reads stdin
+the hold after all selected targets have been started: the controller first reads stdin
 after startup. The absolute remote deadline includes buffered operations; idle
 and operation limits also apply. SSH peer heartbeats refresh the input idle
 bound within that deadline; they do not establish WSS connectivity. Local progress
@@ -153,8 +158,9 @@ publication has a finite output deadline.
 Only new staging and receipt paths and the exact connector child belong to this
 run. Configurations, credentials, Native roots/projects and tasks remain external
 and are never adopted or deleted. Receipts and source stages remain retained.
-The controller attempts both peer shutdowns and joins even after a sibling
-failure. Acceptance requires remote final receipts, the connector's actual
+The controller attempts every selected peer's shutdown and join even after a
+sibling failure. Acceptance requires one final result per selected target,
+remote final receipts, the connector's actual
 Native-owned Wait and each local SSH child's independent Wait. A missing proof
 retains known locators and reports uncertainty; it never searches for, adopts or
 signals a guessed process. `task_stop_proven` remains false: connector termination

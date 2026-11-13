@@ -495,19 +495,20 @@ def bootstrap_header(target, files):
 
 
 class HoldController:
-    """Foreground owner of two channels; finish always visits both exact children."""
+    """Own one or two selected channels; finish visits every exact child."""
 
     def __init__(self, source, base, targets, interruptions):
         import e2e_remote as remote
 
+        selected = tuple(targets)
         local.require(
-            len(targets) == 2
-            and len({t.ssh_alias for t in targets}) == 2
-            and len({t.run_id for t in targets}) == 2
-            and len({t.device_id for t in targets}) == 2,
-            "two distinct hold targets required",
+            1 <= len(selected) <= 2
+            and len({t.ssh_alias for t in selected}) == len(selected)
+            and len({t.run_id for t in selected}) == len(selected)
+            and len({t.device_id for t in selected}) == len(selected),
+            "one or two distinct hold targets required",
         )
-        self.targets = tuple(targets)
+        self.targets = selected
         self.interruptions = interruptions
         self.base = base
         self.links = []
@@ -769,7 +770,7 @@ class HoldController:
         failures = []
         results = []
         with self.interruptions.cleanup():
-            # Request both shutdowns before waiting for either; sibling faults cannot skip cleanup.
+            # Request all shutdowns before waiting; sibling faults cannot skip cleanup.
             for link in self.links:
                 channel = link["channel"]
                 try:
@@ -825,7 +826,7 @@ class HoldController:
                         "ssh_wait": wait,
                     }
                 )
-            confirmed = not failures and len(results) == 2
+            confirmed = not failures and len(results) == len(self.targets)
             try:
                 confirmed &= self.processes.finished_naturally()
             except Exception as error:
@@ -849,7 +850,10 @@ class HoldController:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--config", required=True, type=Path, help="private two-target hold manifest"
+        "--config",
+        required=True,
+        type=Path,
+        help="private one- or two-target hold manifest",
     )
     args = parser.parse_args()
     config = canonical_path(str(args.config), kind="file", mode=0o600)
@@ -875,8 +879,8 @@ def main():
     )
     canonical_path(str(base.parent), kind="directory")
     local.require(
-        type(value["targets"]) is list and len(value["targets"]) == 2,
-        "two targets required",
+        type(value["targets"]) is list and 1 <= len(value["targets"]) <= 2,
+        "one or two targets required",
     )
     targets = tuple(Target.parse(item) for item in value["targets"])
     interruptions = local.Interruptions()
