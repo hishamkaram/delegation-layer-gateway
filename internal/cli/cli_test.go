@@ -65,6 +65,8 @@ func TestPrivateInputsRejectAliasesModesOversizeAndShellText(t *testing.T) {
 	require(t, os.WriteFile(valid, []byte(`{}`), 0o600))
 	public := filepath.Join(parent, "public.json")
 	require(t, os.WriteFile(public, []byte(`{}`), 0o644))
+	// A restrictive umask must not turn this deliberately unsafe fixture private.
+	require(t, os.Chmod(public, 0o644))
 	alias := filepath.Join(parent, "alias.json")
 	require(t, os.Symlink(valid, alias))
 	hardlink := filepath.Join(parent, "hardlink.json")

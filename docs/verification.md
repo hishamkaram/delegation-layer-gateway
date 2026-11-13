@@ -1,5 +1,56 @@
 # Verification and delivery gates
 
+## November 13 physical IP migration checkpoint
+
+**Not release-ready.** Office completed an operator-controlled network change.
+The operator confirmed disconnecting the old connection before using an
+alternate connection. A bounded TCP probe observed a changed Mac source IPv4
+to the same numeric Gateway destination. Authenticated SDK capabilities remained
+Office/acceptance, online and Delegate-ready, with the required provider/grants.
+Provider authentication and execution readiness remained honestly `unknown`.
+
+Separate strict audit captures proved a new authenticated WSS generation for
+the same enrolled credential after the baseline cursor. Gateway's manager
+incarnation, configuration, unit and audit owner stayed fixed. Independent
+offline review validated all six retained segment copies: 1,201 before and
+1,240 after records, with exact preserved prefixes and no retirement of the
+selected new connection in that snapshot. All ten SSH/SDK/manager controls
+joined naturally with exit0 and empty cleanup. Audit/metric sink failure counters
+were zero. No provider task or service restart was part of this test.
+
+The operator then confirmed restoring the original connection; a new joined
+SDK observation confirmed Office routability afterward. Network selection is
+operator-attested. These dated observations prove changed TCP source IPv4 plus
+separate authenticated WSS reconnection; they do not establish per-flow public
+WAN source addresses or lasting online status. The first independent offline
+replay failed on a missing local import path before reading snapshots; adding
+the existing scripts path allowed replay of the same retained bytes, without
+repeating remote observations or changing their source.
+
+Final acceptance review also identified actual backup rollback and stalled
+wire-input expiry as distinct proof obligations. New local actual-process
+rollback evidence and real-socket race tests passed, with independent Sol,
+Opus5.5 high and native review finding no actionable P0/P1/P2 in this delta.
+The complete frozen-source gate passed in 418.979 seconds: 421 Python tests
+without skips, Go race packages, tagged SDK, formatting/vet/lint/build,
+vulnerability, harness and docs checks. No reachable or imported-package
+vulnerability was found; three module-only findings remain separate.
+Home's persistent connector
+and the recorded historical owner-proof obligations remain open. A physical
+Home Terminal or an Aqua caller is not established as a connector requirement;
+its existing Native runtime must be preserved.
+
+The first integrated gate on this additive proof failed a pre-existing CLI
+fixture: its requested mode0644 became mode0600 under the runner's restrictive
+umask. Production correctly accepted that private file. The fixture now applies
+mode0644 explicitly; the same rejection test passed under umasks077 and022,
+without changing input validation. That failed invocation also lacked the
+Native acceptance-source environment, so its 370 Python tests with eight skipped
+classes are not the complete harness proof. The successful rerun explicitly
+selected dedicated Native `d24a2cc2` and retained all 387 source inputs unchanged.
+This later prose-only reconciliation uses affected docs checks and does not
+relabel the full gate's original inputs. The original failed gate remains retained.
+
 ## November 13 ChatGPT Cloud task checkpoint
 
 **Not release-ready.** The operator connected another ChatGPT workspace and
@@ -35,8 +86,8 @@ evidence digest is not substituted for it. Advertised provider authentication
 remains `unknown` and is separate from this successful execution.
 
 This supplies the actual ChatGPT task category alongside the earlier Claude.ai
-Cloud and SDK categories. Home's persistent GUI-qualified connector, physical
-IP migration and final criterion reconciliation remain open. Earlier dated
+Cloud and SDK categories. Home's persistent connector and final criterion
+reconciliation remain open; the later IP checkpoint is recorded above. Earlier dated
 checkpoints retain their original evidence and limitations; current milestones
 below reflect this later task proof.
 
@@ -147,16 +198,13 @@ accepted review bytes with an ancillary continuation-claim error. A later
 canonical collection returned the identical accepted outcome without that error;
 the original error and its unverified historical cause remain recorded.
 
-The earlier Claude.ai UI screenshot established OAuth, tool discovery, inventory
-and Office capabilities only; the later Cloud task evidence is described above.
-Earlier ChatGPT Cloud discovery evidence remains separate.
-Current workspace policy blocks adding that connector there. Neither another
-Cloud client nor the SDK proves a ChatGPT Cloud task. Home GUI-qualified service
-activation, ChatGPT Cloud task execution and final integrated acceptance remain open.
-The subsequent current-deployment installed-provider recovery and cancellation
-checks passed as recorded below. Home's persistent service, ChatGPT Cloud and
-the final integrated assessment remain open; subsequent documentation CI is
-separate from the passed runtime-source gate.
+At this earlier Office checkpoint, the Claude.ai UI screenshot established
+OAuth, discovery, inventory and capabilities only. The company workspace's
+policy blocked adding the ChatGPT connector there; another Cloud client or SDK
+could not substitute for ChatGPT task proof. Later Claude.ai and ChatGPT tasks
+and current-deployment provider fault checks passed as recorded above/below.
+Home's persistent connector and final integrated assessment remain open;
+documentation CI is separate from the passed runtime-source gate.
 Separate Internet connections are operator-attested, not independently verified
 packet paths. Both PRs remain draft and Issue #1 remains open.
 
@@ -995,8 +1043,8 @@ the missing live acceptance or approve release.
 | M2 | Gateway registry, admin, OAuth, enrollment and grants | Implemented; real enrollment and public Auth0 SDK inventory/revocation verified; full live matrix open |
 | M3 | WSS connector, local ceilings and Delegate adapter | Current local/two-Mac fixture flows and installed-Claude SDK execution on both devices passed. Office persistent-service lifecycle passed; Home persistence remains open. |
 | M4 | MCP orchestration and recovery across real processes | Current controlled-provider matrices passed; current installed-Claude Gateway restart/same-identity duplicate and requested cancellation passed on Home. Actual Claude.ai Cloud returned verified PONG on Office. |
-| M5 | Integrated hardening, docs and independent code reviews | Complete configured gates and Linux/macOS CI passed. Final scoped Sol, Opus5.5 high and native reviews found no open actionable P0/P1/P2 in inspected changes; review agreement is not acceptance evidence. |
-| M6 | Live evidence matrix and release assessment | Incomplete: Home GUI-qualified persistent service, physical IP migration and final criterion reconciliation remain open. Actual ChatGPT Cloud task proof is recorded above; separate WANs remain operator-attested. |
+| M5 | Integrated hardening, docs and independent code reviews | Complete new-source gate passed in 418.979s with 421 Python tests/no skips and independent scoped Sol/Opus/native review. Reconciled prose uses affected docs checks. Historical CI is separate from the next exact-head CI; review agreement is not live acceptance. |
+| M6 | Live evidence matrix and release assessment | Incomplete: Home persistent connector, historical owner-proof disposition and final criterion reconciliation remain open. Actual ChatGPT and physical IP migration evidence is recorded above; separate WANs remain operator-attested. |
 
 Root owns integration and Git. Native implementers own bounded packages and
 tests. Independent Sol and Opus 5.5 high-effort reviews examine each current
@@ -1014,7 +1062,9 @@ Selected source-backed acceptance boundaries:
 | 0/1/200 authorized-device pagination | [MCP inventory test](../internal/mcpadapter/inventory_test.go) checks exact counts, page bounds, duplicates, another principal's empty inventory and an excessive limit through local HTTPS MCP and SQLite. [Registry pagination](../internal/registry/boundaries_test.go) rechecks a revoked grant. These are local integration fixtures, not 200 physical devices or a capacity claim. |
 | Restore and stale preparation | [Registry recovery](../internal/registry/recovery_test.go), [root resumption](../internal/registry/resume_root_test.go) and [pending-root guards](../internal/registry/root_test.go) exercise credential reset, barriers, inventory completeness, original identity and refusal of stale creation. These are controlled local store tests. |
 | Retry and delayed creation | [Gateway dispatch](../internal/gateway/dispatch_test.go) persists possible-send and reopens SQLite after a simulated lost acknowledgment; [registry confirmation](../internal/registry/store_test.go) checks concurrent confirmation/restart. Native's separate [connector tests](https://github.com/hishamkaram/delegation-layer/blob/d24a2cc2d568d1327c58e6520f6e48fb50d0606a/internal/taskdir/connector_test.go) exercise permanent refusal and generation barriers before fragments. The later real-provider retry remains intentional same-operation duplication, not actual wire acknowledgment loss. |
-| Physical network/IP migration | Two physical Macs and reconnect/restart are evidenced above. Separate Internet connections are operator-attested. The remote fixture restarts Gateway; it does not change a device's network/IP. Actual physical IP migration remains unverified. |
+| Physical network/IP migration | The later operator-controlled Office switch changed observed TCP source IPv4 and produced a new authenticated WSS generation for the same credential, with preserved Gateway owner/config/audit prefixes. Original-network restoration is operator-attested and a fresh SDK call confirmed routability. Separate WANs are operator-attested; no per-flow public-WAN source claim. The earlier remote fixture alone did not prove this category. |
+| Actual backup rollback | [Snapshot driver](../scripts/e2e_restore_rollback.py) restored an older consistent SQLite snapshot while later Native work remained live. Later correlation was independently present before/absent after rollback, then exactly reconstructed from a matching Native receipt; stale preparation conflicted and unmatched Native work stayed unattributed. Four controlled-provider attempts, two canonical root closures and creator cleanup passed. This is local real-process proof. |
+| Stalled wire input | [Real-socket race test](../internal/httpsserver/slow_client_test.go) keeps the client open while TLS handshake, incomplete Upgrade headers or a guarded request body expire. Exact server connection closure and a healthy second request prove connection/request capacity release; owned Serve joins settle during cleanup. A source overlay disabling the header deadline fails at the intended assertion. This does not exercise a paid provider or an authenticated post-upgrade WSS frame. |
 
 These anchors explain selected test coverage; they do not close the complete
 acceptance checklist or broaden any dated live receipt.
@@ -1034,7 +1084,7 @@ The local process harness passed its bounded fixture flow. The opt-in live
 drivers and their recovery commands are documented in
 [live acceptance](live-acceptance.md). Current installed-provider and Claude.ai
 Cloud evidence is recorded above; these commands alone do not establish live
-acceptance. Home persistence and physical IP migration remain open.
+acceptance. Home persistence and final acceptance reconciliation remain open.
 Delegate retains its own gates.
 
 The complete configured Gateway gate passed on an earlier candidate on Go
@@ -1091,7 +1141,9 @@ to complete. Cleanup uncertainty remains a failed acceptance result.
 The harness also exercises explicit same-registry recovery with retained
 attributed and imported unattributed work, bounded to the same four fixture
 attempts. Its evidence must state whether that recovery completed. Actual backup
-rollback requires a separate snapshot test. Optional `--capture-native` adds
+rollback required a separate snapshot test; the later
+[rollback driver](../scripts/e2e_restore_rollback.py) now supplies that local
+actual-process category. Optional `--capture-native` adds
 private native-control receipts for diagnosis. That variant adds a Python parent
 and delays native stdout, which requires a separate evidence classification.
 
