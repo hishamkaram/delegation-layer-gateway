@@ -1,5 +1,71 @@
 # Verification and delivery gates
 
+## November 13 Office runtime and service checkpoint
+
+**Not release-ready.** The selected isolated Office root completed a fresh,
+same-binding Native runtime restart from an actually observed UID 501/Aqua
+caller. Its original owner and daemon reached canonical closure. Replaying the
+original startup reference returned the same successor, without another start.
+Root/project identity and all 13 captured binding fields were preserved. The
+successor's Mach context remains an inference from that caller; this operation
+does not perform provider login.
+
+The current Office connector then passed actual LaunchAgent initial start,
+authenticated public HTTPS SDK readiness, label-directed SIGTERM with qualified
+normal manager exit0, plain kickstart and a second authenticated SDK readiness
+check. Each phase used fresh private receipts and verified source inputs. All
+original SSH/SCP/tmux/native command handles joined, with no cleanup faults.
+This proves the selected connector's lifecycle, not Native task closure.
+
+Both SDK observations reported online and Delegate-ready, with the selected
+Claude dispatch/read/cancel authority. Execution readiness remained `unknown`,
+as the connector advertises provider authentication as `unknown`. These readiness
+observations do not establish provider login.
+
+A separate installed-Claude request through the new Office service then passed:
+read-only, 60 seconds, maximum one task and exactly one dispatch. Its accepted
+60-byte result was verified, canonical execution closure was confirmed, and task
+and controller cleanup completed with joined helpers. The result SHA-256 is
+`47f89580fe9690a68eb29ae27febb2f9ec8052ded2884c84e163db8696585a00`.
+No provider login or credential copying was performed. This proves the tested
+execution path; the exact historical authentication-failure mechanism remains
+unverified. The temporary operator tmux server is setup infrastructure outside
+the Gateway protocol. Its removal and subsequent connectivity/Cloud execution
+checks remain pending at this checkpoint.
+
+The LaunchAgent retains `RunAtLoad=true`, `KeepAlive=false`, `ExitTimeOut=0` and
+`AbandonProcessGroup=true`. It survives SSH disconnection and is configured to
+start at GUI login. Automatic crash restart and reboot/logout behavior were not
+proved. Private log files were created exclusively with mode 0600 before startup;
+no existing content was truncated.
+
+Actual Sol, Opus5.5 high and native independent reviews cleared the inspected
+service/SDK chain with no remaining actionable P0/P1/P2. Local controlled checks
+passed: 19 service tests and 12 SDK tests, lint, formatting, ShellCheck and pure
+plans, with unchanged tested inputs and joined check processes. A reconstructed
+weak-validator counterexample failed both stop-I/O rejection assertions; the
+unchanged corrected I/O passed them. This is a controlled counterexample, not
+historical byte-identical source. The readiness rule now has one pure owner,
+consumed by both local staging and remote stop I/O.
+
+An earlier private runtime test depended on a missing report-manifest key. Its
+final-fixture PASS claim was invalid. A genuine retained RED and corrected
+ten-test GREEN now use an independently pinned original owner-source fixture;
+the operational runtime sources did not change. An Opus collection also returned
+accepted review bytes with an ancillary continuation-claim error. A later
+canonical collection returned the identical accepted outcome without that error;
+the original error and its unverified historical cause remain recorded.
+
+The operator's actual Claude.ai UI reached OAuth, tool discovery, inventory and
+Office capabilities. That is Cloud read evidence only; no provider task was sent
+in that screenshot. Earlier ChatGPT Cloud discovery evidence remains separate.
+Current workspace policy blocks adding that connector there. Neither another
+Cloud client nor the SDK proves a ChatGPT Cloud task. Home GUI-qualified service
+activation, Cloud task execution and final integrated acceptance remain open.
+Separate Internet connections are
+operator-attested, not independently verified packet paths. Both PRs remain
+draft and Issue #1 remains open.
+
 ## November 13 frozen-source verification
 
 **Not release-ready.** Production correction

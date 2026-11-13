@@ -68,6 +68,18 @@ compatibility or provider authentication. Every operation requires current grant
 and the connector's local ceiling. Explicit device and project selection never
 silently falls back.
 
+Provider authentication currently remains `unknown` in connector capability
+reports. A compatible, authorized route can therefore report execution readiness
+`unknown`; it must not be presented as a successful login. A separately authorized
+provider task supplies its own dated execution evidence.
+
+On macOS, the caller's execution context can differ between SSH and a GUI login.
+Native owns any explicit same-root runtime restart needed to change that context;
+Gateway neither relocates the supervisor nor performs provider login. The
+acceptance setup's temporary GUI operator bridge is outside the Gateway protocol.
+The selected connector process is subsequently owned by launchd. See the
+[dated service proof and remaining limits](verification.md#november-13-office-runtime-and-service-checkpoint).
+
 Transport owns each outbound write and its completion signal. A completed
 reservation response waits for both the peer reply and the originating writer
 to finish, including its cancellation cleanup. Otherwise a caller cancelling
