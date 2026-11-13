@@ -50,6 +50,16 @@ func New(store Store, signer Signer, random io.Reader, now func() time.Time) (*S
 // Redeem binds one token to the exact CSR. Repeated requests pass the same proof
 // through the registry, which returns the first persisted intent and receipt.
 func (s *Service) Redeem(ctx context.Context, token string, csrDER []byte) (domain.CertificateReceipt, error) {
+	return s.redeem(ctx, token, csrDER, false)
+}
+
+// RedeemOwned requires Registry-owned Native eligibility, including replays.
+// The same issuer and CSR/token correlation serve both compatibility paths.
+func (s *Service) RedeemOwned(ctx context.Context, token string, csrDER []byte) (domain.CertificateReceipt, error) {
+	return s.redeem(ctx, token, csrDER, true)
+}
+
+func (s *Service) redeem(ctx context.Context, token string, csrDER []byte, requireOwned bool) (domain.CertificateReceipt, error) {
 	decoded, err := base64.RawURLEncoding.Strict().DecodeString(token)
 	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != token {
 		return domain.CertificateReceipt{}, domain.Reject(domain.Forbidden)
@@ -62,7 +72,7 @@ func (s *Service) Redeem(ctx context.Context, token string, csrDER []byte) (doma
 	if err != nil {
 		return domain.CertificateReceipt{}, err
 	}
-	intent, err := s.store.BeginEnrollment(ctx, domain.EnrollmentAttempt{TokenHash: domain.Hash(decoded), CSRHash: csr.CSRHash, PublicKeyHash: csr.PublicKeyHash, Issuance: id, Serial: serial, Now: s.now()})
+	intent, err := s.store.BeginEnrollment(ctx, domain.EnrollmentAttempt{RequireOwned: requireOwned, TokenHash: domain.Hash(decoded), CSRHash: csr.CSRHash, PublicKeyHash: csr.PublicKeyHash, Issuance: id, Serial: serial, Now: s.now()})
 	if err != nil {
 		return domain.CertificateReceipt{}, err
 	}

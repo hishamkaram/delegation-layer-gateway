@@ -34,7 +34,7 @@ func TestHTTPSRedemptionUsesRealDurableIssuanceAndDoesNotReflectSecrets(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := HTTPHandler(service, func() time.Time { return now })
+	handler, err := HTTPHandler(service, func() time.Time { return now }, false)
 	if err != nil {
 		t.Fatal(err)
 	}

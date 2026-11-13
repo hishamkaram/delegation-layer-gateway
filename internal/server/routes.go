@@ -106,6 +106,15 @@ type auditedEnrollment struct {
 
 func (a auditedEnrollment) Redeem(ctx context.Context, token string, csr []byte) (domain.CertificateReceipt, error) {
 	receipt, err := a.next.Redeem(ctx, token, csr)
+	return a.issued(receipt, err)
+}
+
+func (a auditedEnrollment) RedeemOwned(ctx context.Context, token string, csr []byte) (domain.CertificateReceipt, error) {
+	receipt, err := a.next.RedeemOwned(ctx, token, csr)
+	return a.issued(receipt, err)
+}
+
+func (a auditedEnrollment) issued(receipt domain.CertificateReceipt, err error) (domain.CertificateReceipt, error) {
 	if err == nil {
 		a.recorder.Record(observability.Event{Code: observability.EnrollmentIssued, Device: receipt.Intent.Credential.Device})
 	}

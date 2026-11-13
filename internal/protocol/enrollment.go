@@ -8,6 +8,7 @@ const MaxEnrollmentBodyBytes = 32 << 10
 type EnrollmentRequest struct {
 	Token        string `json:"token"`
 	CSRDERBase64 string `json:"csr_der_base64"`
+	RequireOwned bool   `json:"require_owned,omitempty"`
 }
 
 // EnrollmentResponse carries the reserved credential and its certificate.

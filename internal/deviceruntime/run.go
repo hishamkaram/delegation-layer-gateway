@@ -98,7 +98,7 @@ func runConnections(ctx context.Context, cfg Configuration, store *deviceidentit
 			break
 		}
 		if err := waitReconnect(ctx, delay); err != nil {
-			return failed(ErrConnection, err)
+			return errors.Join(lastFailure, failed(ErrConnection, err))
 		}
 		if delay < 30*time.Second {
 			delay *= 2
@@ -161,7 +161,7 @@ func drainService(owner context.Context, service *connector.Service, adapter *co
 			}
 			return nil
 		}
-		if !errors.Is(err, connector.ErrPending) {
+		if !onlyPending(err) {
 			failureSeen = true // An unexpected error still provides no worker-join proof.
 		}
 		if retryErr := adapter.RetryCleanup(); retryErr != nil {
@@ -206,19 +206,22 @@ func connectionLifetime(ctx context.Context, cfg Configuration, store *deviceide
 	}
 	cancel()
 	closeErr := client.Close()
+	if ctx.Err() != nil && onlyPending(result) {
+		result = ctx.Err()
+	}
 	return errors.Join(result, closeErr, joinConnectionWorkers(attached, renewed, attachJoined, renewJoined))
 }
 
 func joinConnectionWorkers(attached, renewed <-chan error, attachJoined, renewJoined bool) (result error) {
 	if !attachJoined {
 		joinErr := <-attached
-		if joinErr != nil && !errors.Is(joinErr, connector.ErrPending) && !errors.Is(joinErr, context.Canceled) {
+		if joinErr != nil && !onlyPending(joinErr) && !IsExpectedCancellation(joinErr) {
 			result = errors.Join(result, joinErr)
 		}
 	}
 	if !renewJoined {
 		joinErr := <-renewed
-		if joinErr != nil && !errors.Is(joinErr, context.Canceled) {
+		if joinErr != nil && !IsExpectedCancellation(joinErr) {
 			result = errors.Join(result, joinErr)
 		}
 	}
@@ -284,8 +287,6 @@ func runConnection(ctx context.Context, cfg Configuration, store *deviceidentity
 	if err != nil {
 		return failed(ErrConnection, err)
 	}
-	if err = connectionLifetime(ctx, cfg, store, service, client, deviceRoots); err != nil && ctx.Err() == nil {
-		return failed(ErrConnection, err)
-	}
-	return nil
+	err = connectionLifetime(ctx, cfg, store, service, client, deviceRoots)
+	return connectionFailure(err, ctx.Err() != nil)
 }

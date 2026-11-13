@@ -216,7 +216,7 @@ func enrollToken(ctx context.Context, client *http.Client, identity *deviceident
 	if string(intent.Plan.TokenDevice) != token.DeviceID {
 		return ErrConflict
 	}
-	request := protocol.EnrollmentRequest{Token: token.Token, CSRDERBase64: base64.StdEncoding.EncodeToString(intent.CSRDER)}
+	request := protocol.EnrollmentRequest{Token: token.Token, CSRDERBase64: base64.StdEncoding.EncodeToString(intent.CSRDER), RequireOwned: true}
 	var response protocol.EnrollmentResponse
 	if err := requestJSON(ctx, client, http.MethodPost, d.EnrollmentURL, "", request, &response, true); err != nil {
 		return err

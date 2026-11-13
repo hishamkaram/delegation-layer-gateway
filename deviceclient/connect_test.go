@@ -220,7 +220,7 @@ func (f *gatewayFixture) tokenEnroll(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if request.Token != base64.RawURLEncoding.EncodeToString(make([]byte, 32)) {
+	if !request.RequireOwned || request.Token != base64.RawURLEncoding.EncodeToString(make([]byte, 32)) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}

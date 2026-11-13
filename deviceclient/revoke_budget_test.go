@@ -55,7 +55,7 @@ func realHeadlessProfile(t *testing.T) *gatewayFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := enrollment.HTTPHandler(service, func() time.Time { return f.now })
+	handler, err := enrollment.HTTPHandler(service, func() time.Time { return f.now }, false)
 	if err != nil {
 		t.Fatal(err)
 	}

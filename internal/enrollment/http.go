@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"time"
 
@@ -22,14 +21,19 @@ type Redeemer interface {
 	Redeem(context.Context, string, []byte) (domain.CertificateReceipt, error)
 }
 
+type OwnedRedeemer interface {
+	RedeemOwned(context.Context, string, []byte) (domain.CertificateReceipt, error)
+}
+
 type (
 	EnrollmentRequest  = protocol.EnrollmentRequest
 	EnrollmentResponse = protocol.EnrollmentResponse
 )
 
 // HTTPHandler must be mounted behind the configured HTTPS origin/body/request
-// guard. IPs are read only from the actual socket, never forwarded headers.
-func HTTPHandler(service Redeemer, now func() time.Time) (http.Handler, error) {
+// guard. Proxy client addresses are rate-limit keys only and require explicit
+// loopback-proxy trust; they never authenticate an enrollment.
+func HTTPHandler(service Redeemer, now func() time.Time, trustLoopbackProxyIP bool) (http.Handler, error) {
 	if service == nil || now == nil {
 		return nil, domain.ErrInvalid
 	}
@@ -37,12 +41,13 @@ func HTTPHandler(service Redeemer, now func() time.Time) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &redemptionHTTP{service: service, limits: limits}, nil
+	return &redemptionHTTP{service: service, limits: limits, trustLoopbackProxyIP: trustLoopbackProxyIP}, nil
 }
 
 type redemptionHTTP struct {
-	service Redeemer
-	limits  *httpguard.RateLimits
+	service              Redeemer
+	limits               *httpguard.RateLimits
+	trustLoopbackProxyIP bool
 }
 
 func (h *redemptionHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -56,8 +61,8 @@ func (h *redemptionHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method_not_allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	host, _, splitErr := net.SplitHostPort(r.RemoteAddr)
-	if splitErr != nil || net.ParseIP(host) == nil || !h.limits.Allow(host) {
+	host, splitErr := httpguard.ClientIP(r, h.trustLoopbackProxyIP)
+	if splitErr != nil || !h.limits.Allow(host) {
 		w.Header().Set("Retry-After", "1")
 		http.Error(w, "resource_limit", http.StatusTooManyRequests)
 		return
@@ -73,7 +78,7 @@ func (h *redemptionHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid_request", http.StatusBadRequest)
 		return
 	}
-	receipt, redeemErr := h.service.Redeem(r.Context(), request.Token, csr)
+	receipt, redeemErr := h.redeem(r.Context(), request, csr)
 	if redeemErr != nil {
 		enrollmentError(w, redeemErr)
 		return
@@ -83,6 +88,17 @@ func (h *redemptionHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		return
 	}
+}
+
+func (h *redemptionHTTP) redeem(ctx context.Context, request EnrollmentRequest, csr []byte) (domain.CertificateReceipt, error) {
+	if request.RequireOwned {
+		owned, ok := h.service.(OwnedRedeemer)
+		if !ok {
+			return domain.CertificateReceipt{}, domain.Reject(domain.Forbidden)
+		}
+		return owned.RedeemOwned(ctx, request.Token, csr)
+	}
+	return h.service.Redeem(ctx, request.Token, csr)
 }
 
 func enrollmentError(w http.ResponseWriter, err error) {

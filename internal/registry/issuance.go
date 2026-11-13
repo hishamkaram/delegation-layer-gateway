@@ -141,6 +141,11 @@ func (s *Store) BeginEnrollment(ctx context.Context, input domain.EnrollmentAtte
 		if err != nil {
 			return domain.IssuanceIntent{}, notFound(err)
 		}
+		if input.RequireOwned {
+			if err = requireDeviceOwner(ctx, tx, deviceID); err != nil {
+				return domain.IssuanceIntent{}, err
+			}
+		}
 		expiry, err := time.Parse(time.RFC3339Nano, expires)
 		if err != nil {
 			return domain.IssuanceIntent{}, err

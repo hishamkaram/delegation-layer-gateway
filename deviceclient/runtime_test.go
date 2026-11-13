@@ -154,6 +154,9 @@ func assertRuntimeJoined(t *testing.T, directory string, serveErr, closeErr erro
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
+	if !IsExpectedShutdown(serveErr, closeErr) {
+		t.Fatal("joined CLI-owner cancellation did not qualify for normal shutdown")
+	}
 	inactive, err := RuntimeInactive(t.Context(), directory)
 	if err != nil || !inactive {
 		t.Fatal("joined runtime retained identity", err)

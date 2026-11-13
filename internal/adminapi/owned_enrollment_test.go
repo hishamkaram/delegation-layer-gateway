@@ -70,7 +70,7 @@ func TestOwnedTokenUnixBootstrapRedeemsRealCAOverTLS(t *testing.T) {
 	ca, roots := ownedEnrollmentCA(t, f.now)
 	service, err := enrollment.New(f.store, ca, rand.Reader, func() time.Time { return f.now })
 	check(t, err)
-	handler, err := enrollment.HTTPHandler(service, func() time.Time { return f.now })
+	handler, err := enrollment.HTTPHandler(service, func() time.Time { return f.now }, false)
 	check(t, err)
 	endpoint := httptest.NewTLSServer(handler)
 	t.Cleanup(endpoint.Close)

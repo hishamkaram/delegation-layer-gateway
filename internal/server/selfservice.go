@@ -35,7 +35,7 @@ func (r *Runtime) selfServiceHandler(cfg config.Gateway, bundle tlsconfig.Bundle
 		SupportedWireVersions: []int{1, 2}, Capabilities: []string{"self-enrollment", "owner-revocation", "workspace-projects"},
 	}
 	revoker := ownerRevoker{store: r.store, sessions: r.hub, timeout: min(r.controlTimeout, 5*time.Second), recorder: r.recorder}
-	return selfservice.New(selfservice.Options{Descriptor: descriptor, Authenticator: auth, Enroller: auditedSelfEnrollment{issuer, r.recorder}, Revoker: revoker, Now: r.now})
+	return selfservice.New(selfservice.Options{Descriptor: descriptor, Authenticator: auth, Enroller: auditedSelfEnrollment{issuer, r.recorder}, Revoker: revoker, Now: r.now, TrustLoopbackProxyIP: cfg.TrustLoopbackProxyIP})
 }
 
 type auditedSelfEnrollment struct {

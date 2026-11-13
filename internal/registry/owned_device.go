@@ -3,9 +3,37 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 )
+
+// requireDeviceOwner shares the required ownership/current eligibility gate for
+// Native bootstrap and v2 connections. Legacy optional ownership stays separate.
+func requireDeviceOwner(ctx context.Context, tx *sql.Tx, device domain.DeviceID) error {
+	owner, err := deviceOwner(ctx, tx, device)
+	if err != nil {
+		return err
+	}
+	if owner == "" {
+		return domain.Reject(domain.Forbidden)
+	}
+	_, err = ownerPolicy(ctx, tx, owner)
+	return err
+}
+
+func (s *Store) CheckOwnedCredential(ctx context.Context, ref domain.CredentialRef, now time.Time) (domain.Credential, error) {
+	return transaction(ctx, s, func(tx *sql.Tx) (domain.Credential, error) {
+		current, err := credential(ctx, tx, ref, now)
+		if err != nil {
+			return domain.Credential{}, err
+		}
+		if err = requireDeviceOwner(ctx, tx, ref.Device); err != nil {
+			return domain.Credential{}, err
+		}
+		return current, nil
+	})
+}
 
 // AuthorizeOwnedDevice authorizes owner-only inventory/resolution before any
 // project exists. A legacy device cannot acquire this authority through grants.

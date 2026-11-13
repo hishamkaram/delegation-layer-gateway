@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -35,22 +34,25 @@ type Revoker interface {
 }
 
 type Options struct {
-	Descriptor         contract.Descriptor
-	Authenticator      Authenticator
-	Enroller           Enroller
-	Revoker            Revoker
-	Now                func() time.Time
-	ConcurrentRequests int
+	Descriptor           contract.Descriptor
+	Authenticator        Authenticator
+	Enroller             Enroller
+	Revoker              Revoker
+	Now                  func() time.Time
+	ConcurrentRequests   int
+	TrustLoopbackProxyIP bool
 }
 
 type handler struct {
-	authenticator Authenticator
-	enroller      Enroller
-	revoker       Revoker
-	now           func() time.Time
-	metadata      []byte
-	ips           *httpguard.RateLimits
-	principals    *httpguard.RateLimits
+	authenticator        Authenticator
+	enroller             Enroller
+	revoker              Revoker
+	now                  func() time.Time
+	metadata             []byte
+	ips                  *httpguard.RateLimits
+	metadataIPs          *httpguard.RateLimits
+	principals           *httpguard.RateLimits
+	trustLoopbackProxyIP bool
 }
 
 const requestTimeout = 30 * time.Second
@@ -82,7 +84,11 @@ func New(input Options) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &handler{authenticator: input.Authenticator, enroller: input.Enroller, revoker: input.Revoker, now: input.Now, metadata: metadata, ips: ips, principals: principals}
+	metadataIPs, err := httpguard.NewRateLimits(1, 10, 4096, 2*time.Minute, input.Now)
+	if err != nil {
+		return nil, err
+	}
+	h := &handler{authenticator: input.Authenticator, enroller: input.Enroller, revoker: input.Revoker, now: input.Now, metadata: metadata, ips: ips, metadataIPs: metadataIPs, principals: principals, trustLoopbackProxyIP: input.TrustLoopbackProxyIP}
 	return guard.Wrap(h), nil
 }
 
@@ -110,8 +116,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) allowIP(r *http.Request) bool {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	return err == nil && net.ParseIP(host) != nil && h.ips.Allow(host)
+	host, err := httpguard.ClientIP(r, h.trustLoopbackProxyIP)
+	if err != nil {
+		return false
+	}
+	if r.URL.Path == contract.DescriptorPath {
+		return h.metadataIPs.Allow(host)
+	}
+	return h.ips.Allow(host)
 }
 
 func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -19,6 +20,10 @@ import (
 
 type Config = transport.Config
 
+type ownedCredentialChecker interface {
+	CheckOwnedCredential(context.Context, domain.CredentialRef, time.Time) (domain.Credential, error)
+}
+
 // Hub owns inbound HTTP handlers and their authority/observation callbacks.
 // Server alone owns bounded wire sessions. Neither owner manages Native tasks.
 type Hub struct {
@@ -27,6 +32,7 @@ type Hub struct {
 	cancel  context.CancelFunc
 	config  Config
 	store   transport.CredentialStore
+	owned   ownedCredentialChecker
 	now     func() time.Time
 	mu      sync.Mutex
 	closed  bool
@@ -34,13 +40,21 @@ type Hub struct {
 }
 
 func NewHub(ctx context.Context, config Config, store transport.CredentialStore, now func() time.Time) (*Hub, error) {
+	var gate ownedCredentialChecker
+	if config.EnableWireV2 {
+		var ok bool
+		gate, ok = store.(ownedCredentialChecker)
+		if !ok {
+			return nil, domain.ErrInvalid
+		}
+	}
 	server, err := transport.NewServer(ctx, config, store, now)
 	if err != nil {
 		return nil, err
 	}
 	config.Settings = server.Settings()
 	owned, cancel := context.WithCancel(ctx)
-	return &Hub{Server: server, ctx: owned, cancel: cancel, config: config, store: store, now: now}, nil
+	return &Hub{Server: server, ctx: owned, cancel: cancel, config: config, store: store, owned: gate, now: now}, nil
 }
 
 func (h *Hub) begin() bool {
@@ -105,6 +119,10 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.observeConnection(started, transport.ConnectionFailed, peer)
 		return
 	}
+	if err = h.authorizeAccepted(preflight, conn, ref); err != nil {
+		h.observeConnection(started, transport.ConnectionFailed, peer)
+		return
+	}
 	// The adapter observes establishment only after the transport handshake owns it.
 	established, runErr := peer.Run(preflight, r.Context(), conn, func() { h.observeConnection(started, transport.ConnectionEstablished, peer) })
 	snapshot, snapshotErr := peer.Snapshot()
@@ -113,6 +131,28 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.observeConnection(started, transport.ConnectionClosed, peer)
 	}
+}
+
+// The pinned WebSocket library selects the actual protocol. Keep an accepted
+// socket under HTTP ownership until v2 ownership is verified, before Run can
+// consume HELLO or publish capabilities. A failed gate closes before peer cleanup.
+func (h *Hub) authorizeAccepted(ctx context.Context, conn *websocket.Conn, ref domain.CredentialRef) (err error) {
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, conn.Close(websocket.StatusPolicyViolation, "device connection rejected"))
+		}
+	}()
+	version, err := protocol.SubprotocolVersion(conn.Subprotocol())
+	if err != nil {
+		return err
+	}
+	if version == protocol.WireVersion2 {
+		if h.owned == nil {
+			return domain.Reject(domain.Forbidden)
+		}
+		_, err = h.owned.CheckOwnedCredential(ctx, ref, h.now())
+	}
+	return err
 }
 
 func (h *Hub) register(ctx context.Context, certificate *x509.Certificate, ref domain.CredentialRef) (*transport.InboundSession, error) {

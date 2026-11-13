@@ -442,6 +442,7 @@ type EnrollmentGrant struct {
 	ExpiresAt  time.Time
 }
 type EnrollmentAttempt struct {
+	RequireOwned  bool
 	TokenHash     Digest
 	CSRHash       Digest
 	PublicKeyHash Digest

@@ -9,7 +9,7 @@ import (
 )
 
 func TestRevocationCleanupFailureCarriesOnlyBoundedIdentity(t *testing.T) {
-	event := Event{Code: RevocationCleanupUnavailable, Principal: "owner", Device: "device"}
+	event := Event{Code: RevocationCleanupUnavailable, Principal: "principal-canary-73ac", Device: "device-canary-b190"}
 	if !event.validate() {
 		t.Fatal("bounded revocation cleanup metadata rejected")
 	}
@@ -33,7 +33,9 @@ func TestRevocationCleanupFailureCarriesOnlyBoundedIdentity(t *testing.T) {
 	if !strings.Contains(out.Body.String(), `gateway_events_total{event="revocation_cleanup_unavailable"} 1`) {
 		t.Fatal("cleanup failure metric absent")
 	}
-	if strings.Contains(out.Body.String(), "owner") || strings.Contains(out.Body.String(), "device\"") {
+	// Fixed vocabulary such as owner_policy_changed is allowed; actual
+	// identity values must never appear anywhere in rendered metrics.
+	if strings.Contains(out.Body.String(), string(event.Principal)) || strings.Contains(out.Body.String(), string(event.Device)) {
 		t.Fatal("owner or device became a metric label")
 	}
 }

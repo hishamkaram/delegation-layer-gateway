@@ -109,7 +109,11 @@ func (s *session) stop(reason error) {
 		s.err = reason
 		conn := s.conn
 		s.mu.Unlock()
-		s.cancel()
+		// Own socket close before cancelling its reader/writer contexts: coder's
+		// cancellation callback can otherwise close it first and discard the
+		// underlying diagnostic. Earlier peer/timeouts may already have closed it;
+		// only diagnostics actually returned by CloseNow can be retained here.
+		defer s.cancel()
 		if conn != nil {
 			if closeErr := conn.CloseNow(); closeErr != nil {
 				s.recordCloseError(closeErr)
@@ -119,12 +123,32 @@ func (s *session) stop(reason error) {
 }
 
 func (s *session) recordCloseError(err error) {
-	if errors.Is(err, net.ErrClosed) {
+	if err == nil || onlyClosedError(err) {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closeErr = fail(ErrOffline, err)
+}
+
+// Ordinary wrappers and one-cause joins can describe an already closed socket.
+// A separate joined diagnostic must never disappear behind that benign leaf.
+func onlyClosedError(err error) bool {
+	for {
+		if joined, ok := err.(interface{ Unwrap() []error }); ok {
+			causes := joined.Unwrap()
+			if len(causes) != 1 {
+				return false
+			}
+			err = causes[0]
+			continue
+		}
+		cause := errors.Unwrap(err)
+		if cause == nil {
+			return errors.Is(err, net.ErrClosed)
+		}
+		err = cause
+	}
 }
 func (s *session) closeFailure() error { s.mu.Lock(); defer s.mu.Unlock(); return s.closeErr }
 

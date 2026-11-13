@@ -145,7 +145,7 @@ func newNetworkFixture(t *testing.T, mode domain.CredentialMode, age time.Durati
 	require(t, store.CreateEnrollment(t.Context(), domain.EnrollmentGrant{TokenHash: domain.Hash(raw), Device: "device", Mode: mode, Generation: 1, CreatedAt: issuedAt, ExpiresAt: issuedAt.Add(domain.EnrollmentTTL)}))
 	service, err := enrollment.New(store, f.ca.signer, rand.Reader, func() time.Time { return issuedAt })
 	issuer := checked(t, service, err)
-	handler, err := enrollment.HTTPHandler(issuer, time.Now)
+	handler, err := enrollment.HTTPHandler(issuer, time.Now, false)
 	enroller := checked(t, handler, err)
 	renewal, err := enrollment.New(store, f.ca.signer, rand.Reader, time.Now)
 	f.renewal = checked(t, renewal, err)

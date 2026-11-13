@@ -3,7 +3,6 @@ package workspaces
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
@@ -20,14 +19,14 @@ func (s *Service) ListWorkspaces(ctx context.Context, actor domain.Actor, device
 	snapshot, err := s.snapshot(device)
 	if err != nil {
 		var offline *gateway.RemoteError
-		if !errors.As(err, &offline) || offline.Failure.Code != "device_offline" {
+		if !errors.As(gateway.SoleError(err), &offline) || offline == nil || offline.Failure.Code != "device_offline" {
 			return Inventory{}, err
 		}
 	} else {
 		result.Online = true
 		result.DelegateReady = snapshot.CapabilitiesV2.Root != nil
 		result.ObservedAt = snapshot.ObservedAt
-		result.Workspaces = slices.Clone(snapshot.CapabilitiesV2.Workspaces)
+		result.Workspaces = append(result.Workspaces, snapshot.CapabilitiesV2.Workspaces...)
 		if snapshot.CapabilitiesV2.ProjectBudget != nil {
 			budget := *snapshot.CapabilitiesV2.ProjectBudget
 			result.ProjectBudget = &budget

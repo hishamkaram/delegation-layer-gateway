@@ -49,6 +49,7 @@ type Gateway struct {
 	AuditDirectory        string       `json:"audit_directory"`
 	Identity              Identity     `json:"identity"`
 	DeviceLogin           *DeviceLogin `json:"device_login,omitempty"`
+	TrustLoopbackProxyIP  bool         `json:"trust_loopback_proxy_client_ip,omitempty"`
 	ControlTimeoutSeconds int          `json:"control_timeout_seconds"`
 	HTTPTimeoutSeconds    int          `json:"http_timeout_seconds"`
 }

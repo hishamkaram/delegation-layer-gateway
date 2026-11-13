@@ -134,6 +134,9 @@ func (r *Runtime) Serve(ctx context.Context) (result error) {
 	r.mu.Unlock()
 	defer func() { cancel(); r.mu.Lock(); r.serveErr = result; close(r.serveDone); r.mu.Unlock() }()
 	if err := deviceruntime.RunConfigured(runContext, &r.configuration, r.identity); err != nil {
+		if runContext.Err() != nil && deviceruntime.IsExpectedCancellation(err) {
+			return expectedRuntimeStop{cause: runContext.Err()}
+		}
 		kind := ErrTransport
 		if errors.Is(err, deviceruntime.ErrConfiguration) {
 			kind = ErrConfiguration
@@ -141,6 +144,25 @@ func (r *Runtime) Serve(ctx context.Context) (result error) {
 		return failed(kind, err)
 	}
 	return nil
+}
+
+type expectedRuntimeStop struct{ cause error }
+
+func (expectedRuntimeStop) Error() string         { return "gateway_runtime_stopped" }
+func (e expectedRuntimeStop) Unwrap() error       { return e.cause }
+func (expectedRuntimeStop) qualifiedRuntimeStop() {}
+
+// IsExpectedShutdown is for a caller that has invoked Serve then Close. True
+// requires the SDK's direct qualified cancellation result and a clean Close:
+// SDK/CLI control owners joined and identity close succeeded. It proves neither
+// Delegate provider-task closure nor a successful Gateway connection. Wrapping
+// or joining another failure to the qualified result cannot establish success.
+func IsExpectedShutdown(serveErr, closeErr error) bool {
+	if closeErr != nil {
+		return false
+	}
+	_, qualified := serveErr.(interface{ qualifiedRuntimeStop() })
+	return qualified
 }
 
 // Close stops observation and joins Serve/its CLI owners before identity close.

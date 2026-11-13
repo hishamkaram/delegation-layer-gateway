@@ -125,7 +125,7 @@ func (r *Runtime) publicHandler(cfg config.Gateway, bundle tlsconfig.Bundle, jwk
 	if err != nil {
 		return nil, failed(err)
 	}
-	handler, err := enrollment.HTTPHandler(auditedEnrollment{r.enrollment, r.recorder}, r.now)
+	handler, err := enrollment.HTTPHandler(auditedEnrollment{r.enrollment, r.recorder}, r.now, cfg.TrustLoopbackProxyIP)
 	if err != nil {
 		return nil, failed(err)
 	}
