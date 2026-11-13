@@ -38,10 +38,44 @@ original Wait or birth identity.
 The operator then ran the probe through the actual Claude.ai Cloud connector.
 Its UI reported one preparation and dispatch, uncertain `possible_send` delivery,
 resolution of the same operation, an accepted `PONG` and a `registered-native`
-closure reference. The reported four-byte result digest independently matches
-local SHA-256 of `PONG`. Independent Native metadata and server-side correlation
-checks of that exact Cloud operation remain pending at this checkpoint; there
-is no raw Cloud MCP transcript. This is separate from ChatGPT Cloud acceptance.
+closure reference. A subsequent independent Native observation matched the exact
+Office root, task, Gateway and operation. The retained read-only lifetime helper
+confirmed a closed scope, provider start, committed publication and a
+`registered-native` closure with `worker-wait` reference. Its qualified durable
+worker Wait evidence records successful completion with exit0 before the Native
+deadline. One public Native status call independently reported committed
+publication and outcome, with matching accepted descriptors: `result.txt`, four
+bytes and SHA-256
+`95784973cc639977bff93619700168505cb8f7855e44fa643d34622a43706c87`.
+That digest matches the UI and locally hashed `PONG`; this observer did not read
+the accepted payload bytes or raw streams. Both Native control commands and
+their original SSH owner joined exit0 with empty stderr and no cleanup faults.
+
+The local verifier initially expected outcome verdict `accepted`; Native's
+actual enum is `committed`. The original failed verifier receipt was preserved.
+A corrected predicate reassessed the same saved metadata without another remote
+call, replay or task. Six local tests passed, including rejected outcomes, wrong
+identities/digests and unqualified Waits. This was a verification-predicate error,
+not a Native execution failure. The helper's origin check is explicitly partial
+Gateway/operation correlation. The selected interfaces do not expose the UI's
+closure-reference digest, so that digest remains unverified; the separate outcome
+evidence digest is not substituted for it. Provider, permission and budget remain
+UI evidence in this observation, and advertised provider authentication remains
+`unknown`.
+
+A protected server-side read then validated 923 complete audit rows and one
+full-identity preparation/admit match for that Cloud operation. Matched control
+completions were `admit=1`, `resolve=1`, `status=2`, `collect=1` and
+`result_chunk=1`, with no cancel completion in that dated read. The Cloud-recorded
+principal differed from
+the SDK-recorded principal; this is recorded correlation, not independent
+issuer/subject mapping. Audit and metric failure counters were zero, selected
+`PONG` bytes and the Mac user-path prefix were absent, and all read descriptors
+and sockets closed. Audit is not authoritative task-outcome or closure evidence.
+These dated observations do not establish packet history or segment retention;
+there is no raw Cloud MCP transcript. Claude.ai Cloud, UI result retrieval,
+independent Native metadata and audit correlation remain separate evidence
+categories and do not establish ChatGPT Cloud task acceptance.
 
 A fresh protected read after the Office SDK provider task validated 869 complete
 audit records, exactly one full-identity prepare/admit match for that operation,
@@ -79,9 +113,39 @@ Earlier ChatGPT Cloud discovery evidence remains separate.
 Current workspace policy blocks adding that connector there. Neither another
 Cloud client nor the SDK proves a ChatGPT Cloud task. Home GUI-qualified service
 activation, ChatGPT Cloud task execution and final integrated acceptance remain open.
-Separate Internet connections are
-operator-attested, not independently verified packet paths. Both PRs remain
-draft and Issue #1 remains open.
+Fresh installed-provider Gateway-recovery and cancellation acceptance on the
+current deployment, plus CI for subsequent changes, remain pending. Earlier
+dated recovery/cancellation results retain their original source scope.
+Separate Internet connections are operator-attested, not independently verified
+packet paths. Both PRs remain draft and Issue #1 remains open.
+
+## November 13 single-target holder source verification
+
+The later source checkpoint
+[`ed04ad99`](https://github.com/hishamkaram/delegation-layer-gateway/commit/ed04ad99a5d1cd9c96e74ce111fc89e0c24e5e91)
+adds explicit one-or-two-device selection to the test connector holder. It does
+not change Gateway/Native ownership or route to an unselected device. Actual
+Sol (`bff73…`) and Opus5.5 (`e083…`) source reviews returned scoped GO with no
+actionable P0–P3 in their inspected change. The reviewers did not run the full
+gate or prove live single-device execution; those limits remain separate from
+the subsequent check results.
+
+| Check | Actual result | Scope |
+| --- | --- | --- |
+| `make check` | Exit0 in 361.808574690s; 411 Python tests, all Go race packages, tagged SDK helper, formatting, vet, lint, build, vulnerability, harness and docs checks passed. | All 384 frozen Gateway inputs stayed unchanged during the run and match committed `ed04ad99`. The invoked tool verifier checks the pinned Go 1.27.4 driver and compiler. Zero reachable/imported-package vulnerability findings; three module-only findings. |
+| [Exact-head CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43390694188) | All three jobs passed: harness, Ubuntu 24.04 and macOS 15 runtime. | Exact head `ed04ad99`; no provider or Cloud-client acceptance is inferred. |
+| Native prerequisite | Dedicated worktree remains at `d24a2cc2`, using Native's own harness; its [19-job CI](https://github.com/hishamkaram/delegation-layer/actions/runs/43260668961) passed. | The Gateway gate is not a fresh Native full-suite run. |
+
+The retained full-gate receipt and output are
+`.local/reviews/routing-audit-integration/holder-one-target-full-gate-20261113T0754Z-f6738b4d/receipt.json`
+and sibling `output.log`; these private proof artifacts are not distributed with
+the repository. Cloud Native assessment and audit proof are retained separately
+as `claude-cloud-native-20261113T075949Z-b6e1fc47/local-assessment.json` and
+`claude-cloud-audit-20261113T0803Z-4f5ab23e/result.json`.
+
+This later engineering gate and scoped review do not close the live or release
+gaps above. The earlier checkpoints below retain their original source, dates
+and limitations; they are not relabeled as `ed04ad99` evidence.
 
 ## November 13 frozen-source verification
 
