@@ -19,18 +19,18 @@
       "method": "Production canonical SVG Auto export; saved with final newline",
       "format": "svg",
       "xmlParse": "pass",
-      "sourceHtmlSha256": "1516a7091afc8357ebc945885f34d6c7410d92fd9674cfb7e33b0c2c8c093f78"
+      "sourceHtmlSha256": "3a2d44b9d5974573d690f4a18f8af428c34a07545694e7c76a7cf42b7fb7a5e0"
     },
     {
       "artifact": "operation-safety.svg",
-      "sha256": "fe19550ffb4ed46d887d3fe18f1b272c32dd7a350ab0a77605d62e732c4db3fa",
-      "bytes": 241077,
-      "runtimeReportedBytes": 241076,
+      "sha256": "8bd9f64a0dc0a3894ff3093f35ad61969366dd787a833bd3ce4dd7db76f87117",
+      "bytes": 241093,
+      "runtimeReportedBytes": 241092,
       "runtimeCanonicalStateClean": true,
       "method": "Production canonical SVG Auto export; saved with final newline",
       "format": "svg",
       "xmlParse": "pass",
-      "sourceHtmlSha256": "d72cf17b3175c3e0e0dc553e3741e5b7cedbf25e40bb720a8a2333f1307e80e4"
+      "sourceHtmlSha256": "2a2aae864abf6cdc89495c61131253ce3a306dd495cf795aee3e59d44486b776"
     }
   ]
 }

@@ -1044,7 +1044,7 @@ rect.c-bg-rect { fill: var(--bg); }
 
         <!-- Edge paths -->
         <path data-edge-from="activate" data-edge-to="sdk" data-edge-key="0" data-edge-id="activate-sdk" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="802,119;846,119" d="M 802 119 L 846 119" class="a-default" data-animate="edge" style="--step: 6;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="approvews" data-edge-to="selectws" data-edge-key="1" data-edge-id="approvews-selectws" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="208,243;250,243" d="M 208 243 L 250 243" class="a-default" data-animate="edge" style="--step: 7;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="approvews" data-edge-to="selectws" data-edge-key="1" data-edge-id="approvews-selectws" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="218,243;250,243" d="M 218 243 L 250 243" class="a-default" data-animate="edge" style="--step: 7;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="barrier" data-edge-to="inventory" data-edge-key="2" data-edge-id="barrier-inventory" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="604,615;638,615" d="M 604 615 L 638 615" class="a-default" data-animate="edge" style="--step: 8;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="census" data-edge-to="permit" data-edge-key="3" data-edge-id="census-permit" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="210,739;256,739" d="M 210 739 L 256 739" class="a-default" data-animate="edge" style="--step: 9;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="choice" data-edge-to="fenceid" data-edge-key="4" data-edge-id="choice-fenceid" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="610,491;642,491" d="M 610 491 L 642 491" class="a-default" data-animate="edge" style="--step: 10;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
@@ -1148,16 +1148,16 @@ rect.c-bg-rect { fill: var(--bg); }
           <text x="1114" y="137.3" class="t-muted" font-size="8" text-anchor="middle">mTLS + census + capabilities</text>
         </g>
 
-        <g id="node-approvews" data-node-id="approvews" data-node-label="Approve workspace" tabindex="0" role="button" aria-label="Focus Approve workspace, Local path / provider ceiling, Workspace routing — first pin is immutable, policy is current" aria-pressed="false" data-node-kind="security" data-node-sublabel="Local path / provider ceiling" data-node-context="Workspace routing — first pin is immutable, policy is current">
-          <title>Approve workspace · Local path / provider ceiling · Workspace routing — first pin is immutable, policy is current</title>
-          <rect x="60" y="217" width="148" height="52" rx="8" class="c-mask"/>
-          <rect x="60" y="217" width="148" height="52" rx="8" class="c-security" data-animate="node" style="--step: 12; --flow-node-name: archify-relay-node-0;" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(66 223) scale(0.6875)">
+        <g id="node-approvews" data-node-id="approvews" data-node-label="Approve workspace" tabindex="0" role="button" aria-label="Focus Approve workspace, Canonical path / provider ceiling, Workspace routing — first pin is immutable, policy is current" aria-pressed="false" data-node-kind="security" data-node-sublabel="Canonical path / provider ceiling" data-node-context="Workspace routing — first pin is immutable, policy is current">
+          <title>Approve workspace · Canonical path / provider ceiling · Workspace routing — first pin is immutable, policy is current</title>
+          <rect x="50" y="217" width="168" height="52" rx="8" class="c-mask"/>
+          <rect x="50" y="217" width="168" height="52" rx="8" class="c-security" data-animate="node" style="--step: 12; --flow-node-name: archify-relay-node-0;" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(56 223) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" x="134" y="249" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Approve workspace</text>
-          <text x="134" y="261.3" class="t-muted" font-size="8" text-anchor="middle">Local path / provider ceiling</text>
+          <text x="134" y="261.3" class="t-muted" font-size="8" text-anchor="middle">Canonical path / provider ceiling</text>
         </g>
 
         <g id="node-selectws" data-node-id="selectws" data-node-label="Select device + workspace" tabindex="0" role="button" aria-label="Focus Select device + workspace, Relative directory; saved request, Workspace routing — first pin is immutable, policy is current" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Relative directory; saved request" data-node-context="Workspace routing — first pin is immutable, policy is current">

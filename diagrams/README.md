@@ -1,7 +1,7 @@
 # Native-connect extension candidate diagrams
 
 The editable sources describe committed Gateway checkpoint
-`21b16ef9dbaf590af08ceff366e445a008203add`. Both sources were regenerated with the maintained
+`5693d910c971eb88b297aef32808bc9fc49046cf`. Both sources were regenerated with the maintained
 renderer and passed normal strict/provenance/browser gates and canonical SVG
 export. Fresh HTML/SVG images were inspected in both themes. The six-row
 workflow needs vertical scrolling; the fixed navigation dock overlaps its last
@@ -33,9 +33,15 @@ tokens and local service/workspace controls belong in
 [Native connect](../docs/native-connect.md).
 
 Local profiles own workspace approvals, current ceilings and immutable pins.
-Same request ID returns the first pin; changed selection conflicts. Native must
-validate the pinned tuple and containment; these Gateway consumer contracts do
-not establish physical delete/recreate detection. Fresh
+Same request ID returns the first exact pin; changed selection conflicts. Gateway
+keeps Native tokens opaque. Under the external Native path contract, new approvals
+freeze canonical paths: replacing a directory at that same path preserves the
+logical project. Native checks the canonical ancestor, relative containment and
+frozen leaf path, then selects the current directory in the final child. A running
+cwd stays with its opened directory; replacement alone does not invalidate an
+accepted result. Legacy physical bindings retain their strict semantics, and
+Native root, credential and process identities remain strict. These are Native
+contract requirements, not implementation proof from Gateway source. Fresh
 targeted capabilities precede execution, and the local policy lease covers
 current-ceiling validation through CLI Start, then releases before Wait.
 Periodic v2 metadata has at most 100 workspaces, not the retained project list.
@@ -49,8 +55,9 @@ Native nodes cite Gateway's consumer boundary, never Native implementation at
 Gateway HEAD. Native alone owns admission, launch, supervision, cancellation
 and accepted outcomes. Required public features and service behavior need a
 compatible Native implementation; Gateway source cannot prove another
-installation's behavior. Workspace approval is routing policy in one trusted
-account, not an OS sandbox.
+installation's behavior. Gateway recognizes `connector-path-project-v1`; it
+depends on both namespace features and `workspace-constrained-connector-v1`.
+Workspace approval is routing policy in one trusted account, not an OS sandbox.
 
 Separate public HTTPS OAuth/JWKS and device mTLS WSS listeners retain their trust
 roles; devices initiate outbound connections. Full prior-fleet coverage precedes

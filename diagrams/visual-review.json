@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-11-13T19:46:33.763531+00:00",
-  "repositoryRevision": "21b16ef9dbaf590af08ceff366e445a008203add",
+  "reviewedAt": "2026-11-14T05:43:05.328224+00:00",
+  "repositoryRevision": "5693d910c971eb88b297aef32808bc9fc49046cf",
   "reviewer": "Image-capable repository agent",
-  "method": "Fresh strict-provenance Archify visual-check HTML captures at two sizes/both themes; additional current HTML captures of supporting cards and workflow after scrolling 420px; canonical Auto SVG opened in Chrome with emulated prefers-color-scheme light/dark; every listed image inspected with view_image",
+  "method": "Fresh strict-provenance Archify visual-check HTML captures at two sizes/both themes; additional current HTML captures of supporting cards and workflow after scrolling 420px; canonical Auto SVG opened in Chrome with emulated prefers-color-scheme light/dark; all 18 listed images inspected with view_image",
   "captureStorage": "Raw captures/contact sheets/receipts retained as ignored private evidence; no unpublished capture paths linked from maintained documentation",
   "findings": [
     "Component figure: SDK-hosted device client and local-profile branches, dual-wire outbound WSS routes, schema-9 Registry and external Native prerequisite labels are readable in both themes; no label clipping or route-through-node collision observed.",
-    "Workflow: enrollment, frozen-selector workspace resolution, targeted capability/current Start guard, admission, uncertainty, restore and CLI ownership rows are readable in both themes; the conditional present/uncertain branch remains distinct.",
+    "Workflow: enrollment, canonical-path workspace approval, immutable selector resolution, targeted capability/current Start guard, admission, uncertainty, restore and CLI ownership rows are readable in both themes; the conditional present/uncertain branch remains distinct.",
     "Workflow lower row is below/near the initial viewport edge; the fixed navigation dock overlaps part of that row in unscrolled captures. Scrolling 420px brings the complete lower row and legend into clear view in both themes.",
     "Standalone canonical Auto SVG exports show all figure rows/routes without the interactive navigation dock in both themes.",
-    "Supporting cards at 2048x1320 show the source4 pin, SDK shutdown/socket ownership and pinned-tuple/containment limits without clipped text in both themes."
+    "Supporting cards at 2048x1320 show source checkpoint 5693d910, opaque Gateway tokens, same-path replacement/current-child selection, unchanged running cwd and strict Native root/credential/process contracts, plus connector-path-project-v1 dependencies, without clipped text in both themes. Native implementation/runtime proof remains explicitly outside these Gateway citations."
   ],
   "limitations": [
     "Workflow HTML requires vertical page scrolling; this review does not claim the whole figure is unobscured in one initial viewport.",
@@ -24,13 +24,13 @@
       "id": "components",
       "source": {
         "path": "components.json",
-        "sha256": "07cc4c79ba73f4da814967383d29f63119f52e1661c32a90a4d0dc63813f6cc0",
-        "bytes": 15024
+        "sha256": "81645372fb743de0cf7e7321fb3dc19236580a62e11a4154a90f468443e083ae",
+        "bytes": 15315
       },
       "html": {
         "path": "components.html",
-        "sha256": "1516a7091afc8357ebc945885f34d6c7410d92fd9674cfb7e33b0c2c8c093f78",
-        "bytes": 843703
+        "sha256": "3a2d44b9d5974573d690f4a18f8af428c34a07545694e7c76a7cf42b7fb7a5e0",
+        "bytes": 843994
       },
       "svg": {
         "path": "components.svg",
@@ -54,8 +54,8 @@
           "theme": "light",
           "width": 1440,
           "height": 900,
-          "sha256": "8d8ca5c0d468b588fc2190fb279083fddc4f8bf8993d6734f981a0f3c9ecaedb",
-          "bytes": 146137,
+          "sha256": "2055178a5a98b598b3d03b5e828025baa13605695dbe58f78bb7a6abeff5557f",
+          "bytes": 145939,
           "imageInspected": true
         },
         {
@@ -63,8 +63,8 @@
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "40ee0293276334bdabbba7171601288c5a5d2877aae201b4e4b870f0d07c4885",
-          "bytes": 159317,
+          "sha256": "1c5526c8874c08cbd3994c0e6e7131fe472661a6f8fb5ce9577340f505281642",
+          "bytes": 159176,
           "imageInspected": true
         },
         {
@@ -72,8 +72,8 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "afe5a90b2c8529768af29cf06dd5efc455833970c34ad443fc1d8f5387367e8d",
-          "bytes": 251542,
+          "sha256": "f4096c95468a009025baf9b1aff20b0b03016397b1920581c51b89f0aa266ee8",
+          "bytes": 251090,
           "imageInspected": true
         },
         {
@@ -81,9 +81,19 @@
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "7680165f3910ccea6bbedef2ae4f591347b3280254af6863c31ef7940944eb8e",
-          "bytes": 277047,
+          "sha256": "2b46b7cc15b5ecdc2772e164647b3596c9b2aaa5a20d0baefeb0ac901383f400",
+          "bytes": 276660,
           "imageInspected": true
+        },
+        {
+          "id": "html-cards-2048x1320-light",
+          "theme": "light",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "9c78ccb78015f9ce88cf9b69e9a033750e337921c666930622c1a9f622c11320",
+          "bytes": 320804,
+          "imageInspected": true,
+          "scrollY": 815
         },
         {
           "id": "svg-1600x1200-light",
@@ -95,6 +105,16 @@
           "imageInspected": true
         },
         {
+          "id": "html-cards-2048x1320-dark",
+          "theme": "dark",
+          "width": 2048,
+          "height": 1320,
+          "sha256": "136172851e0183b8bb428acfe90cf6f2f54d054bd9741cf7dc373f761cca9e96",
+          "bytes": 331339,
+          "imageInspected": true,
+          "scrollY": 815
+        },
+        {
           "id": "svg-1600x1200-dark",
           "theme": "dark",
           "width": 1600,
@@ -102,26 +122,6 @@
           "sha256": "cbae073afdccc817e146ce50e738b88f77e84d43bb5ef075c55e292b6a087344",
           "bytes": 109186,
           "imageInspected": true
-        },
-        {
-          "id": "html-cards-2048x1320-light",
-          "theme": "light",
-          "width": 2048,
-          "height": 1320,
-          "sha256": "3571a2fd766e76bd2059ba3280040c384fd613d54441e22b2c5455d517831ac0",
-          "bytes": 308142,
-          "imageInspected": true,
-          "scrollY": 771
-        },
-        {
-          "id": "html-cards-2048x1320-dark",
-          "theme": "dark",
-          "width": 2048,
-          "height": 1320,
-          "sha256": "4bc949ea73961172fa925b70f0ae9a556aaece0033e49dfa096e62fe7cc5c5e9",
-          "bytes": 314500,
-          "imageInspected": true,
-          "scrollY": 815
         }
       ]
     },
@@ -129,18 +129,18 @@
       "id": "operation-safety",
       "source": {
         "path": "operation-safety.json",
-        "sha256": "fb694155add1837db83c09a5fecb3df7d0386bd22922604173f1070d6bdf3a66",
-        "bytes": 26777
+        "sha256": "ed86630fec1586a942cd1a0fc0c347eb1365d24694d328113d8997248d5b3fa6",
+        "bytes": 27125
       },
       "html": {
         "path": "operation-safety.html",
-        "sha256": "d72cf17b3175c3e0e0dc553e3741e5b7cedbf25e40bb720a8a2333f1307e80e4",
-        "bytes": 878097
+        "sha256": "2a2aae864abf6cdc89495c61131253ce3a306dd495cf795aee3e59d44486b776",
+        "bytes": 878453
       },
       "svg": {
         "path": "operation-safety.svg",
-        "sha256": "fe19550ffb4ed46d887d3fe18f1b272c32dd7a350ab0a77605d62e732c4db3fa",
-        "bytes": 241077
+        "sha256": "8bd9f64a0dc0a3894ff3093f35ad61969366dd787a833bd3ce4dd7db76f87117",
+        "bytes": 241093
       },
       "htmlCaptureGate": {
         "status": "pass",
@@ -159,8 +159,8 @@
           "theme": "light",
           "width": 1440,
           "height": 900,
-          "sha256": "b881e7cae40526ada4111bb47fd4c5fb5bf559f232eddbf2b4a92b3a2ad2a2db",
-          "bytes": 243692,
+          "sha256": "b96c5f69e9e5dd687d43f3903e0c2f4c520211b792a1514f59d3c041dd0fc659",
+          "bytes": 243798,
           "imageInspected": true
         },
         {
@@ -168,8 +168,8 @@
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "be257cbf7cd92d5c60a40169152180bd4099060ee32e61643f3f3f86e6677d93",
-          "bytes": 276415,
+          "sha256": "5799beb32c1ba87917d7b0d4d6479b1e140b4803163a06a61e53e53e01f06f4f",
+          "bytes": 276533,
           "imageInspected": true
         },
         {
@@ -177,8 +177,8 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "89247ad9eba9e4fd57bd63ebefd5e0f621b4737b1f746e1105dc679ed6dd2a5e",
-          "bytes": 324560,
+          "sha256": "edaaccd8a491595b5fff2e8d2b6052a9b923a9d93237d2318abb591d22661d76",
+          "bytes": 324652,
           "imageInspected": true
         },
         {
@@ -186,26 +186,8 @@
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "0f4fedc5189b5410716252256ee0d644c7d627a03fcab2e958094997ed9403b0",
-          "bytes": 370786,
-          "imageInspected": true
-        },
-        {
-          "id": "svg-1600x1200-light",
-          "theme": "light",
-          "width": 1600,
-          "height": 1200,
-          "sha256": "46d4ddbb684a105b340a59ff583385e17bd5cddc48f7c335d4dc0703e9ddcae5",
-          "bytes": 179230,
-          "imageInspected": true
-        },
-        {
-          "id": "svg-1600x1200-dark",
-          "theme": "dark",
-          "width": 1600,
-          "height": 1200,
-          "sha256": "6bc53c973217ed6719610f627134b582a5f2fd0b1865dffa9c82356f4bbbf0e2",
-          "bytes": 181905,
+          "sha256": "6885d3472bbea264dfee67f19a49017a00e13bf33cf0f181df5e00c08c89be3a",
+          "bytes": 371069,
           "imageInspected": true
         },
         {
@@ -213,40 +195,58 @@
           "theme": "light",
           "width": 2048,
           "height": 1320,
-          "sha256": "ec5c08fb0a9ab9ef3c4aef7bc76bf569cabfa480a2de70920bf966ba0b01e3e0",
-          "bytes": 361248,
+          "sha256": "e3a6ac9cf53ec647669eebfd8921e441233bdbf2ac0bf39d601c5302425476e4",
+          "bytes": 360354,
           "imageInspected": true,
-          "scrollY": 1489
+          "scrollY": 1560
         },
         {
           "id": "html-scrolled-1440x900-light",
           "theme": "light",
           "width": 1440,
           "height": 900,
-          "sha256": "797535919aeb06ce339d51abe7512fa50976a2841999e8bded3d45d301af87c9",
-          "bytes": 219956,
+          "sha256": "2e2f403905ea96ac6b153ee180e3e35fe1abd8eafc5b6fd4570ba1c136530a92",
+          "bytes": 220002,
           "imageInspected": true,
           "scrollY": 420
+        },
+        {
+          "id": "svg-1600x1200-light",
+          "theme": "light",
+          "width": 1600,
+          "height": 1200,
+          "sha256": "a6eba01ebf7e48a12452f3767d66ecc351d09f4552b04e333b49970828793bf6",
+          "bytes": 179380,
+          "imageInspected": true
         },
         {
           "id": "html-cards-2048x1320-dark",
           "theme": "dark",
           "width": 2048,
           "height": 1320,
-          "sha256": "76c9cad86ca38f08dd7a98b83f5c8257bae40ff018ad71944476d7c4de158a9c",
-          "bytes": 366560,
+          "sha256": "2479d5c84783766442ce0454aab7d59d72ce00621ef964b97a0d50b2c3120cb9",
+          "bytes": 365800,
           "imageInspected": true,
-          "scrollY": 1489
+          "scrollY": 1560
         },
         {
           "id": "html-scrolled-1440x900-dark",
           "theme": "dark",
           "width": 1440,
           "height": 900,
-          "sha256": "d314c354ccdc029c57934a5ca5aeb2f819ca2ae16a5fd50317b3f8e9341dbc5d",
-          "bytes": 243794,
+          "sha256": "ca0dfc2ba6b8a117d6e71a678100a20d2d0df10fb918986957c50f18e8a35142",
+          "bytes": 243930,
           "imageInspected": true,
           "scrollY": 420
+        },
+        {
+          "id": "svg-1600x1200-dark",
+          "theme": "dark",
+          "width": 1600,
+          "height": 1200,
+          "sha256": "be058822cd151cbac3957d35ba76496686bfb08306c04046612df920797a4f74",
+          "bytes": 181886,
+          "imageInspected": true
         }
       ]
     }

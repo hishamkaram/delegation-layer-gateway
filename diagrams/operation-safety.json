@@ -8,7 +8,7 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "git@github.com:hishamkaram/delegation-layer-gateway.git",
-      "revision": "21b16ef9dbaf590af08ceff366e445a008203add",
+      "revision": "5693d910c971eb88b297aef32808bc9fc49046cf",
       "link_mode": "local-only"
     }
   },
@@ -670,7 +670,7 @@
       "col": 0,
       "type": "security",
       "label": "Approve workspace",
-      "sublabel": "Local path / provider ceiling",
+      "sublabel": "Canonical path / provider ceiling",
       "sources": [
         {
           "path": "deviceclient/workspaces.go",
@@ -977,10 +977,10 @@
       "dot": "cyan",
       "title": "Source-backed Gateway; external Native contract",
       "items": [
-        "Every node cites committed Gateway source at 21b16ef9. External Native nodes show the public capability/receipt boundary consumed by Gateway, not Native implementation verified in this repository.",
+        "Every node cites committed Gateway source at 5693d910. External Native nodes show the public capability/receipt boundary consumed by Gateway, not Native implementation verified in this repository.",
         "Prepare starts nothing. Encoding and queue reservation precede the atomic possible-send decision. The actual write and response acceptance recheck current rights and immutable identity; duplicate confirmation observes the original operation.",
-        "New execution requires fresh targeted v2 capabilities (legacy v1 retains dated alias reports), live project identity and current local ceiling through CLI Start. Both namespace feature contracts are mandatory; v2 also requires workspace-constrained-connector-v1. Native implementation/service host remain external prerequisites.",
-        "Setup rows start no task. Owned-root initialization reuses durable phases under current owner/credential/connection checks, without task import or fleet-restore bypass. Immutable selectors remain separate from mutable approval and policy; Native must validate the pinned tuple and containment. Physical delete/recreate detection is outside this diagram's proof."
+        "New execution requires fresh targeted v2 capabilities (legacy v1 retains dated alias reports), current Native project selection and current local ceiling through CLI Start. Both namespace feature contracts are mandatory; v2 also requires workspace-constrained-connector-v1. Recognized connector-path-project-v1 additionally depends on those three features. Native implementation/service host remain external prerequisites.",
+        "Setup rows start no task. Owned-root initialization reuses durable phases under current owner/credential/connection checks, without task import or fleet-restore bypass. Gateway stores opaque Native tokens and exact immutable pins separately from mutable approval and policy. The external Native path contract allows same-path replacement, checks canonical ancestor/relative containment and selects the current directory in the final child. Running cwd does not jump; replacement alone leaves accepted results valid. Legacy physical bindings and strict Native root/credential/process identities remain unchanged."
       ]
     },
     {
