@@ -1,5 +1,19 @@
 # Candidate release assessment — 14 November 2026
 
+## Next release preparation
+
+Source metadata prepares Gateway 0.1.0 and Delegate 0.6.0. This is version
+preparation, not a published release or an installed-binary upgrade. Application
+versions are separate from the unchanged MCP, WSS and stored-schema versions.
+The integration PRs were squash-merged as Gateway `2ddbc01` and Native
+`a33fb15`; Gateway tag `archive/pr-3-native-connect` and Native tag
+`archive/pr-181-gateway-connect` retain the existing SDK and acceptance-source
+pins. The SDK pseudo-version remains valid; there is no dependency on an
+unpublished `v0.1.0` tag. The dated assessment below keeps its evidence scope and
+historical cleanup limits.
+
+## Recorded extension assessment
+
 **Current Native-connect extension: not release-ready.** The candidate adds
 owner enrollment and policy, schema-9 project-resolution state, wire-v2
 workspace routing, targeted capabilities and the Native-owned embedded-service

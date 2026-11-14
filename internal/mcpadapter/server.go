@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/appversion"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpguard"
@@ -59,7 +60,7 @@ func New(options Options) (*Adapter, error) {
 	// allowlisted audit/metrics path may write application observability.
 	quiet := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	// Older versions require batches; this boundary admits one RPC per HTTP request.
-	server := mcp.NewServer(&mcp.Implementation{Name: "delegation-layer-gateway", Version: "0.0.0-dev"}, &mcp.ServerOptions{Logger: quiet, Instructions: "Select a device and project explicitly. Prepare a dispatch, retain its operation ID, then confirm it. Retry by the same handle; never create a replacement after an unknown admission. Accepted results and confirmed execution closure are separate. A project grant does not provide an OS sandbox.", SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18"}})
+	server := mcp.NewServer(&mcp.Implementation{Name: "delegation-layer-gateway", Version: appversion.Current}, &mcp.ServerOptions{Logger: quiet, Instructions: "Select a device and project explicitly. Prepare a dispatch, retain its operation ID, then confirm it. Retry by the same handle; never create a replacement after an unknown admission. Accepted results and confirmed execution closure are separate. A project grant does not provide an OS sandbox.", SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18"}})
 	adapter := &Adapter{options: options, server: server, metadataURL: resource.Scheme + "://" + resource.Host + "/.well-known/oauth-protected-resource/mcp", limits: limits}
 	if err = adapter.registerTools(); err != nil {
 		return nil, err

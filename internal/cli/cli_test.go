@@ -50,6 +50,15 @@ func TestHelpVersionAndErrorsNeverEchoArgumentsOrEnvironment(t *testing.T) {
 		if code != 0 || out == "" || err != "" || strings.Contains(out, "private-canary") {
 			t.Fatalf("command %v: %d %s %s", args, code, out, err)
 		}
+		if args[0] == "version" {
+			var reported struct {
+				Version string `json:"version"`
+			}
+			require(t, json.Unmarshal([]byte(out), &reported))
+			if reported.Version != "0.1.0" {
+				t.Fatalf("public CLI software version = %q, want 0.1.0", reported.Version)
+			}
+		}
 	}
 	for _, args := range [][]string{{"unknown-private-canary"}, {"serve", "--secret=private-canary"}, {"connector", "enroll", "--token", "private-canary"}, {"version", "private-canary"}} {
 		code, out, err := command(t, args...)
