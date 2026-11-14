@@ -193,10 +193,76 @@ errors. Original driver/controller owners joined and private evidence paths
 were retained. This is actual fixture execution, not installed-provider,
 physical-Mac or Cloud proof.
 
-Unverified: rebuilt Native service, final correction CI, controlled deployment
-and corrected collection of the same existing Cloud
-operation. Successful provider authentication and an accepted Office PONG remain
-unverified; no automatic login or replacement task follows from the source fix.
+The later deployment and Cloud checkpoint used the published SDK correction
+`2e6a269` and Native `c74d79cd`:
+
+- Gateway Linux/macOS/harness CI at `c9ac6cf` passed:
+  [Gateway integration run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43587760410).
+  Native Linux/macOS and auxiliary checks at `c74d79cd` also passed:
+  [Native integration run](https://github.com/hishamkaram/delegation-layer/actions/runs/43585217054).
+- The trusted test Gateway was updated through its existing systemd owner.
+  Stop/start completed, the selected runtime matched the owned source build,
+  configuration and Gateway identity were preserved, and no registry migration
+  or backup restoration was performed. System-trusted backend/public discovery
+  and OAuth metadata checks passed; unauthenticated MCP returned 401. Deployment
+  dispatched no provider task.
+- The operator applied the rebuilt Office Native pair from an Aqua Terminal.
+  Independent read-only receipt collection passed all fourteen checks: original
+  Native stop/start/status waits returned 0, the active file identities matched
+  the source-built pair, both publication barriers completed, and required
+  owner/descriptor finalization reported no error. The observer did not adopt
+  the operator's parent Python process or claim its Wait.
+- Gateway independently recorded a fresh authenticated Office WSS connection
+  at `2026-11-14T13:58:37.635982929Z`, using the same generation-1 credential.
+  The connection counter advanced from 4 to 7 within the same Gateway boot.
+  This proves dated connectivity separately from OS-manager registration;
+  neither establishes provider authentication or execution success.
+- The operator then shared an actual ChatGPT Cloud report for the same existing
+  operation and task above. `get_task_status` preserved resolved delivery,
+  no reservation, terminal `registered-native` closure and reference SHA-256
+  `6ad1ae4b91160679210c2e781404ccbece851388fd558e62701bad8b9ba5fc84`.
+  One `collect_result` returned `result_unavailable` with `retryable: false`.
+  No accepted descriptor or bytes were returned. The operator reported no new
+  preparation, dispatch, retry, recovery, login or device switch. This is
+  user-reported actual Cloud rejection-handling evidence, not an independently
+  captured raw MCP transcript or a successful PONG probe.
+  Retained Gateway audit metadata corroborates one status and one collect after
+  the update, both with replies received. The collect uses the existing
+  `control_unknown` convention for a remote error; that audit row does not
+  independently establish the reported error code or retryability.
+
+A separate, deliberately authorized fresh Cloud probe then used the same exact
+Office device and existing project handle, with `claude:print`, read-only
+permission and a 60-second budget. The operator reported one preparation and
+one dispatch: operation `4915763e90b16b32b230bc13ebe80b69`, task
+`900639f17576bc204a5d1b258f1ab0b5`. Initial delivery was `possible_send`; final
+delivery was resolved, with terminal `registered-native` closure, no reservation
+and closure reference SHA-256
+`f19757acf737dfd61769011ec4e86c7143c58dd0baa4cadf87c838a6b9409977`.
+The retrieved result was exactly four UTF-8 bytes, `PONG` (`UE9ORw==`), EOF true,
+with accepted descriptor SHA-256
+`95784973cc639977bff93619700168505cb8f7855e44fa643d34622a43706c87`.
+The Cloud client reported independently calculating that hash with Python.
+Root also recomputed the supplied four bytes' digest, but did not independently
+retrieve them from Gateway. No redispatch, recovery, login, credential change,
+project re-resolution or device switch was reported. This is actual Cloud
+success reported by the operator, not a raw transport capture. Advertised
+authentication and execution readiness remained `unknown`; the successful
+task establishes execution for that attempt without changing those fields or
+explaining the earlier authentication rejection.
+
+Independent public Native status and collection of that new task both returned
+committed publication with the same four-byte descriptor and SHA-256; their
+original Native/SSH command owners joined with exit 0. These observations read
+no result bytes and do not independently attest guarded closure. Gateway's
+administrative metadata separately matched that operation/task as terminal,
+resolved and unreserved. This corroborates the Cloud report without replacing
+its stated provenance or promoting a cached observation to Native authority.
+
+The original rejection remains final; the new probe has separate task identity.
+Historical unresolved cleanup evidence remains open independently of these
+passing checks. Home provider/service acceptance through the new flow and
+other missing matrix categories must not be inferred from the Office result.
 
 [Native CI on the service correction](https://github.com/hishamkaram/delegation-layer/actions/runs/43572730269)
 passed on Linux and macOS, including the capacity scenario that failed in the

@@ -16,9 +16,19 @@ browser auto-open was operator-reported; its running LaunchAgent and narrowed
 workspace were independently observed. A Home
 token/foreground test confirmed overlapping physical-device WSS connections,
 then joined its original processes and revoked its temporary credential. Complete
-final-source CI and remaining external acceptance are still open. The service
-correction passed Linux and macOS CI after the
-earlier capacity refusal; that does not explain or erase the failed invocation.
+final-source CI passed at Gateway `c9ac6cf` and Native `c74d79cd`:
+[Gateway Linux/macOS/harness](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43587760410)
+and [Native Linux/macOS and auxiliary checks](https://github.com/hishamkaram/delegation-layer/actions/runs/43585217054).
+The reviewed Gateway correction was deployed, and the operator applied the
+rebuilt Office pair through Native's supported Aqua service controls. Independent
+receipt and WSS observations verified that update and same-credential reconnect.
+An actual operator-reported ChatGPT Cloud read of the original rejected task
+returned final nonretryable `result_unavailable`. A separate fresh probe then
+retrieved exactly PONG; independent public Native status/collection corroborated
+its committed four-byte descriptor, and Gateway metadata matched its terminal,
+unreserved operation. Cloud result bytes and guarded closure were not separately
+retrieved by Root. Remaining external matrix categories stay open. The earlier
+capacity refusal's cause is not established by the later passing checks.
 Historical timeout descendant cleanup remains unresolved. Scoped reviews and
 these live results are not global approval or a release verdict.
 See [Native connect](native-connect.md) for the intended operator paths and
@@ -34,18 +44,24 @@ Historical P3 uncertainties remain retained without invented closure. Merge,
 issue closure and release publication remain separate actions; the compatible
 Delegate prerequisite must be integrated before a Gateway release.
 
-## Extension acceptance still required
+## Extension acceptance status
 
-- Run the complete configured gates on frozen integrated Gateway and Native
-  extension sources, then review the actual code and correction evidence.
-- Exercise OAuth device login, headless approval and browserless token redemption,
-  owner-policy/revocation enforcement, explicit workspace resolution/replay,
-  targeted capabilities and current local policy through CLI Start.
-- Prove the Native-owned embedded user-service lifecycle and creator joins on
-  the supported platforms, including retained identity after interruption.
+- Complete configured gates and scoped independent code/correction reviews
+  passed on the recorded Gateway and Native revisions. Later evidence-only
+  documentation changes use the required docs/harness checks; unchanged runtime
+  results are retained at their actual revisions.
+- Login, headless approval, browserless enrollment, authorization/revocation,
+  workspace routing and targeted-policy checks have distinct recorded fixture
+  and live scopes in [verification](verification.md). No fixture is promoted to
+  installed-provider or Cloud acceptance.
+- Linux and Office Native user-service lifecycles have recorded controls and
+  creator joins. Home's new-flow provider/GUI-service coverage and remaining
+  physical-network/client matrix categories are not inferred from Office.
 - Keep fixture, installed-provider, physical-device/network and Cloud-client
   results separate. Earlier MVP evidence supplies no automatic pass for the
   new enrollment, dynamic-project or service flows.
+- Historical cleanup provenance and merged-commit/tag pin retention remain
+  explicit obligations; no unsafe cleanup or branch deletion is implied.
 
 ## Design and ownership
 
