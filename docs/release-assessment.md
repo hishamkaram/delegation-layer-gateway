@@ -8,12 +8,19 @@ is allowed. The directory-incarnation proposal is superseded. Native Linux
 service-recovery and the later launch/error/root-projection corrections are
 implemented and independently reviewed. Final scoped Sol, Opus5.5 high and
 native reviews found no actionable source P0/P1/P2 in the inspected paths.
-The rebuilt final local literal-fixture process scenario passed with exactly
-three tasks and confirmed cleanup. Complete current-revision gates and
-extension-specific external acceptance remain incomplete; Office's earlier
-platform race invocation failed and is being investigated. Historical timeout
-descendant cleanup remains unresolved. Scoped reviews and fixture proof are
-not global approval or a release verdict.
+The local literal-fixture process scenario passed with exactly three tasks and
+confirmed cleanup. The subsequent service-runner correction also passed native
+Linux/macOS regression checks and actual public Linux onboarding, dynamic-project
+selection and installed-Claude execution. Public headless login passed; Office's
+browser auto-open was operator-reported; its running LaunchAgent and narrowed
+workspace were independently observed. A Home
+token/foreground test confirmed overlapping physical-device WSS connections,
+then joined its original processes and revoked its temporary credential. Complete
+final-source CI and remaining external acceptance are still open. The service
+correction passed Linux and macOS CI after the
+earlier capacity refusal; that does not explain or erase the failed invocation.
+Historical timeout descendant cleanup remains unresolved. Scoped reviews and
+these live results are not global approval or a release verdict.
 See [Native connect](native-connect.md) for the intended operator paths and
 [verification](verification.md) for dated evidence.
 

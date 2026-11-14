@@ -1,5 +1,122 @@
 # Verification and delivery gates
 
+## November 14 public Native onboarding checkpoint
+
+**Verification is still in progress.** Native correction
+`0a17c93cda0717bdd8cf28d24142e3c35d66d38d` supplies an absolute working directory
+to the existing isolated OS-command owner. Live token enrollment exposed the
+previous empty-directory rejection before systemctl or launchctl could start.
+The regression failed on that preimage, then passed real helper execution on
+Linux and native macOS, including canonical executable selection and callback
+exits 0 and 23. No execution owner or protocol validation was replaced.
+
+The trusted test Gateway was explicitly migrated from schema 7 to 9 after
+stopping its systemd owner and keeping a protected offline backup. Gateway
+identity was preserved. The new configuration and service definition were
+installed, and the operator applied the Nginx update. Public system-trusted
+HTTPS checks returned Native descriptor 200, OAuth resource metadata 200 and
+unauthenticated MCP 401. The first private backend health probe omitted the
+enabled trusted-loopback IP header and returned 429; that failed verification
+is retained. A separate read-only probe supplied the actual socket address and
+verified the expected descriptor and active service. No migration was replayed
+and no old registry backup was restored.
+
+Actual new-flow evidence now includes:
+
+- Browserless Native enrollment using one private operator token, followed by
+  the default Linux user service. After the runner correction, the same profile
+  and generation-1 credential started successfully, without reminting a device.
+- One approved ancestor and dynamic nested-project resolution through the public
+  MCP endpoint, preserving the exact requested device. The service dispatched
+  one installed `claude:print` task with read-only permission and a 60-second
+  budget. The SDK client verified its accepted 60-byte result, SHA-256
+  `c07bf5bb13229e3af6157a3f150eaeb856c534a5c16be5147fc7460d60ac4107`,
+  canonical execution closure, task cleanup and all helper joins.
+- Public headless Device Flow with human approval, certificate issuance and a
+  dated authenticated outbound WSS connection event. The original foreground
+  invocation stopped through its own terminal and returned exit 0; the identity
+  lease was free and the exact temporary credential was revoked. This test
+  dispatched no provider task and did not test a desktop service.
+- Office browser activation reported automatic by the operator. Independent
+  observations matched its running LaunchAgent to the intended candidate and
+  test profile. The saved workspace ceiling was explicitly set and independently
+  listed as only `claude:print`, read-only, maximum 60 seconds. This proves that
+  effective workspace ceiling, not every field of the saved connection profile.
+- Browserless one-token enrollment on the physical Home Mac, using the explicit
+  foreground mode. A new child directory was created after one ancestor approval;
+  a separate workspace listing preserved its ID, revision and Claude/read-only/
+  60-second ceiling. Dated authenticated WSS events established overlapping Home
+  and Office connections on the operator-confirmed separate Internet connections.
+  Creator Ctrl-C stopped the original Home invocation; its exact Native and SSH
+  handles both returned exit 0. The transferred token copy was removed after
+  those joins, and Gateway confirmed disconnect and exact credential revocation.
+  This did not test Home provider execution, GUI service installation or remote
+  project resolution; the latter was measured separately on Linux.
+- Linux service stop, exact-device offline observation, restart and readiness
+  of that same device. An observation mistakenly overlapped the deliberate
+  outage and returned `device_offline`. A subsequent read-only observation of
+  the original operation succeeded after reconnect, with the same accepted
+  result and closure; neither observation dispatched another task.
+- The E2E machine principal could not discover the human-owned Office device
+  or read its workspaces explicitly; the latter returned `not_found`. Actual
+  prompt and result canaries were absent from four Gateway audit segments and
+  the private metrics response. No provider content was printed by that check.
+
+These are distinct process, service, authentication, authorization and installed
+provider results. Office provider execution, further two-device task acceptance,
+network-change recovery and an actual Cloud MCP client remain separate gates.
+The operator is testing the Office Cloud path; no result is assumed in advance.
+
+[Native CI on the service correction](https://github.com/hishamkaram/delegation-layer/actions/runs/43572730269)
+passed on Linux and macOS, including the capacity scenario that failed in the
+earlier run. That does not establish the cause of the earlier reported
+CPU-pressure refusals or close its missing historical cleanup evidence.
+
+Native test-only commit `02e0a2250472c8796708d9e7040f56b110f3069a`
+repairs the original recovery fixture and six older early-assertion cleanup
+paths. Release markers, root records and helper scripts share one retained base;
+the existing Pending/bootstrap/client owners and daemon Wait channels must join
+before deletion. Timing, capacity and watchdog assertions are preserved.
+The first four-file correction passed the complete control package with one
+explicit missing-repair-owner prerequisite skip. The final twelve-file scope
+then passed these affected checks with Go 1.27.4:
+
+- `go test -race -count=1 -timeout=30m -json -run '^(TestRecoverPrivateBoundsHungBootstrapAndRetainsLock|TestBindPrivateBoundsSlowReadinessBeforeReturning|TestReconcileInspectionRetainsLeaseForPendingStatus|TestProbePrivateGateRetainsLeaseForPendingStatus|TestPrivateMaintenanceRetainsPendingCommandLock|TestScheduledPrivateMaintenancePendingRemovalRetainsLeaseAfterCustody|TestPrivateMaintenanceAvailabilityDoesNotImplyRemoval|TestPrivateStatusFixture.*|TestScheduledPrivateMaintenanceRetainsWakeWhenProcessLaunchFails)$' ./internal/pueue/internal/control`:
+  eleven top-level tests and five subtests passed, no skips, package 27.654 seconds.
+- `go vet ./internal/pueue/internal/control`, the pinned formatter on all twelve
+  owned files, and `golangci-lint run ./internal/pueue/internal/control` passed;
+  lint reported zero issues.
+- The exact previously skipped repair-owner case passed with a source-built
+  `delegate-run` selected by `DELEGATE_REPAIR_EDITOR_OWNER`: queued and stashed
+  subtests both executed, no skips, package 17.561 seconds.
+- Two isolated overlays removed retention and daemon-join protection. Each
+  failed its intended regression; original rescue owners then joined. These
+  expected negative results were not relabeled as passing production tests.
+
+Original check processes joined and the selected source stayed unchanged.
+This affected-scope proof does not relabel the earlier package run as a no-skip
+run or a complete final-revision repository run. `Client.Close` retains its
+existing unbounded natural join; the fixture deadline bounds its explicit
+Pending, bootstrap and daemon observations, not that client-owned join.
+
+Actual Sol (`gpt-6.1-sol`, high) and Opus (`claude-opus-5-5`, high) accepted the
+final twelve-file correction in turns `edcab52887daeaa76345d2c781f48460` and
+`c6c9af59ee375ae988b32a39b0c04f82`. Root validated and read both whole accepted
+payloads. An independent native security/concurrency reviewer also found no
+actionable P0/P1/P2 in that scope. Opus corrected its earlier normal-path claim:
+the bootstrap test already released and joined on success; the defect concerned
+early assertions. Historical timeout causation remains unproved.
+
+The multi-task review waiter returned `task_observation_failed` once. A separate
+status check and subsequent accepted collection succeeded for the original Sol
+identity; no review was redispatched. The underlying failed observation remains
+unverified. An optional-record read racing deadline expiry is a source-backed
+possible explanation, not an established cause or a completed repair.
+
+Unverified: final integrated source gates and correction reviews, remaining
+physical-device and Cloud acceptance, and historical unresolved descendant
+closure. The source and evidence checkpoint below remains dated history.
+
 ## November 14 canonical-path candidate
 
 **This extension is not release-ready.** The approved project identity is its

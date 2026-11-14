@@ -100,6 +100,8 @@ workspace-constrained root contract. Native's own installation and engineering
 instructions remain authoritative. The normal root resolver chooses the state;
 an existing legacy root needs Native's explicit offline cutover first. Connect
 never upgrades a busy root or restarts its shared supervisor automatically.
+Follow [Native's root cutover procedure](https://github.com/hishamkaram/delegation-layer/blob/0a17c93cda0717bdd8cf28d24142e3c35d66d38d/docs/gateway-connect.md#native-root-and-profile)
+before retrying a connection that reports `root_cutover_required`.
 
 ```sh
 delegate gateway connect https://gateway.example.com
