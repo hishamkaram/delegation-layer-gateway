@@ -1,6 +1,11 @@
 package deviceclient
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/instance"
+)
 
 var (
 	ErrConfiguration       = errors.New("gateway_connection_invalid_configuration")
@@ -30,3 +35,35 @@ func (e failure) Unwrap() []error {
 	return []error{e.kind, e.cause}
 }
 func failed(kind, cause error) error { return failure{kind: kind, cause: cause} }
+
+// IsBusy reports SDK contention only when every cause is a known busy marker.
+// A joined storage, identity or cleanup fault must retain its failure semantics.
+func IsBusy(err error) bool {
+	return errors.Is(err, ErrBusy) && onlyBusyCauses(err)
+}
+
+func identityBusyOnly(err error) bool {
+	return errors.Is(err, deviceidentity.ErrBusy) && onlyBusyCauses(err)
+}
+
+func onlyBusyCauses(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := joined.Unwrap()
+		if len(causes) == 0 {
+			return false
+		}
+		for _, cause := range causes {
+			if !onlyBusyCauses(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	if cause := errors.Unwrap(err); cause != nil {
+		return onlyBusyCauses(cause)
+	}
+	return errors.Is(err, ErrBusy) || errors.Is(err, deviceidentity.ErrBusy) || errors.Is(err, instance.ErrBusy)
+}

@@ -71,7 +71,7 @@ func openProfile(directory string, create, exclusive bool) (*profileStore, error
 		s.lease, err = instance.Acquire(filepath.Join(directory, "profile.lock"))
 		if err != nil {
 			kind := ErrProfile
-			if errors.Is(err, instance.ErrBusy) {
+			if errors.Is(err, instance.ErrBusy) && onlyBusyCauses(err) {
 				kind = ErrBusy
 			}
 			return nil, failed(kind, errors.Join(err, s.Close()))

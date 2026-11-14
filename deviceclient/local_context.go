@@ -63,7 +63,7 @@ func RuntimeInactive(ctx context.Context, directory string) (inactive bool, resu
 		return false, failed(ErrProfile, err)
 	}
 	store, err := deviceidentity.Open(identityPath)
-	if errors.Is(err, deviceidentity.ErrBusy) {
+	if identityBusyOnly(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -110,7 +110,7 @@ func openExistingIdentity(directory string) (*deviceidentity.Store, error) {
 		return nil, failed(ErrProfile, err)
 	}
 	store, err := deviceidentity.Open(path)
-	if errors.Is(err, deviceidentity.ErrBusy) {
+	if identityBusyOnly(err) {
 		return nil, failed(ErrBusy, err)
 	}
 	if err != nil {

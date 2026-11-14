@@ -41,7 +41,7 @@ func Status(ctx context.Context, profileDirectory string) (status ConnectionStat
 		return status, ErrProfile
 	}
 	identity, err := deviceidentity.Open(directory)
-	if errors.Is(err, deviceidentity.ErrBusy) {
+	if identityBusyOnly(err) {
 		status.IdentityInUse = true
 		status.CredentialState = "unknown"
 		return status, nil

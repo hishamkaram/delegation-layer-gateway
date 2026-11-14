@@ -206,7 +206,7 @@ func (p *profileProjects) Lock(ctx context.Context) (connector.WorkspaceLease, e
 			}
 			return &profileWorkspaceLease{store: store, snapshot: snapshot}, nil
 		}
-		if !errors.Is(err, ErrBusy) {
+		if !IsBusy(err) {
 			return nil, projectError(err)
 		}
 		select {
