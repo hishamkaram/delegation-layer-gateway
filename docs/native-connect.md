@@ -174,7 +174,14 @@ not scan, clone, create directories or switch devices. Save the returned project
 handle and reuse it for tasks; do not resolve a new handle for every dispatch.
 
 The same request ID returns its original binding after retries or directory
-replacement. Changing its selector conflicts. There are at most 1,024 retained
+replacement. An approval binds the canonical path: replacing or recloning the
+ancestor or project at that same path is allowed. Each new command selects the
+current directory; an already running command keeps its original working
+directory. Replacement or removal alone does not invalidate its accepted result.
+Missing directories, traversal and symlinks escaping the approved ancestor
+refuse a new launch. Project handles never select another device or path.
+
+Changing a request's selector conflicts. There are at most 1,024 retained
 pins, including tombstones, with a separate four-MiB encoded pin budget; either
 limit can stop new resolutions. Existing identities are not evicted.
 

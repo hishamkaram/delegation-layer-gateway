@@ -251,12 +251,31 @@ class NativeConnectHarness(Harness):
 
     def task_scenarios(self):
         self.brief_canary = "E2E_PRIVATE_BRIEF_" + uuid.uuid4().hex
-        for root in self.roots:
+        for index, root in enumerate(self.roots):
+            held = index == 1
+            if held:
+                root.acquire_fixture_gate()
+                before = root.fixture_execution_snapshot()
             prepared = self.prepare(
-                root, "Return the fixture sentence. " + self.brief_canary
+                root,
+                (
+                    "DELEGATE_PRIVATE_SILENCE_WAIT "
+                    if held
+                    else "Return the fixture sentence. "
+                )
+                + self.brief_canary,
             )
             handle = {"operation_id": prepared["operation_id"]}
+            # Admission retains the approved path. Its next launch selects the
+            # replacement currently at that path, without resolving a new handle.
+            self.replace_project_directory(root, ancestor=not held)
             self.mcp("dispatch_task", handle)
+            if held:
+                root.wait_fixture_execution(before, prepared["task_id"])
+                # An already running provider keeps its cwd. Removing its visible
+                # path must not invalidate the eventual accepted result.
+                self.replace_project_directory(root, ancestor=False)
+                root.release_fixture_gate()
             final = self.await_operation(prepared["operation_id"], result=True)
             descriptor = final["observation"]["result"]
             chunk = self.mcp(
@@ -273,6 +292,10 @@ class NativeConnectHarness(Harness):
                 "result digest changed",
             )
             require(descriptor["length"] == len(expected), "result length changed")
+            require(
+                self.mcp("resolve_project", root.resolution) == root.resolved,
+                "same-path replacement changed the original project binding",
+            )
             self.mcp("dispatch_task", handle)
             require(
                 root.invocations() == 1, "same-operation retry executed another task"
@@ -281,6 +304,25 @@ class NativeConnectHarness(Harness):
         self.summary["stages"].append(
             "both_selected_projects_results_closure_duplicate_retry"
         )
+        self.summary["stages"].append(
+            "same_path_ancestor_and_leaf_replacement_before_launch_and_during_execution"
+        )
+
+    def replace_project_directory(self, root, *, ancestor):
+        directory = root.workspace if ancestor else root.project_directory
+        original = directory.stat(follow_symlinks=False)
+        retired = directory.with_name(directory.name + "-retired-" + uuid.uuid4().hex)
+        directory.rename(retired)
+        directory.mkdir(mode=0o700)
+        if ancestor:
+            root.project_directory.mkdir(mode=0o700)
+        current = directory.stat(follow_symlinks=False)
+        require(
+            (original.st_dev, original.st_ino) != (current.st_dev, current.st_ino),
+            "replacement did not create a distinct directory",
+        )
+        # Retain the old directory under the same test resource owner until
+        # task closure and process joins; cleanup never deletes an active cwd.
 
     def recovery_scenarios(self):
         root = self.roots[0]

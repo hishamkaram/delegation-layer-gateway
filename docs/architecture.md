@@ -118,7 +118,10 @@ See [ownership](../internal/registry/ownership.go),
 
 Registry schema 9 adds durable project-resolution requests and references from
 owned project routes to the first accepted pin. The connector's local profile
-remains authoritative for filesystem identity. Wire v2 advertises at most 100
+remains authoritative for local workspace approvals and project bindings. Native
+owns their canonical-path semantics. A replacement at the same approved path
+is valid; root, credential and process identities remain independently guarded.
+Wire v2 advertises at most 100
 workspaces and a dated pin-budget observation, not the retained project list.
 `resolve_project` uses an explicit device, workspace, relative directory and
 saved request ID. It starts no task and scans no filesystem tree. Same-ID replay
