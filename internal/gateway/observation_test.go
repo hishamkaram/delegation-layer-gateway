@@ -124,7 +124,8 @@ func TestAcceptedOutcomeBeforeCanonicalClosureKeepsReservationAndReportsPending(
 				return encodeReplyFixture(command.Operation, observation)
 			}
 			view, err := f.service.Collect(t.Context(), f.actor, c.Operation)
-			pending := dispatchMust(t, view, err)
+			assertCollectVerdict(t, verdict, err)
+			pending := view
 			if !pending.Reserved || pending.Delivery != domain.PossibleSend || pending.Observation.Kind != domain.Existing || pending.Observation.ClosurePending != domain.ClosureOwnerBusy {
 				t.Fatal("accepted/rejected publication before owner Wait was treated as execution closure")
 			}

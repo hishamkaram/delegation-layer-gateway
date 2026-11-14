@@ -89,8 +89,9 @@ is unverified. No second dispatch, replacement task, recovery or login was run.
 
 Source review found that the embedded adapter maps clean rejected collection
 to pending, and Gateway's dated cache does not retain the fresh verdict needed
-to return a final collection error. That correction is in progress and remains
-a release blocker. The exact failed guarded envelope from the Cloud invocation
+to return a final collection error. The source correction is now implemented;
+publication, deployment and live collection remain separate gates. The exact
+failed guarded envelope from the Cloud invocation
 was not captured; the Native rejection and the source defect are separate
 verified observations.
 
@@ -111,6 +112,64 @@ classes. Actual Sol and Opus accepted this two-file correction in turns
 `dec01c03df80862c4ffbde05e4c52107` and `2ef4c554450c0df2fcafd16d623e45fc`,
 and an independent native security/concurrency review found no P0/P1/P2 in that
 scope. These reader checks do not prove the pending result correction.
+
+The rejected-result correction keeps Native collection and its session-release
+step. Only actual clean collection exit 4 can proceed to a fresh healthy guarded
+resolve; matching receipt and rejected outcome are required before translating
+bounded metadata. Gateway applies that observation first, then returns existing
+nonretryable `result_unavailable`. Registry errors take precedence and rejection
+alone never releases an execution reservation. No schema, wire code, persisted
+rejection authority or public status field was added.
+
+Actual Sol `gpt-6.1-sol` high and Opus `claude-opus-5-5` high reviewed the
+integrated code in turns `47b125e3daabcd2e1c0c79d56acfbc34` and
+`e26b7c41eae15a4638cce63c1b8a5b86`. Root validated and read both complete
+accepted answers. Neither found a P0/P1/P2 in that scope; the independent native
+security/concurrency reviewer also found none. Review corrected earlier proposed
+Failure-code and empty-Error gates against Native source, and rejected a
+server-only shortcut because it would skip Native session release. Later small
+follow-ups made one existing success case cover pending-to-rejected transition,
+made the two Native collect watches explicitly zero, and documented both mixed
+version directions. The fixture header extraction remains necessary to preserve
+the unchanged complexity floor without duplicating header-fault ownership.
+
+Validation on pinned Go 1.27.4:
+
+- `make check` passed in 361.914 seconds on unchanged captured inputs: complete
+  race suite, tagged E2E helper race test, build, vet, lint, formatting, Python,
+  harness/docs and vulnerability checks. Python executed 386 tests with eight
+  skips; both Go lint invocations reported zero issues.
+- `go test -race -count=1 -timeout=5m ./internal/connector` passed again in
+  24.591 seconds after the success-case transition amendment;
+  `golangci-lint run ./internal/connector` reported zero issues, and the pinned
+  formatter check was empty. Unchanged package results from the complete gate
+  were reused rather than rerun for this test-only amendment.
+- Native's real-store public-CLI regression collects the same rejected task
+  twice with diagnostic Error and then resolves its matching immutable receipt
+  successfully. The five-test race union covering that contract, deferred store
+  close, final context failure, authentication fault preservation and idle-timeout
+  continuation passed in 4.671 seconds. Native app vet/lint and formatting passed.
+  After explicit `--watch 0s` was added, the amended regression passed again in
+  3.179 seconds. This fixture has no provider session or guardian closure and
+  does not establish either.
+- Adapter and service preimage counterexamples failed on the intended pending
+  misclassification; the fixed tests passed. Real SQLite and MCP consumer tests
+  preserve accepted descriptors, error precedence and independent closure/quota
+  rules. Original check processes joined.
+- `govulncheck -tags=e2e ./...` found zero reachable and zero imported-package
+  vulnerabilities. Its three module-level findings concern unused HTML and
+  OpenPGP packages: [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866),
+  [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) and
+  [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932).
+  A separate `go list -tags=e2e -deps ./...` confirmed neither
+  `golang.org/x/net/html` nor `golang.org/x/crypto/openpgp` is imported in this
+  tested graph. This is not an assertion that all required modules are free of
+  vulnerabilities or that another platform has the same graph.
+
+Unverified: published correction pins, rebuilt Native service, final correction
+CI, controlled deployment and corrected collection of the same existing Cloud
+operation. Successful provider authentication and an accepted Office PONG remain
+unverified; no automatic login or replacement task follows from the source fix.
 
 [Native CI on the service correction](https://github.com/hishamkaram/delegation-layer/actions/runs/43572730269)
 passed on Linux and macOS, including the capacity scenario that failed in the

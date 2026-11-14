@@ -196,7 +196,10 @@ func (a *Adapter) invokeReply(ctx context.Context, r request, owner *controlOwne
 	if err != nil {
 		return failed(r.command.Operation, err)
 	}
-	if response.exitCode != 0 || response.Error != "" || response.Failure != nil {
+	// Exit 4 is a collection outcome, including diagnostic Error/Failure fields.
+	// Only a fresh healthy guarded resolve can authorize its rejected projection.
+	rejectedCollect := r.command.Operation == protocol.Collect && response.exitCode == 4
+	if !rejectedCollect && (response.exitCode != 0 || response.Error != "" || response.Failure != nil) {
 		if response.Failure != nil {
 			candidate := protocol.Failure{Code: response.Failure.Code, Retryable: true}
 			if candidate.Validate() == nil {
@@ -209,21 +212,28 @@ func (a *Adapter) invokeReply(ctx context.Context, r request, owner *controlOwne
 		return failed(r.command.Operation, ErrEvidence)
 	}
 	if needsCanonicalRead(r.command.Operation, response) {
-		verified, verifyErr := a.canonicalRead(ctx, r, owner)
-		if verifyErr != nil {
-			return failed(r.command.Operation, verifyErr)
-		}
-		// Only this successful guarded cancellation supplies a fresh stop receipt.
-		// Passive resolve supplies immutable binding and canonical task evidence.
-		if r.command.Operation == protocol.Cancel {
-			if response.TaskID != r.task.TaskID || response.RootID == "" || response.RootID != verified.RootID {
-				return failed(r.command.Operation, ErrEvidence)
-			}
-			verified.Stop = response.Stop
-		}
-		return r.translate(verified)
+		return a.canonicalReply(ctx, r, owner, response)
 	}
 	return r.translate(response)
+}
+
+func (a *Adapter) canonicalReply(ctx context.Context, r request, owner *controlOwner, response cliResponse) protocol.Reply {
+	verified, err := a.canonicalRead(ctx, r, owner)
+	if err != nil {
+		return failed(r.command.Operation, err)
+	}
+	if r.command.Operation == protocol.Collect && response.exitCode == 4 && (verified.Publication != "rejected" || verified.Outcome == nil || verified.Outcome.Verdict != "rejected") {
+		return failed(r.command.Operation, ErrEvidence)
+	}
+	// Only this successful guarded cancellation supplies a fresh stop receipt.
+	// Passive resolve supplies immutable binding and canonical task evidence.
+	if r.command.Operation == protocol.Cancel {
+		if response.TaskID != r.task.TaskID || response.RootID == "" || response.RootID != verified.RootID {
+			return failed(r.command.Operation, ErrEvidence)
+		}
+		verified.Stop = response.Stop
+	}
+	return r.translate(verified)
 }
 
 func needsCanonicalRead(op protocol.Operation, response cliResponse) bool {

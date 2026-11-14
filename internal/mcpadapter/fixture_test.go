@@ -117,6 +117,7 @@ type fixtureLink struct {
 	snapshot    gateway.LinkSnapshot
 	err         error
 	commands    []protocol.Command
+	observation func(*protocol.TaskObservation)
 }
 
 func (l *fixtureLink) Snapshot(device domain.DeviceID) (gateway.LinkSnapshot, error) {
@@ -196,6 +197,9 @@ func (r *fixtureReservation) Await(ctx context.Context) (protocol.Reply, error) 
 		return protocol.Reply{}, err
 	}
 	observation := protocol.TaskObservation{Task: task, BriefSHA256: hexDigest(digest), Resolution: "existing", Admission: "admitted", Liveness: "running", Publication: "pending"}
+	if r.link.observation != nil {
+		r.link.observation(&observation)
+	}
 	body, err := protocol.Encode(observation, protocol.MaxFrameBytes)
 	if err == nil {
 		// The fixture CLI has finished its Wait and cleanup before response receipt;

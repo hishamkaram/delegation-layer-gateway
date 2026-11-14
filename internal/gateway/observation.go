@@ -14,28 +14,39 @@ type RemoteError struct{ Failure protocol.Failure }
 func (e *RemoteError) Error() string { return e.Failure.Code }
 
 func (s *Service) acceptReply(ctx context.Context, actor domain.Actor, c domain.Correlation, transmission domain.Transmission, reply protocol.Reply, scope domain.Scope, cancellation domain.CancellationID) (domain.OperationView, error) {
+	view, _, err := s.acceptObservation(ctx, actor, c, transmission, reply, scope, cancellation)
+	return view, err
+}
+
+// acceptObservation returns fresh wire evidence only after its dated projection
+// has passed authorization, binding and Registry continuity checks.
+func (s *Service) acceptObservation(ctx context.Context, actor domain.Actor, c domain.Correlation, transmission domain.Transmission, reply protocol.Reply, scope domain.Scope, cancellation domain.CancellationID) (domain.OperationView, protocol.TaskObservation, error) {
 	if reply.Validate() != nil {
-		return domain.OperationView{}, domain.Reject(domain.EvidenceInvalid)
+		return domain.OperationView{}, protocol.TaskObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	if _, err := s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope}); err != nil {
 		s.observeAuthorizationFailure(actor, reply.Operation, err)
-		return domain.OperationView{}, err
+		return domain.OperationView{}, protocol.TaskObservation{}, err
 	}
 	if reply.Error != nil {
-		return domain.OperationView{}, &RemoteError{Failure: *reply.Error}
+		return domain.OperationView{}, protocol.TaskObservation{}, &RemoteError{Failure: *reply.Error}
 	}
 	var observation protocol.TaskObservation
 	if err := protocol.DecodeStrict(reply.Body, &observation, protocol.MaxFrameBytes); err != nil {
-		return domain.OperationView{}, domain.Reject(domain.EvidenceInvalid)
+		return domain.OperationView{}, protocol.TaskObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	if observation.Validate() != nil || !observationMatches(observation, c) {
-		return domain.OperationView{}, domain.Reject(domain.EvidenceInvalid)
+		return domain.OperationView{}, protocol.TaskObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	cache, err := ObservationFromReply(reply, observation, cancellation, s.now())
 	if err != nil {
-		return domain.OperationView{}, err
+		return domain.OperationView{}, protocol.TaskObservation{}, err
 	}
-	return s.store.ApplyResolution(ctx, domain.ValidatedResolution{ValidatedObservation: domain.ValidatedObservation{Correlation: c, Connection: transmission.Connection, Credential: transmission.Credential, Observation: cache, Now: s.now()}, DurableRequest: cache.Kind != domain.Unknown})
+	view, err := s.store.ApplyResolution(ctx, domain.ValidatedResolution{ValidatedObservation: domain.ValidatedObservation{Correlation: c, Connection: transmission.Connection, Credential: transmission.Credential, Observation: cache, Now: s.now()}, DurableRequest: cache.Kind != domain.Unknown})
+	if err != nil {
+		return view, protocol.TaskObservation{}, err
+	}
+	return view, observation, nil
 }
 
 func observationKind(reply protocol.Reply, observation protocol.TaskObservation, cancellation domain.CancellationID) domain.ObservationKind {

@@ -24,7 +24,7 @@ remain present. Capability checks do not establish provider or cloud acceptance.
 | `dispatch_task` | Confirm the existing handle; no new identity, silent failover or offline work queue |
 | `list_operations`, `resolve_operation`, `get_task_status` | Current-owner/current-grant observation; passive resolution cannot launch or fence |
 | `recover_admission` | Explicit dispatch authorization; only existing matching prepared work |
-| `collect_result`, `read_result_chunk` | Accepted descriptor, verified preview/range, length/digest and freshness |
+| `collect_result`, `read_result_chunk` | Accepted descriptor, verified preview/range, length/digest and freshness; collection returns nonretryable `result_unavailable` for a fresh validated Native rejection |
 | `cancel_task` | Stable cancellation ID; requested stop is not confirmed termination |
 
 Schemas are strict and versioned. Model-supplied identity is not authentication.

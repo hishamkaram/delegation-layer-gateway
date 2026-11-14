@@ -226,6 +226,18 @@ workspace permission/budget ceilings or dispatch a task.
 
 ## Operate and recover
 
+On `collect_result`, nonretryable `result_unavailable` means Native has rejected
+publication for that task. There are no accepted result bytes to read. Preserve
+the operation and task IDs; inspect Native's public status/collection guidance
+for the cause. Gateway does not expose raw provider diagnostics or run provider
+login, retry or replacement work. Execution closure is independent: a rejected
+outcome can still have an open execution reservation, and a closed execution can
+still be waiting for publication. Both Gateway and the Native connector SDK
+must include the rejection-projection correction; older adapters can still
+report pending for rejected output. A corrected Native connector with an older
+Gateway can report terminal execution without a descriptor or final collection
+error; upgrade both sides before verifying the corrected behavior.
+
 Native exposes explicit `gateway service install|start|stop|status|uninstall`
 commands and `gateway serve`. Linux requires the intended user's systemd
 manager; macOS requires its GUI LaunchAgent context. Missing manager/session
