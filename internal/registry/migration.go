@@ -15,9 +15,9 @@ type MigrationResult struct {
 	ToVersion   int
 }
 
-// Migrate upgrades an existing private schema-6 database without replacing its
+// Migrate upgrades an existing private schema-6, 7 or 8 database without replacing its
 // authority or discarding evidence. The caller holds the process instance lease.
-// A valid schema-7 database is an idempotent success. Open never migrates.
+// A valid schema-9 database is an idempotent success. Open never migrates.
 func Migrate(ctx context.Context, path string) (result MigrationResult, err error) {
 	if err = validateRegistryFile(path); err != nil {
 		return result, err
@@ -37,8 +37,8 @@ func migrateRegistry(ctx context.Context, tx *sql.Tx) (MigrationResult, error) {
 	if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return MigrationResult{}, err
 	}
-	if version != 6 && version != 7 {
-		return MigrationResult{}, fmt.Errorf("registry migration supports schema 6 or 7: %w", domain.Reject(domain.Conflict))
+	if version < 6 || version > 9 {
+		return MigrationResult{}, fmt.Errorf("registry migration supports schema 6, 7, 8 or 9: %w", domain.Reject(domain.Conflict))
 	}
 	gateway, err := validateRegistryAuthority(ctx, tx, "")
 	if err != nil {
@@ -52,7 +52,23 @@ func migrateRegistry(ctx context.Context, tx *sql.Tx) (MigrationResult, error) {
 	if err = verifyRoutingConstraints(ctx, tx); err != nil {
 		return MigrationResult{}, err
 	}
-	return MigrationResult{Gateway: gateway, FromVersion: version, ToVersion: 7}, nil
+	if version < 8 {
+		if _, err = tx.ExecContext(ctx, ownershipSchema); err != nil {
+			return MigrationResult{}, fmt.Errorf("migrate ownership: %w", err)
+		}
+	}
+	if version < 9 {
+		if _, err = tx.ExecContext(ctx, projectResolutionSchema); err != nil {
+			return MigrationResult{}, fmt.Errorf("migrate project correlations: %w", err)
+		}
+	}
+	if err = verifyOwnershipSchema(ctx, tx); err != nil {
+		return MigrationResult{}, err
+	}
+	if err = verifyProjectResolutionSchema(ctx, tx); err != nil {
+		return MigrationResult{}, err
+	}
+	return MigrationResult{Gateway: gateway, FromVersion: version, ToVersion: 9}, nil
 }
 
 const migrateRoutingPermits = `

@@ -13,17 +13,17 @@ import (
 // Labels use only the fixed event, control, transport and boundary vocabularies.
 // Opaque IDs, URLs, projects and provider names are absent from metric dimensions.
 const (
-	metricCodeCount       = 27
-	controlClassCount     = 13
+	metricCodeCount       = 30
+	controlClassCount     = 14
 	transportOutcomeCount = 6
 )
 
 func metricCodes() [metricCodeCount]Code {
-	return [metricCodeCount]Code{AuthenticationDenied, DeviceCredentialDenied, EnrollmentIssued, DeviceConnected, DeviceDisconnected, DeviceConnectionFailed, CredentialRevoked, OperationPrepared, ControlSent, ControlCompleted, ControlUnknown, AuthorizationDenied, ResourceDenied, RecoveryBlocked, ShutdownStarted, MCPRequestStarted, MCPRequestCompleted, MCPToolResponseReady, MCPToolErrorReady, EnrollmentRequestStarted, EnrollmentRequestCompleted, MetadataRequestStarted, MetadataRequestCompleted, DeviceRequestStarted, DeviceRequestCompleted, RenewalIssued, RenewalUnavailable}
+	return [metricCodeCount]Code{AuthenticationDenied, DeviceCredentialDenied, EnrollmentIssued, DeviceConnected, DeviceDisconnected, DeviceConnectionFailed, CredentialRevoked, RevocationCleanupUnavailable, OwnerPolicyChanged, EnrollmentGrantCreated, OperationPrepared, ControlSent, ControlCompleted, ControlUnknown, AuthorizationDenied, ResourceDenied, RecoveryBlocked, ShutdownStarted, MCPRequestStarted, MCPRequestCompleted, MCPToolResponseReady, MCPToolErrorReady, EnrollmentRequestStarted, EnrollmentRequestCompleted, MetadataRequestStarted, MetadataRequestCompleted, DeviceRequestStarted, DeviceRequestCompleted, RenewalIssued, RenewalUnavailable}
 }
 
 func controlClasses() [controlClassCount]routing.ControlClass {
-	return [controlClassCount]routing.ControlClass{routing.PrepareClass, routing.ControlClass(protocol.ContextInspect), routing.ControlClass(protocol.Admit), routing.ControlClass(protocol.Resolve), routing.ControlClass(protocol.ResumeExisting), routing.ControlClass(protocol.FenceAbsent), routing.ControlClass(protocol.Status), routing.ControlClass(protocol.Collect), routing.ControlClass(protocol.ResultChunk), routing.ControlClass(protocol.Cancel), routing.ControlClass(protocol.OriginBarrier), routing.ControlClass(protocol.OriginInventory), routing.ControlClass(protocol.OriginReopen)}
+	return [controlClassCount]routing.ControlClass{routing.PrepareClass, routing.ControlClass(protocol.ContextInspect), routing.ControlClass(protocol.Admit), routing.ControlClass(protocol.Resolve), routing.ControlClass(protocol.ResumeExisting), routing.ControlClass(protocol.FenceAbsent), routing.ControlClass(protocol.Status), routing.ControlClass(protocol.Collect), routing.ControlClass(protocol.ResultChunk), routing.ControlClass(protocol.Cancel), routing.ControlClass(protocol.OriginBarrier), routing.ControlClass(protocol.OriginInventory), routing.ControlClass(protocol.OriginReopen), routing.ControlClass(protocol.ResolveProject)}
 }
 
 func transportOutcomes() [transportOutcomeCount]routing.TransportOutcome {

@@ -1,5 +1,612 @@
 # Verification and delivery gates
 
+## November 14 public Native onboarding checkpoint
+
+**Verification is still in progress.** Native correction
+`0a17c93cda0717bdd8cf28d24142e3c35d66d38d` supplies an absolute working directory
+to the existing isolated OS-command owner. Live token enrollment exposed the
+previous empty-directory rejection before systemctl or launchctl could start.
+The regression failed on that preimage, then passed real helper execution on
+Linux and native macOS, including canonical executable selection and callback
+exits 0 and 23. No execution owner or protocol validation was replaced.
+
+The trusted test Gateway was explicitly migrated from schema 7 to 9 after
+stopping its systemd owner and keeping a protected offline backup. Gateway
+identity was preserved. The new configuration and service definition were
+installed, and the operator applied the Nginx update. Public system-trusted
+HTTPS checks returned Native descriptor 200, OAuth resource metadata 200 and
+unauthenticated MCP 401. The first private backend health probe omitted the
+enabled trusted-loopback IP header and returned 429; that failed verification
+is retained. A separate read-only probe supplied the actual socket address and
+verified the expected descriptor and active service. No migration was replayed
+and no old registry backup was restored.
+
+Actual new-flow evidence now includes:
+
+- Browserless Native enrollment using one private operator token, followed by
+  the default Linux user service. After the runner correction, the same profile
+  and generation-1 credential started successfully, without reminting a device.
+- One approved ancestor and dynamic nested-project resolution through the public
+  MCP endpoint, preserving the exact requested device. The service dispatched
+  one installed `claude:print` task with read-only permission and a 60-second
+  budget. The SDK client verified its accepted 60-byte result, SHA-256
+  `c07bf5bb13229e3af6157a3f150eaeb856c534a5c16be5147fc7460d60ac4107`,
+  canonical execution closure, task cleanup and all helper joins.
+- Public headless Device Flow with human approval, certificate issuance and a
+  dated authenticated outbound WSS connection event. The original foreground
+  invocation stopped through its own terminal and returned exit 0; the identity
+  lease was free and the exact temporary credential was revoked. This test
+  dispatched no provider task and did not test a desktop service.
+- Office browser activation reported automatic by the operator. Independent
+  observations matched its running LaunchAgent to the intended candidate and
+  test profile. The saved workspace ceiling was explicitly set and independently
+  listed as only `claude:print`, read-only, maximum 60 seconds. This proves that
+  effective workspace ceiling, not every field of the saved connection profile.
+- Browserless one-token enrollment on the physical Home Mac, using the explicit
+  foreground mode. A new child directory was created after one ancestor approval;
+  a separate workspace listing preserved its ID, revision and Claude/read-only/
+  60-second ceiling. Dated authenticated WSS events established overlapping Home
+  and Office connections on the operator-confirmed separate Internet connections.
+  Creator Ctrl-C stopped the original Home invocation; its exact Native and SSH
+  handles both returned exit 0. The transferred token copy was removed after
+  those joins, and Gateway confirmed disconnect and exact credential revocation.
+  This did not test Home provider execution, GUI service installation or remote
+  project resolution; the latter was measured separately on Linux.
+- Linux service stop, exact-device offline observation, restart and readiness
+  of that same device. An observation mistakenly overlapped the deliberate
+  outage and returned `device_offline`. A subsequent read-only observation of
+  the original operation succeeded after reconnect, with the same accepted
+  result and closure; neither observation dispatched another task.
+- The E2E machine principal could not discover the human-owned Office device
+  or read its workspaces explicitly; the latter returned `not_found`. Actual
+  prompt and result canaries were absent from four Gateway audit segments and
+  the private metrics response. No provider content was printed by that check.
+
+These are distinct process, service, authentication, authorization and installed
+provider results. Successful Office provider execution, further two-device task
+acceptance and network-change recovery remain separate gates.
+
+The subsequent Office Cloud attempt found the exact device online and
+Delegate-ready, but its exposed actions lacked `resolve_project`. It stopped
+before preparation or dispatch and created no task identity. A separate
+authenticated public `tools/list` check negotiated protocol `2025-11-25` and
+returned all fourteen server tools, including `list_workspaces` and
+`resolve_project`. That confirms the server advertisement; it does not establish
+which ChatGPT action metadata or workspace controls hid the tool. After the
+operator refreshed the connection, both tools became available.
+
+The subsequent actual Cloud attempt resolved the selected project and prepared
+and dispatched exactly once. Operation `c6208072f3ebaa122c9f57f934b041d3`, task
+`571b65d8a1023353ae34aa31d456d077`, reached resolved delivery and canonical
+`registered-native` execution closure with no reservation. The client reported
+three retryable pending result responses. Independent public Native status and
+collection of that same task instead established rejected publication:
+`provider_authentication_failed`, with collection exit 4 and
+`provider_output_rejected`. No accepted result was produced. Closure proves the
+execution ended; it does not prove the requested PONG was produced. The cause of
+the difference between the working Terminal and service authentication contexts
+is unverified. No second dispatch, replacement task, recovery or login was run.
+
+Source review found that the embedded adapter maps clean rejected collection
+to pending, and Gateway's dated cache does not retain the fresh verdict needed
+to return a final collection error. The source correction is now implemented;
+publication, deployment and live collection remain separate gates. The exact
+failed guarded envelope from the Cloud invocation
+was not captured; the Native rejection and the source defect are separate
+verified observations.
+
+Linux cleanup subsequently revoked the exact temporary credential once. Typed
+audit events recorded its disconnect and denial of that same credential;
+Native disconnect uninstalled its exact user service, and the identity lease
+was free. Seven original control processes joined. State, profile and task
+history remain retained; Native daemon closure and removal of the spent private
+token are unverified. No further provider task was launched.
+
+That cleanup exposed a proof-reader compatibility defect before any mutation:
+the shared Python audit reader rejected valid Go-produced `root_only` control
+rows. The corrected reader validates the closed root-control classes, exact
+boolean type and root/project correlation. Its 23 tests and pinned Ruff checks
+passed; a preimage counterexample failed for the intended defect. A separate
+live read validated 2,084 unfiltered records, including all five root-control
+classes. Actual Sol and Opus accepted this two-file correction in turns
+`dec01c03df80862c4ffbde05e4c52107` and `2ef4c554450c0df2fcafd16d623e45fc`,
+and an independent native security/concurrency review found no P0/P1/P2 in that
+scope. These reader checks do not prove the pending result correction.
+
+The rejected-result correction keeps Native collection and its session-release
+step. Only actual clean collection exit 4 can proceed to a fresh healthy guarded
+resolve; matching receipt and rejected outcome are required before translating
+bounded metadata. Gateway applies that observation first, then returns existing
+nonretryable `result_unavailable`. Registry errors take precedence and rejection
+alone never releases an execution reservation. No schema, wire code, persisted
+rejection authority or public status field was added.
+
+Actual Sol `gpt-6.1-sol` high and Opus `claude-opus-5-5` high reviewed the
+integrated code in turns `47b125e3daabcd2e1c0c79d56acfbc34` and
+`e26b7c41eae15a4638cce63c1b8a5b86`. Root validated and read both complete
+accepted answers. Neither found a P0/P1/P2 in that scope; the independent native
+security/concurrency reviewer also found none. Review corrected earlier proposed
+Failure-code and empty-Error gates against Native source, and rejected a
+server-only shortcut because it would skip Native session release. Later small
+follow-ups made one existing success case cover pending-to-rejected transition,
+made the two Native collect watches explicitly zero, and documented both mixed
+version directions. The fixture header extraction remains necessary to preserve
+the unchanged complexity floor without duplicating header-fault ownership.
+
+Validation on pinned Go 1.27.4:
+
+- `make check` passed in 361.914 seconds on unchanged captured inputs: complete
+  race suite, tagged E2E helper race test, build, vet, lint, formatting, Python,
+  harness/docs and vulnerability checks. Python executed 386 tests with eight
+  skips; both Go lint invocations reported zero issues.
+- `go test -race -count=1 -timeout=5m ./internal/connector` passed again in
+  24.591 seconds after the success-case transition amendment;
+  `golangci-lint run ./internal/connector` reported zero issues, and the pinned
+  formatter check was empty. Unchanged package results from the complete gate
+  were reused rather than rerun for this test-only amendment.
+- Native's real-store public-CLI regression collects the same rejected task
+  twice with diagnostic Error and then resolves its matching immutable receipt
+  successfully. The five-test race union covering that contract, deferred store
+  close, final context failure, authentication fault preservation and idle-timeout
+  continuation passed in 4.671 seconds. Native app vet/lint and formatting passed.
+  After explicit `--watch 0s` was added, the amended regression passed again in
+  3.179 seconds. This fixture has no provider session or guardian closure and
+  does not establish either.
+- Adapter and service preimage counterexamples failed on the intended pending
+  misclassification; the fixed tests passed. Real SQLite and MCP consumer tests
+  preserve accepted descriptors, error precedence and independent closure/quota
+  rules. Original check processes joined.
+- `govulncheck -tags=e2e ./...` found zero reachable and zero imported-package
+  vulnerabilities. Its three module-level findings concern unused HTML and
+  OpenPGP packages: [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866),
+  [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) and
+  [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932).
+  A separate `go list -tags=e2e -deps ./...` confirmed neither
+  `golang.org/x/net/html` nor `golang.org/x/crypto/openpgp` is imported in this
+  tested graph. This is not an assertion that all required modules are free of
+  vulnerabilities or that another platform has the same graph.
+
+Native revision `c74d79cd4853cea0afdc03f9f4a83261cc91729e` now pins published
+Gateway SDK `2e6a269496c130aba4714ec4e2937c92786f9b9c`, with no module
+replacement or other dependency-version change. Downloaded adapter source
+matched the reviewed source bytes. `go test -race -count=1 -timeout=5m
+./internal/gatewaycommand ./internal/gatewayservice` passed against that pin
+in 4.488 and 24.649 seconds respectively. Gateway acceptance CI selects that
+same Native revision.
+
+Gateway correction CI at `2e6a269` passed Linux, macOS and harness jobs:
+[correction run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43584964281).
+The follow-up pin review used actual Sol turn `eb775e96dfabc40aee0fd06f16032d49`
+and Opus turn `ec9a9bd625e4c16ade6715dcfc7ec9a9`; both complete accepted answers
+were validated/read and found no P0/P1/P2 in their inspected scope. Feature
+commit pins must still be aligned with retained merged commits/tags before
+release or branch deletion.
+
+The actual local process scenario then passed against Gateway `2e6a269` and
+Native `c74d79cd` in 66.908 seconds: two embedded connectors, exactly three
+literal Pi fixture attempts, dynamic nested projects, duplicate identity,
+same-path replacement before/during execution, restart/reconnect, cancellation,
+result checks and metadata canaries. Canonical closure covered all three tasks;
+two completed worker Waits returned 0 and the requested cancellation returned 1.
+The driver reported `native_connect_passed`, cleanup confirmed and no cleanup
+errors. Original driver/controller owners joined and private evidence paths
+were retained. This is actual fixture execution, not installed-provider,
+physical-Mac or Cloud proof.
+
+The later deployment and Cloud checkpoint used the published SDK correction
+`2e6a269` and Native `c74d79cd`:
+
+- Gateway Linux/macOS/harness CI at `c9ac6cf` passed:
+  [Gateway integration run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43587760410).
+  Native Linux/macOS and auxiliary checks at `c74d79cd` also passed:
+  [Native integration run](https://github.com/hishamkaram/delegation-layer/actions/runs/43585217054).
+- The trusted test Gateway was updated through its existing systemd owner.
+  Stop/start completed, the selected runtime matched the owned source build,
+  configuration and Gateway identity were preserved, and no registry migration
+  or backup restoration was performed. System-trusted backend/public discovery
+  and OAuth metadata checks passed; unauthenticated MCP returned 401. Deployment
+  dispatched no provider task.
+- The operator applied the rebuilt Office Native pair from an Aqua Terminal.
+  Independent read-only receipt collection passed all fourteen checks: original
+  Native stop/start/status waits returned 0, the active file identities matched
+  the source-built pair, both publication barriers completed, and required
+  owner/descriptor finalization reported no error. The observer did not adopt
+  the operator's parent Python process or claim its Wait.
+- Gateway independently recorded a fresh authenticated Office WSS connection
+  at `2026-11-14T13:58:37.635982929Z`, using the same generation-1 credential.
+  The connection counter advanced from 4 to 7 within the same Gateway boot.
+  This proves dated connectivity separately from OS-manager registration;
+  neither establishes provider authentication or execution success.
+- The operator then shared an actual ChatGPT Cloud report for the same existing
+  operation and task above. `get_task_status` preserved resolved delivery,
+  no reservation, terminal `registered-native` closure and reference SHA-256
+  `6ad1ae4b91160679210c2e781404ccbece851388fd558e62701bad8b9ba5fc84`.
+  One `collect_result` returned `result_unavailable` with `retryable: false`.
+  No accepted descriptor or bytes were returned. The operator reported no new
+  preparation, dispatch, retry, recovery, login or device switch. This is
+  user-reported actual Cloud rejection-handling evidence, not an independently
+  captured raw MCP transcript or a successful PONG probe.
+  Retained Gateway audit metadata corroborates one status and one collect after
+  the update, both with replies received. The collect uses the existing
+  `control_unknown` convention for a remote error; that audit row does not
+  independently establish the reported error code or retryability.
+
+A separate, deliberately authorized fresh Cloud probe then used the same exact
+Office device and existing project handle, with `claude:print`, read-only
+permission and a 60-second budget. The operator reported one preparation and
+one dispatch: operation `4915763e90b16b32b230bc13ebe80b69`, task
+`900639f17576bc204a5d1b258f1ab0b5`. Initial delivery was `possible_send`; final
+delivery was resolved, with terminal `registered-native` closure, no reservation
+and closure reference SHA-256
+`f19757acf737dfd61769011ec4e86c7143c58dd0baa4cadf87c838a6b9409977`.
+The retrieved result was exactly four UTF-8 bytes, `PONG` (`UE9ORw==`), EOF true,
+with accepted descriptor SHA-256
+`95784973cc639977bff93619700168505cb8f7855e44fa643d34622a43706c87`.
+The Cloud client reported independently calculating that hash with Python.
+Root also recomputed the supplied four bytes' digest, but did not independently
+retrieve them from Gateway. No redispatch, recovery, login, credential change,
+project re-resolution or device switch was reported. This is actual Cloud
+success reported by the operator, not a raw transport capture. Advertised
+authentication and execution readiness remained `unknown`; the successful
+task establishes execution for that attempt without changing those fields or
+explaining the earlier authentication rejection.
+
+Independent public Native status and collection of that new task both returned
+committed publication with the same four-byte descriptor and SHA-256; their
+original Native/SSH command owners joined with exit 0. These observations read
+no result bytes and do not independently attest guarded closure. Gateway's
+administrative metadata separately matched that operation/task as terminal,
+resolved and unreserved. This corroborates the Cloud report without replacing
+its stated provenance or promoting a cached observation to Native authority.
+
+The original rejection remains final; the new probe has separate task identity.
+Historical unresolved cleanup evidence remains open independently of these
+passing checks. The Home checkpoint below supplies separate evidence; other
+missing matrix categories must not be inferred from either provider result.
+
+### Home browser onboarding and installed-provider checkpoint
+
+The physical Home Mac built the exact Native `c74d79cd` source with Go 1.27.4
+for Darwin arm64, using the SDK at `2e6a269`. Source and candidate metadata
+matched the retained build receipt, and the original build/SSH command owners
+joined. No installed executable contents or credentials were copied or hashed.
+
+The first test setup used a 103-byte canonical state-root path. That exceeded
+the documented macOS limit: Native adds 14 bytes for its owner socket, whose
+encoded path may contain at most 103 bytes. This was an unsupported fixture
+setup, not evidence of a missing task engine or initialization step. The exact
+original admission envelope was not retained, so its first failing branch is
+unverified. Its one operation remained uncertain until an explicit Cloud
+cancellation through Native's existing refusal/fence path reported confirmed
+closure. Gateway subsequently showed refusal, resolved delivery and no
+reservation. This does not prove the task was never sent. The operator
+disconnected that test service. A retained `credential_revoked` audit event at
+17:20:34Z binds revocation to that exact old device, after its generation-1
+disconnect. This is device-scoped revocation: Registry invalidates its
+credentials together, rather than emitting an epoch-specific revocation row.
+The old root, history and refusal evidence were preserved without moving task
+state.
+
+A separate new root used a 49-byte canonical path. The operator connected it
+from an ordinary macOS Terminal with the browser flow and default managed
+service, without tmux. One workspace ancestor was approved with only
+`claude:print`, read-only permission and a 60-second ceiling. A child directory
+was created after that approval; a separate listing preserved the workspace
+identity, revision and policy. Cloud resolution selected that exact child and
+device, establishing dynamic-project use through this Home service.
+
+The first task under the supported root reached terminal closure but had
+rejected publication. Public Native status/collection established
+`provider_authentication_failed`, with collection exit 4 and
+`provider_output_rejected`; Cloud collection returned nonretryable
+`result_unavailable`. No accepted PONG was produced for that task. The operator
+then reported the selected Claude CLI's Terminal metadata as logged out and
+performed login themselves. That current metadata does not reconstruct the
+failed task's complete historical authentication context. Root did not log in,
+inject credentials, retry or continue the rejected operation.
+
+The operator deliberately ran one new Cloud probe using the same Home device
+and existing project handle: operation `ee4138553d7eb4611fc31e4c61034914`, task
+`a48f2dee9ed8432ceee8dab3f37f7eb9`, `claude:print`, read-only, 60 seconds.
+The report records exactly one preparation and one dispatch. Initial
+`possible_send` resolved to terminal `registered-native` closure with no
+reservation and reference SHA-256
+`3dc5b3c8289493907a9e6e936479f63a20c7767b7b2330860e8ea6b21484f515`.
+The accepted result was exactly `PONG`, four UTF-8 bytes, base64 `UE9ORw==`,
+EOF true, SHA-256
+`95784973cc639977bff93619700168505cb8f7855e44fa643d34622a43706c87`.
+The Cloud client reported independently calculating that hash from the
+retrieved bytes. Root recomputed the reported bytes' digest, without separately
+retrieving Gateway result bytes. This is operator-reported actual ChatGPT Cloud
+acceptance, not a raw transport capture. Gateway audit independently recorded
+one preparation and one admit, with no redispatch or admission recovery. No
+login, device switch or network change was reported during that new probe.
+
+Independent public Native `status` and `collect --watch 0s` both exited 0 and
+reported the same committed outcome and four-byte descriptor. Candidate/root
+metadata matched; all original Native/SSH owners joined, with no pending
+helper. Those observations read no result bytes and did not independently
+attest guarded closure. Gateway metadata separately matched the exact task and
+operation as terminal, resolved and unreserved; all twenty recorded operations
+were unreserved at that snapshot. Audit health and both current device
+connections were healthy at the recorded checkpoint. Home and Office using
+separate Internet connections remains operator-attested.
+
+The operator then disconnected Home's original Internet connection and switched
+to an alternate connection. Retained audit-prefix commitments validated the
+before/after comparison. Gateway recorded disconnect and same-credential
+generation-1 reconnect six seconds later, with connection counter 2 advancing
+to 3 in the same Gateway boot. The operator's actual ChatGPT Cloud report
+retrieved the same completed task's PONG bytes and independently matched its
+SHA-256, descriptor and original closure reference. Gateway audit corroborated
+status, collection and chunk reads on connection 3, with no Home preparation,
+admit or resume after the baseline. Root did not separately retrieve Gateway
+bytes or measure the public IP/packet path; the underlying network switch is
+operator-attested.
+
+The operator restored the original connection. Gateway recorded another
+same-credential reconnect, counter 4. The explicit public managed-service stop
+then reported installed=true, state=absent and stop_requested=true. Gateway
+recorded Home's disconnect while Office's latest event remained connected.
+Service stop does not establish Native-task closure; this task had already
+closed. The foreground operator CLI's parent Wait was not adopted by Root.
+
+Starting that same profile then reported installed=true, state=registered and
+stop_requested=false. Gateway recorded a fresh same-credential connection,
+counter 5. The operator's final actual ChatGPT Cloud read retrieved the original
+completed task's PONG, matching its descriptor, independently computed hash and
+unchanged closure reference. Gateway audit independently matched exactly
+status, collection and chunk replies on connection 5, with no new Home
+preparation, admit or resume. Operator-shared service JSON and Gateway's fresh
+same-credential connection support managed-service restart and completed-task
+access through that connection; this does not adopt launchd's original process
+Wait or establish new provider execution. All network and service
+checks reused completed-task reads, without another provider dispatch.
+
+[Native CI on the service correction](https://github.com/hishamkaram/delegation-layer/actions/runs/43572730269)
+passed on Linux and macOS, including the capacity scenario that failed in the
+earlier run. That does not establish the cause of the earlier reported
+CPU-pressure refusals or close its missing historical cleanup evidence.
+The subsequent complete Native CI at `02e0a225` also passed on Linux and macOS:
+[final cleanup revision](https://github.com/hishamkaram/delegation-layer/actions/runs/43577632129).
+Gateway CI at `21fbc15` passed both platforms:
+[Gateway checkpoint](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43577754779).
+Neither run includes the later audit-reader or rejected-result corrections.
+
+Native test-only commit `02e0a2250472c8796708d9e7040f56b110f3069a`
+repairs the original recovery fixture and six older early-assertion cleanup
+paths. Release markers, root records and helper scripts share one retained base;
+the existing Pending/bootstrap/client owners and daemon Wait channels must join
+before deletion. Timing, capacity and watchdog assertions are preserved.
+The first four-file correction passed the complete control package with one
+explicit missing-repair-owner prerequisite skip. The final twelve-file scope
+then passed these affected checks with Go 1.27.4:
+
+- `go test -race -count=1 -timeout=30m -json -run '^(TestRecoverPrivateBoundsHungBootstrapAndRetainsLock|TestBindPrivateBoundsSlowReadinessBeforeReturning|TestReconcileInspectionRetainsLeaseForPendingStatus|TestProbePrivateGateRetainsLeaseForPendingStatus|TestPrivateMaintenanceRetainsPendingCommandLock|TestScheduledPrivateMaintenancePendingRemovalRetainsLeaseAfterCustody|TestPrivateMaintenanceAvailabilityDoesNotImplyRemoval|TestPrivateStatusFixture.*|TestScheduledPrivateMaintenanceRetainsWakeWhenProcessLaunchFails)$' ./internal/pueue/internal/control`:
+  eleven top-level tests and five subtests passed, no skips, package 27.654 seconds.
+- `go vet ./internal/pueue/internal/control`, the pinned formatter on all twelve
+  owned files, and `golangci-lint run ./internal/pueue/internal/control` passed;
+  lint reported zero issues.
+- The exact previously skipped repair-owner case passed with a source-built
+  `delegate-run` selected by `DELEGATE_REPAIR_EDITOR_OWNER`: queued and stashed
+  subtests both executed, no skips, package 17.561 seconds.
+- Two isolated overlays removed retention and daemon-join protection. Each
+  failed its intended regression; original rescue owners then joined. These
+  expected negative results were not relabeled as passing production tests.
+
+Original check processes joined and the selected source stayed unchanged.
+This affected-scope proof does not relabel the earlier package run as a no-skip
+run or a complete final-revision repository run. `Client.Close` retains its
+existing unbounded natural join; the fixture deadline bounds its explicit
+Pending, bootstrap and daemon observations, not that client-owned join.
+
+Actual Sol (`gpt-6.1-sol`, high) and Opus (`claude-opus-5-5`, high) accepted the
+final twelve-file correction in turns `edcab52887daeaa76345d2c781f48460` and
+`c6c9af59ee375ae988b32a39b0c04f82`. Root validated and read both whole accepted
+payloads. An independent native security/concurrency reviewer also found no
+actionable P0/P1/P2 in that scope. Opus corrected its earlier normal-path claim:
+the bootstrap test already released and joined on success; the defect concerned
+early assertions. Historical timeout causation remains unproved.
+
+The multi-task review waiter returned `task_observation_failed` once. A separate
+status check and subsequent accepted collection succeeded for the original Sol
+identity; no review was redispatched. The underlying failed observation remains
+unverified. An optional-record read racing deadline expiry is a source-backed
+possible explanation, not an established cause or a completed repair.
+
+Unverified: historical unresolved descendant closure and retained cleanup
+provenance described below. Integrated source gates and
+scoped correction reviews are recorded above at their actual revisions. The
+source and evidence checkpoint below remains dated history.
+
+## November 14 canonical-path candidate
+
+**This extension is not release-ready.** The approved project identity is its
+canonical path. Deleting, recreating or recloning a project at that same path is
+allowed; the earlier directory-incarnation proposal below is superseded. There
+are no project markers or filesystem-specific identity requirements. Native
+state-root identity, current path containment and immutable task equality remain
+strict. See the [connection guide](native-connect.md).
+
+The published Native candidate is
+`bc0e350157ac3a7b6e77a8bc6e616cf67c7d863c`; its SDK pin is
+`v0.0.0-20261114055443-0b3b1e9334c7`, without a module replacement. Gateway
+checkpoint `2afe9b2` pins that Native source for acceptance. This is a source
+checkpoint, not a completed delivery gate.
+
+Actual Sol (`gpt-6.1-sol`, high) and Opus (`claude-opus-5-5`, high) accepted
+the final source corrections in turns `603b35b2c1cbc80e0e06d9a489a5784a` and
+`0e59988485b43679b07db8f5256dab9e`. Root read both complete committed answers
+after validating their payload lengths and SHA-256. Their scoped reviews found
+no remaining actionable source P0/P1/P2; full verification remains open.
+Independent native security/concurrency review also accepted these corrections:
+
+- Actual successful provider Start retains its sole Wait and finish ownership
+  when later project-directory cleanup or lifetime control fails.
+- SDK busy and Native pending projections preserve independent hard errors.
+  Interrupted Linux service removal reconciles only a verifiably absent unit;
+  it does not adopt an unknown cached service.
+- Supervisor status and migrate distinguish a genuinely absent selected root
+  from missing metadata in an existing root. Regression fixtures explicitly
+  set private permissions and cover dangling entries and file ancestors.
+- Canonical directory reads retain directory-only open and lexical alias
+  semantics, sorting only on alias fallback. Read and close faults are surfaced
+  before entries are consumed. Forced read/close fault execution remains
+  unverified. The controlled benchmark has overlapping ranges and supports no
+  stable speedup or suite-time claim.
+
+The rebuilt final local scenario passed using Native `bc0e3501` and SDK
+`0b3b1e9`: actual Gateway and two Native embedded connector processes, exactly
+three literal-provider attempts, dynamic nested selection, same-path ancestor
+and leaf replacement before/during execution, duplicate resolution, Gateway
+restart/reconnection, accepted-result verification and requested cancellation.
+All three scopes had canonical closure; controller cleanup was confirmed with
+no cleanup errors. The initial rerun rejected incorrectly named candidate
+executables before creating a harness; the corrected adjacent Delegate/runner
+pair was then used. This is fixture proof, not installed-provider, desktop
+service, public-login or Cloud-client acceptance.
+
+An offline copy of the deployed schema-7 registry migrated to schema 9 with
+exit 0 and a successful integrity check. All original columns and rows in its
+19 existing tables were preserved. The live registry was not changed by that
+experiment; clone migration does not prove deployment or safe database restore.
+
+Gateway's earlier full gate passed before the final SDK correction; the final
+SDK package race, vet and lint checks passed afterward. The current complete
+[Gateway CI gate](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43568525152)
+and [Native CI gate](https://github.com/hishamkaram/delegation-layer/actions/runs/43568016396)
+are pending at this checkpoint. The fresh Linux Native aggregate is also
+running. Office's earlier full platform invocation against `8d6c7714` joined
+with failure in its race stage; later Python, CLI/TUI and vulnerability stages
+did not execute. That failed invocation is retained and is not current-source
+proof. Its failure diagnosis and final-revision native Mac checks remain open.
+
+Unverified: complete current-revision engineering gates; extension-specific
+public browser/headless/token login, default user-service lifecycle, actual
+installed providers, physical-device/network and Cloud-client acceptance.
+Historical interrupted-test descendant cleanup remains unresolved and retained.
+Existing MVP proof below keeps its original revisions, date and scope.
+
+## November 13 Native connection checkpoint (historical)
+
+**This extension is not release-ready.** The historical MVP checkpoints below
+do not verify the new Native login, embedded connector, user service or dynamic
+project flow. The candidate guide is [Native connection](native-connect.md).
+Gateway source checkpoint `21b16ef9dbaf590af08ceff366e445a008203add` is published;
+the dedicated Native worktree pins SDK version
+`v0.0.0-20261113192150-21b16ef9dbaf`, without a module replacement. Native's
+remaining worktree changes and Gateway's documentation/controller changes are
+not represented by that Gateway commit alone.
+
+The candidate has focused real-SQLite ownership and quota tests, actual
+TLS/JWKS/WSS/MCP tests, and transport/runtime race checks. The latest full
+transport, runtime and device-hub race runs passed in 97.335, 22.023 and 1.619
+seconds. The earlier complete SDK package race run passed in 160.247 seconds;
+it predates the final parent-cancellation correction. Native service filesystem
+and manager-cache race tests passed in 31.340 seconds. These are package and
+fault-boundary results, not a completed repository gate or actual desktop
+service acceptance.
+
+Actual Sol (`gpt-6.1-sol`, high) and Opus (`claude-opus-5-5`, high) reviewed the
+integrated source through Delegate. The first integrated turns were
+`8087649fc285daa917cef1cd17fe0c71` and
+`90924d45dbc248970e918dfeee78fcbd`. Their corrections exposed ownership,
+proxy-rate-limit, service publication and shutdown errors; accepted follow-ups
+and independent native source reviews cover the repaired boundaries. A timed
+out Opus correction turn did not yield an accepted answer; its exact-session
+successor `e1af6f2e8222018db862c10ff4cfd5fc` did. No reviewer consensus replaces
+the remaining verification or constitutes final approval of later changes.
+
+A further directory-identity question remains open. A controlled empty-directory
+experiment reused the original inode on the first delete/recreate. Native's
+canonical-path/device/inode tuple cannot distinguish that replacement between
+commands. Existing no-retarget wording therefore overstates the guarantee.
+Both Sol and Opus recommend retaining read-only tuple checks and explicitly
+narrowing that guarantee, including the effect on saved-task resume. This is a
+product decision awaiting the operator; the candidate does not claim the
+finding resolved. No project metadata marker has been introduced.
+
+The maintained `scripts/e2e_native_connect.py` exercises actual Gateway and
+Native processes with two local embedded connectors and a bounded zero-cost
+literal provider fixture. It covers token enrollment, workspace resolution,
+stable-operation retries, result digests, restart/reconnection and cancellation
+after workspace removal. It does not establish browser authorization, actual
+Linux/macOS service operation, an installed provider, separate physical devices
+or a Cloud MCP client. At this checkpoint its two initial runs failed before
+any provider attempt: one controller expected JSON from a deliberately silent
+token-file command; the next encountered a null workspace list. Both defects
+were corrected, but original process-owner cleanup was not proved and their
+private paths remain retained.
+
+A corrected run completed with `native_connect_passed`, exactly three recorded
+fixture attempts, two successful accepted-result tasks and one requested
+cancellation. Native reported all three scopes empty and retained the original
+worker-Wait records; controller cleanup was confirmed with no cleanup errors.
+The private evidence directory remains retained. This run used source-built
+candidates and the published SDK pin above. An independent controller review
+then found two general proof gaps: the final attempt count was not constrained
+to three after teardown, and a failure recording a newly started embedded
+connector could bypass the pre-root cleanup gate. The observed successful
+run's count remains three. Both gaps and a further missing-registry-evidence
+case were repaired, with regressions that failed against the preceding code.
+The final controller requires each attempted connector to have original-handle
+or uncertain-start evidence before descendant cleanup, and checks exactly
+three attempts after all joins. Independent native, Sol and Opus source reviews
+cleared these controller corrections. A fresh actual-process run using the
+final guard again reported `native_connect_passed`, exactly three attempts and
+confirmed cleanup with no errors. Full immutable binding replay is checked
+after restart and workspace removal.
+
+The earlier full Go race gate failed on a TCP close-diagnostic race and a metric
+test whose broad identity canary matched fixed metric vocabulary. Focused
+regressions passed after correction; this does not relabel that failed gate.
+The configured Python run executed 425 tests without skips and failed one live
+controller summary assertion. Its focused 46-test file and an ordered 80-test
+prefix subsequently passed; the original failure's root cause remains
+unverified. The assertion was retained, with bounded diagnostic metadata added.
+A subsequent configured run passed all 425 Python tests without skips in
+97.048 seconds, plus harness, docs and pinned Ruff checks (103.438 seconds for
+the four targets). It used the dedicated Native acceptance source explicitly.
+That successful run does not establish the original failure's cause, and it
+predates the controller repairs above.
+
+Gateway's complete `make check` subsequently passed in **413.688 seconds** on
+the final controller and source-`21b16ef9` diagram inputs, explicitly selecting
+the dedicated Native acceptance checkout and `GOWORK=off`. It executed 434
+Python tests without skips in 59.216 seconds, all configured Go race packages,
+the tagged SDK race helper, formatting, vet, both lint scopes, build,
+vulnerability, harness and docs checks. Lint reported zero issues. The scan
+found zero reachable and zero imported-package vulnerabilities, with three
+module-only findings remaining separate. Later prose-only reconciliation is
+not relabeled as that invocation.
+
+Native's complete Linux gate remains incomplete. Its fresh candidate builds,
+static/harness/packaging checks, formatting, full vet, full lint and 80 tooling
+regression checks passed. The aggregate command was interrupted with exit 143
+during its full race stage; the last log write was approximately 900 seconds
+after gate startup. The cause, original aggregate Wait and descendant cleanup
+remain unverified. No timeout or load diagnosis is inferred from that timing;
+the incomplete run and its paths are retained. Later Native Python, CLI/TUI and
+vulnerability stages were not executed by that invocation.
+
+Both final correction reviewers also found a Native Linux service-recovery
+P2: deleting the owned unit before a failed manager reload can leave a stale
+cache that every later command refuses. Their separate design challenge and
+an independent native review recommend a bounded reload-only reconciliation,
+without adopting, stopping or resetting an unverifiable cached unit. A
+controlled systemd 255.4 probe started one owned throwaway `/usr/bin/false`
+unit. After unlink it remained loaded and failed; one reload changed it to
+not-found with empty fragment/drop-in paths while preserving failed state and
+its exit status. All 11 original control commands joined, and cleanup of that
+created probe was confirmed. This proves the observed OS property transition,
+not the proposed Native repair, service lifecycle or provider closure. The
+repair and its regression/review gates remain open at this checkpoint.
+
+Unverified: new browser/headless Auth0 login, browserless token enrollment on the
+deployed host, actual native service lifecycle, installed-provider execution,
+two-device/multi-network recovery and Cloud-client acceptance for this extension.
+The existing MVP evidence below retains its original scope and date.
+
 ## November 13 Home managed-service checkpoint
 
 **Current MVP acceptance is supported within the recorded scopes.** Home passed actual persistent connector start,

@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicehub"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpsserver"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/instance"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/observability"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/transport"
 )
 
 var ErrUnavailable = errors.New("gateway_server_unavailable")
@@ -51,7 +51,7 @@ type (
 		metrics         observability.Metrics
 		recorder        *observability.Recorder
 		store           *registry.Store
-		hub             *transport.Hub
+		hub             *devicehub.Hub
 		enrollment      *enrollment.Service
 		public, device  *httpsserver.Server
 		admin           *adminapi.Server

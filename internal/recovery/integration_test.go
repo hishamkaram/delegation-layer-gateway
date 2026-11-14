@@ -19,9 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicehub"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/recovery"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
@@ -86,7 +87,7 @@ type recoveryTLS struct {
 	ctx              context.Context
 	admin            *recoveryAuthority
 	store            *registry.Store
-	hub              *transport.Hub
+	hub              *devicehub.Hub
 	peer             *transport.Client
 	link             *wirelink.Link
 	service          *recovery.Service
@@ -112,7 +113,7 @@ func newRecoveryTLS(t *testing.T) *recoveryTLS {
 	binding := protocol.ContextBinding{Root: protocol.WireContextGuard("private-root"), Project: protocol.WireContextGuard("private-project")}
 	f.lookup = domain.RootInitializationLookup{Route: domain.Destination{Device: "device-one", Project: "project-one"}, ExpectedContext: domain.ContextBinding{Root: domain.RootGuard(binding.Root), Project: domain.ProjectGuard(binding.Project)}}
 	recoveryOK(t, f.store.RegisterProject(f.ctx, domain.ProjectRegistration{Destination: f.lookup.Route, Context: f.lookup.ExpectedContext}))
-	f.hub, err = transport.NewHub(t.Context(), transport.Config{GatewayID: f.id, BootEpoch: "recovery-test-boot", Routing: f.store}, f.store, func() time.Time { return f.now })
+	f.hub, err = devicehub.NewHub(t.Context(), devicehub.Config{GatewayID: f.id, BootEpoch: "recovery-test-boot", Routing: f.store}, f.store, func() time.Time { return f.now })
 	recoveryOK(t, err)
 	roots := x509.NewCertPool()
 	roots.AddCert(ca)
@@ -154,7 +155,7 @@ func issueRecoveryCredential(t *testing.T, store *registry.Store, now time.Time)
 		t.Fatal(caErr)
 	}
 	caCertificate := recoveryCertificate(t, caDER)
-	ca, authorityErr := identity.NewCertificateAuthority(caCertificate, caKey)
+	ca, authorityErr := devicecert.NewCertificateAuthority(caCertificate, caKey)
 	if authorityErr != nil {
 		t.Fatal(authorityErr)
 	}
@@ -163,7 +164,7 @@ func issueRecoveryCredential(t *testing.T, store *registry.Store, now time.Time)
 	if csrErr != nil {
 		t.Fatal(csrErr)
 	}
-	info, infoErr := identity.ParseCSR(csr)
+	info, infoErr := devicecert.ParseCSR(csr)
 	if infoErr != nil {
 		t.Fatal(infoErr)
 	}
@@ -295,6 +296,8 @@ func (f *recoveryTLS) responseBody(t *testing.T, c protocol.Command, p domain.Ro
 		response = protocol.OriginStateReport{GatewayID: input.GatewayID, RecoveryID: input.RecoveryID, Generation: input.Generation, AdmissionOpen: true}
 	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
 		response = f.taskObservation(t, c, operation)
+	case protocol.ResolveProject:
+		t.Fatal("workspace resolution is outside the legacy recovery fixture")
 	default:
 		t.Fatal("unexpected recovery operation")
 	}

@@ -6,21 +6,23 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"io"
 	"os"
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 )
 
 var ErrInvalid = errors.New("invalid_tls_configuration")
 
 type Bundle struct {
-	Public    *tls.Config
-	Devices   *tls.Config
-	Authority *identity.CertificateAuthority
+	Public      *tls.Config
+	Devices     *tls.Config
+	Authority   *devicecert.CertificateAuthority
+	DeviceCAPEM string
 }
 
 // Load requires a valid server certificate for the configured public hostname,
@@ -49,13 +51,16 @@ func Load(public, deviceCA config.TLSFiles, hostname string, now time.Time) (Bun
 	if !ok || now.Before(certificate.NotBefore) || !now.Before(certificate.NotAfter) {
 		return Bundle{}, ErrInvalid
 	}
-	authority, err := identity.NewCertificateAuthority(certificate, signer)
+	authority, err := devicecert.NewCertificateAuthority(certificate, signer)
 	if err != nil {
 		return Bundle{}, ErrInvalid
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(certificate)
-	return Bundle{Public: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{server}, NextProtos: []string{"http/1.1"}}, Devices: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{server}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots, NextProtos: []string{"http/1.1"}}, Authority: authority}, nil
+	// Project only the validated public certificate. Never publish the input PEM
+	// bytes, which could contain unrelated blocks or private operator material.
+	publicCA := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate.Raw}))
+	return Bundle{Public: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{server}, NextProtos: []string{"http/1.1"}}, Devices: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{server}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots, NextProtos: []string{"http/1.1"}}, Authority: authority, DeviceCAPEM: publicCA}, nil
 }
 
 func keyPair(files config.TLSFiles) (tls.Certificate, error) {

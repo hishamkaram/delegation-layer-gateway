@@ -10,6 +10,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/mcpadapter"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/observability"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/selfservice/contract"
 )
 
 func (r *Runtime) observe(next http.Handler, start, end observability.Code) http.Handler {
@@ -20,10 +21,15 @@ func (r *Runtime) observe(next http.Handler, start, end observability.Code) http
 	})
 }
 
-func (r *Runtime) publicRoutes(adapter *mcpadapter.Adapter, enroller http.Handler) http.Handler {
+func (r *Runtime) publicRoutes(adapter *mcpadapter.Adapter, enroller, self http.Handler) http.Handler {
 	mcp := r.observe(adapter.Handler(), observability.MCPRequestStarted, observability.MCPRequestCompleted)
 	metadata := r.observe(adapter.Metadata(), observability.MetadataRequestStarted, observability.MetadataRequestCompleted)
 	enroll := r.observe(enroller, observability.EnrollmentRequestStarted, observability.EnrollmentRequestCompleted)
+	var descriptor, selfEnroll http.Handler
+	if self != nil {
+		descriptor = r.observe(self, observability.MetadataRequestStarted, observability.MetadataRequestCompleted)
+		selfEnroll = r.observe(self, observability.EnrollmentRequestStarted, observability.EnrollmentRequestCompleted)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/mcp":
@@ -32,6 +38,24 @@ func (r *Runtime) publicRoutes(adapter *mcpadapter.Adapter, enroller http.Handle
 			metadata.ServeHTTP(w, request)
 		case "/v1/enroll":
 			enroll.ServeHTTP(w, request)
+		case contract.DescriptorPath:
+			if descriptor == nil {
+				http.NotFound(w, request)
+				return
+			}
+			descriptor.ServeHTTP(w, request)
+		case contract.EnrollmentPath:
+			if selfEnroll == nil {
+				http.NotFound(w, request)
+				return
+			}
+			selfEnroll.ServeHTTP(w, request)
+		case contract.RevocationPath:
+			if self == nil {
+				http.NotFound(w, request)
+				return
+			}
+			self.ServeHTTP(w, request)
 		default:
 			http.NotFound(w, request)
 		}
@@ -82,6 +106,15 @@ type auditedEnrollment struct {
 
 func (a auditedEnrollment) Redeem(ctx context.Context, token string, csr []byte) (domain.CertificateReceipt, error) {
 	receipt, err := a.next.Redeem(ctx, token, csr)
+	return a.issued(receipt, err)
+}
+
+func (a auditedEnrollment) RedeemOwned(ctx context.Context, token string, csr []byte) (domain.CertificateReceipt, error) {
+	receipt, err := a.next.RedeemOwned(ctx, token, csr)
+	return a.issued(receipt, err)
+}
+
+func (a auditedEnrollment) issued(receipt domain.CertificateReceipt, err error) (domain.CertificateReceipt, error) {
 	if err == nil {
 		a.recorder.Record(observability.Event{Code: observability.EnrollmentIssued, Device: receipt.Intent.Credential.Device})
 	}

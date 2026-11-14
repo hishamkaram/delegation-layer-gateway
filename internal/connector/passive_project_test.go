@@ -19,6 +19,9 @@ func passiveProjectCommand(t *testing.T, f *fixture, operation protocol.Operatio
 		return protocol.Command{Operation: operation, Project: "project-one", Body: encoded(t, protocol.RangeRequest{Task: f.task(), Descriptor: protocol.Descriptor{SHA256: helperHash("accepted result"), Length: int64(len("accepted result"))}, Limit: 65536})}
 	case protocol.Admit, protocol.ContextInspect, protocol.ResumeExisting, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.Resolve, protocol.FenceAbsent, protocol.Status, protocol.Collect:
 		return f.command(operation)
+	case protocol.ResolveProject:
+		t.Fatal("project resolution is not a saved task control")
+		return protocol.Command{}
 	default:
 		t.Fatal("unknown test operation")
 		return protocol.Command{}

@@ -647,6 +647,21 @@ class HarnessBoundaryTests(unittest.TestCase):
             self.assertEqual(harness.summary["result"], "failed")
             self.assertEqual(harness.summary["fixture_attempts"]["attempted"], 5)
 
+    def test_final_local_attempt_count_remains_exact(self):
+        for count, result in ((3, "failed"), (4, "local_recovery_passed")):
+            with self.subTest(count=count):
+                harness = object.__new__(e2e_local.Harness)
+                harness.summary = {"result": "local_recovery_passed"}
+                harness.fixture_attempts = mock.Mock(
+                    return_value={
+                        "attempted": count,
+                        "rejected_concurrent": 0,
+                        "rejected_limit": 0,
+                    }
+                )
+                harness.record_final_fixture_attempts()
+                self.assertEqual(harness.summary["result"], result)
+
     def test_fifth_literal_attempt_is_visible_after_budget_rejection(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
@@ -1384,6 +1399,8 @@ class HarnessBoundaryTests(unittest.TestCase):
                 "restore",
             ],
             ["migrate", "--database", "/owned/registry"],
+            ["users", "show", "--config", "/owned/config", "--subject", "owner"],
+            ["devices", "revoke", "--config", "/owned/config", "--device", "device"],
         )
         for arguments in commands:
             for code in (0, 1, 2):

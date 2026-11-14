@@ -36,6 +36,9 @@ func (r request) receiptBinding(receipt *cliReceipt) bool {
 	if receipt.RootToken != r.project.RootToken || receipt.ProjectToken != r.project.ProjectToken || receipt.TaskID != r.task.TaskID || receipt.Origin != r.task.Origin {
 		return false
 	}
+	if !r.matchesWorkspace(receipt.WorkspaceConstraint) {
+		return false
+	}
 	if r.task.SpecSHA256 != "" && receipt.SpecSHA256 != r.task.SpecSHA256 {
 		return false
 	}

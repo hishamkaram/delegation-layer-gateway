@@ -68,7 +68,9 @@ class Settings:
     def webroot(self) -> Path:
         return ACME / self.hostname
 
-    def configuration(self) -> str:
+    def configuration(
+        self, *, native_login: bool = True, forward_client_ip: bool = True
+    ) -> str:
         http = f"""server {{
     listen 80;
     server_name {self.hostname};
@@ -83,15 +85,23 @@ class Settings:
 """
         if self.phase == "bootstrap":
             return MARKER + http + "    location / { return 503; }\n}\n"
+        public_routes = (
+            "/mcp",
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-protected-resource/mcp",
+            "/v1/enroll",
+        )
+        if native_login:
+            public_routes += (
+                "/.well-known/delegation-gateway",
+                "/v1/self/enroll",
+                "/v1/self/devices/revoke",
+            )
         routes = "\n".join(
             f"    location = {path} {{ proxy_pass https://127.0.0.1:{self.port}; }}"
-            for path in (
-                "/mcp",
-                "/.well-known/oauth-protected-resource",
-                "/.well-known/oauth-protected-resource/mcp",
-                "/v1/enroll",
-            )
+            for path in public_routes
         )
+        client_ip = "$remote_addr" if forward_client_ip else '""'
         return (
             MARKER
             + http
@@ -117,7 +127,7 @@ server {{
     proxy_set_header X-Forwarded-For "";
     proxy_set_header X-Forwarded-Host "";
     proxy_set_header X-Forwarded-Proto "";
-    proxy_set_header X-Real-IP "";
+    proxy_set_header X-Real-IP {client_ip};
     proxy_ssl_server_name on;
     proxy_ssl_name {self.hostname};
     proxy_ssl_trusted_certificate {CA};
@@ -184,8 +194,13 @@ def existing_configuration(settings: Settings) -> bytes | None:
     ports = re.findall(r"proxy_pass https://127\.0\.0\.1:(\d+);", text)
     known = text == Settings(settings.hostname, "bootstrap").configuration()
     if ports and len(set(ports)) == 1:
-        known = (
-            text == Settings(settings.hostname, "https", int(ports[0])).configuration()
+        expected = Settings(settings.hostname, "https", int(ports[0]))
+        # Recognize only the exact previous generated template. A marker or
+        # arbitrary edited location never authorizes replacing a virtual host.
+        known = text == expected.configuration() or any(
+            text
+            == expected.configuration(native_login=enabled, forward_client_ip=False)
+            for enabled in (True, False)
         )
     if not known:
         raise RuntimeError(

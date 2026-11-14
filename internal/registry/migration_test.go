@@ -40,7 +40,7 @@ PRAGMA user_version=6;`)
 func migrationSnapshot(t *testing.T, db *sql.DB) map[string][][]any {
 	t.Helper()
 	result := make(map[string][][]any)
-	for _, table := range []string{"settings", "principals", "devices", "projects", "grants", "enrollment", "issuance", "credentials", "operations", "administrative_routes", "recoveries", "root_admissions", "credential_epochs", "recovery_destinations", "inventory_pages", "routing_peers", "routing_permits", "routing_rosters", "routing_roster_devices"} {
+	for _, table := range []string{"settings", "principals", "devices", "projects", "grants", "enrollment", "issuance", "credentials", "operations", "administrative_routes", "recoveries", "root_admissions", "credential_epochs", "recovery_destinations", "inventory_pages", "routing_peers", "routing_permits", "routing_rosters", "routing_roster_devices", "owner_policies", "device_owners", "self_enrollments"} {
 		result[table] = migrationTableRows(t, db, table)
 	}
 	return result
@@ -83,7 +83,7 @@ func TestMigrationPreservesSchemaSixAuthorityAndEveryPermit(t *testing.T) {
 		t.Fatal("Open accepted schema 6 without explicit migration")
 	}
 	result, err := Migrate(t.Context(), f.path)
-	if got := must(t, result, err); got != (MigrationResult{Gateway: f.gateway, FromVersion: 6, ToVersion: 7}) {
+	if got := must(t, result, err); got != (MigrationResult{Gateway: f.gateway, FromVersion: 6, ToVersion: 9}) {
 		t.Fatalf("migration identity or version changed: %+v", got)
 	}
 	store, err := Open(t.Context(), f.path, options(f.gateway))
@@ -103,7 +103,7 @@ func TestMigrationPreservesSchemaSixAuthorityAndEveryPermit(t *testing.T) {
 	}
 	requireOK(t, f.store.Close())
 	result, err = Migrate(t.Context(), f.path)
-	if got := must(t, result, err); got.FromVersion != 7 || got.ToVersion != 7 || got.Gateway != f.gateway {
+	if got := must(t, result, err); got.FromVersion != 9 || got.ToVersion != 9 || got.Gateway != f.gateway {
 		t.Fatal("idempotent migration changed identity or versions")
 	}
 	store, err = Open(t.Context(), f.path, options(f.gateway))
@@ -159,10 +159,38 @@ func TestMigrationRequiresExistingSupportedOwnedDatabase(t *testing.T) {
 		t.Fatalf("migration created a missing database: %v", statErr)
 	}
 	f := legacyMigrationFixture(t)
-	for _, version := range []int{5, 8} {
+	for _, version := range []int{5, 10} {
 		_, err = f.store.db.ExecContext(t.Context(), fmt.Sprintf("PRAGMA user_version=%d", version))
 		requireOK(t, err)
 		_, err = Migrate(t.Context(), f.path)
 		requireCode(t, err, domain.Conflict)
+	}
+}
+
+func TestSchemaEightMigrationPreservesExistingOwnersWithoutAdoptingLegacyDevices(t *testing.T) {
+	f, _ := ownedRootFixture(t)
+	_, err := f.store.db.ExecContext(t.Context(), "DROP TABLE owned_projects; DROP TABLE project_resolutions; PRAGMA user_version=8;")
+	requireOK(t, err)
+	before := migrationSnapshot(t, f.store.db)
+	requireOK(t, f.store.Close())
+	opened, err := Open(t.Context(), f.path, options(f.gateway))
+	if err == nil {
+		requireOK(t, opened.Close())
+		t.Fatal("Open migrated schema8 implicitly")
+	}
+	result, err := Migrate(t.Context(), f.path)
+	if got := must(t, result, err); got.Gateway != f.gateway || got.FromVersion != 8 || got.ToVersion != 9 {
+		t.Fatal("schema8 migration changed identity")
+	}
+	opened, err = Open(t.Context(), f.path, options(f.gateway))
+	f.store = must(t, opened, err)
+	if !reflect.DeepEqual(before, migrationSnapshot(t, f.store.db)) {
+		t.Fatal("schema8 migration changed existing owners, grants or task evidence")
+	}
+	var owned, legacy int
+	requireOK(t, f.store.db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM device_owners").Scan(&owned))
+	requireOK(t, f.store.db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM device_owners WHERE device='device'").Scan(&legacy))
+	if owned != 1 || legacy != 0 {
+		t.Fatal("migration lost an owner or adopted a legacy device")
 	}
 }

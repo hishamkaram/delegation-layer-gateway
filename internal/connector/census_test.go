@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -251,4 +252,88 @@ func TestDirtyCensusRejectsReadyACKUntilFreshGeneration(t *testing.T) {
 	if !service.Status().Ready {
 		t.Fatal("fresh complete census did not restore readiness")
 	}
+}
+
+func TestLateOldReplyCannotInvalidateNewCompleteCensus(t *testing.T) {
+	f := newFixture(t)
+	primeLongStatus(t, f)
+	p := &fakePeer{incoming: make(chan control, 1), reported: make(chan struct{}, 1)}
+	service, _, _ := attachedService(t, f, p)
+	select {
+	case <-p.reported:
+	case <-time.After(time.Second):
+		t.Fatal("initial intake did not attach before generation changed")
+	}
+	old := p.control(t, f.command(protocol.Status), 1).ControlCall()
+	current := nextInventory(t, service, 2)
+	ackInventory(t, service, current)
+	service.replyUnavailable(old)
+	if !service.Status().Ready {
+		t.Fatal("old reply failure dirtied a complete newer census")
+	}
+	select {
+	case <-service.NeedsReconcile():
+		t.Fatal("old network delivery created a new ownership transition")
+	default:
+	}
+	currentCall := old
+	currentCall.Generation = current.Generation
+	service.replyUnavailable(currentCall)
+	expectNudge(t, service)
+	if service.Status().Ready {
+		t.Fatal("current-generation reply loss failed to request reconciliation")
+	}
+}
+
+type heldCensusReply struct {
+	*fakeControl
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (c *heldCensusReply) ReplyControl(ctx context.Context, reply protocol.Reply, completion protocol.ControlCompletion) error {
+	close(c.entered)
+	select {
+	case <-c.release:
+		return c.fakeControl.ReplyControl(ctx, reply, completion)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestCompletionNudgeRetiresJoinedOwnerBeforeOldReplyFinishes(t *testing.T) {
+	f := newFixture(t)
+	primeLongStatus(t, f)
+	p := &fakePeer{incoming: make(chan control, 1)}
+	service, _, _ := attachedService(t, f, p)
+	release := make(chan struct{})
+	var once sync.Once
+	allowReply := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(allowReply)
+	accepted := &heldCensusReply{fakeControl: p.control(t, f.command(protocol.Status), 1), entered: make(chan struct{}), release: release}
+	p.incoming <- accepted
+	waitPath(t, filepath.Join(f.config.Projects[0].Root, "started-"+f.task().TaskID))
+	prior := nextInventory(t, service, 2)
+	if len(prior.Active) != 1 {
+		t.Fatal("old census lost the running local owner")
+	}
+	ackInventory(t, service, prior)
+	f.release()
+	expectNudge(t, service)
+	select {
+	case <-accepted.entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("joined control did not enter its old reply boundary")
+	}
+	// The reply is deliberately still blocked. A census after the concrete
+	// completion nudge must observe the joined local owner as retired.
+	current := nextInventory(t, service, 3)
+	if len(current.Active) != 0 {
+		t.Fatal("completed local control remained active until network reply returned")
+	}
+	ackInventory(t, service, current)
+	if !service.Status().Ready {
+		t.Fatal("fresh census could not restore readiness while old reply was pending")
+	}
+	allowReply()
 }

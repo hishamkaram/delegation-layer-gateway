@@ -26,7 +26,7 @@ func routingEvent(value gateway.RoutingObservation) observability.Event {
 	case !value.Failed && (value.Control.Transport == routing.ReplyReceived || value.Control.Authorization == routing.Allowed && (value.Control.Transport == routing.NotAttempted || value.Control.Transport == routing.NotSent)):
 		code = observability.ControlCompleted
 	}
-	return observability.Event{Code: code, Principal: value.Principal, Device: value.Destination.Device, Project: value.Destination.Project, Operation: value.Operation, Control: value.Control}
+	return observability.Event{Code: code, RootOnly: value.RootOnly, Principal: value.Principal, Device: value.Destination.Device, Project: value.Destination.Project, Operation: value.Operation, Control: value.Control}
 }
 
 func (r *Runtime) observeConnection(value transport.ConnectionObservation) {

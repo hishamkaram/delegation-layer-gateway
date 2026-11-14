@@ -16,11 +16,13 @@ import (
 )
 
 type session struct {
+	wireVersion            int
 	routing                RoutingAuthority
 	strictRouting          bool
 	processBoot            string
 	routingReady           bool
 	routingAck             protocol.ControlInventoryAck
+	parent                 context.Context
 	ctx                    context.Context
 	cancel                 context.CancelFunc
 	conn                   *websocket.Conn
@@ -29,7 +31,7 @@ type session struct {
 	generation             domain.ConnectionGeneration
 	gateway                bool
 	mode                   domain.CredentialMode
-	store                  CredentialStore
+	store                  CredentialChecker
 	now                    func() time.Time
 	settings               Settings
 	budget                 *budget
@@ -97,8 +99,8 @@ func (s *session) correlationCapacity(class trafficClass) bool {
 }
 
 func newSession(ctx context.Context, config Settings, now func() time.Time, b *budget, incoming chan *Received) *session {
-	owned, cancel := context.WithCancel(ctx)
-	return &session{ctx: owned, cancel: cancel, settings: config, now: now, budget: b, incoming: incoming, writeQueue: make(chan *writeJob, QueueFrames), done: make(chan struct{}), ready: make(chan struct{}), jobs: make(map[*writeJob]struct{}), pending: make(map[string]*Reservation), received: make(map[*Received]struct{}), seen: make(map[uint64]struct{})}
+	owned, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	return &session{wireVersion: protocol.Version, parent: ctx, ctx: owned, cancel: cancel, settings: config, now: now, budget: b, incoming: incoming, writeQueue: make(chan *writeJob, QueueFrames), done: make(chan struct{}), ready: make(chan struct{}), jobs: make(map[*writeJob]struct{}), pending: make(map[string]*Reservation), received: make(map[*Received]struct{}), seen: make(map[uint64]struct{})}
 }
 
 func (s *session) stop(reason error) {
@@ -108,7 +110,11 @@ func (s *session) stop(reason error) {
 		s.err = reason
 		conn := s.conn
 		s.mu.Unlock()
-		s.cancel()
+		// Own socket close before cancelling its reader/writer contexts: coder's
+		// cancellation callback can otherwise close it first and discard the
+		// underlying diagnostic. A peer shutdown or request-local timeout may
+		// already have closed it; only returned diagnostics can be retained here.
+		defer s.cancel()
 		if conn != nil {
 			if closeErr := conn.CloseNow(); closeErr != nil {
 				s.recordCloseError(closeErr)
@@ -118,18 +124,43 @@ func (s *session) stop(reason error) {
 }
 
 func (s *session) recordCloseError(err error) {
-	if errors.Is(err, net.ErrClosed) {
+	if err == nil || onlyClosedError(err) {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closeErr = fail(ErrOffline, err)
 }
+
+// Ordinary wrappers and one-cause joins can describe an already closed socket.
+// A separate joined diagnostic must never disappear behind that benign leaf.
+func onlyClosedError(err error) bool {
+	for {
+		if joined, ok := err.(interface{ Unwrap() []error }); ok {
+			causes := joined.Unwrap()
+			if len(causes) != 1 {
+				return false
+			}
+			err = causes[0]
+			continue
+		}
+		cause := errors.Unwrap(err)
+		if cause == nil {
+			return errors.Is(err, net.ErrClosed)
+		}
+		err = cause
+	}
+}
 func (s *session) closeFailure() error { s.mu.Lock(); defer s.mu.Unlock(); return s.closeErr }
 
 func (s *session) check(ctx context.Context) error {
 	if checkErr := ctx.Err(); checkErr != nil {
 		return fail(ErrOffline, checkErr)
+	}
+	if s.parent != nil {
+		if checkErr := s.parent.Err(); checkErr != nil {
+			return fail(ErrOffline, checkErr)
+		}
 	}
 	now := s.now()
 	if s.certificate == nil || now.Before(s.certificate.NotBefore) || !now.Before(s.certificate.NotAfter) {
@@ -151,6 +182,11 @@ func (s *session) check(ctx context.Context) error {
 }
 
 func (s *session) run(ctx context.Context) {
+	// Conn installation and the original caller-deadline handshake precede
+	// this owner hook. Parent cancellation must stop the socket before the
+	// reader context is cancelled; both callbacks are joined before done.
+	joinParent := s.joinParentStop()
+	defer joinParent()
 	// Handshake/request deadlines do not own an established socket. Session
 	// cancellation remains authoritative, while caller values remain inherited.
 	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -163,6 +199,7 @@ func (s *session) run(ctx context.Context) {
 	s.stop(err)
 	workers.Wait()
 	join()
+	joinParent()
 	s.finish()
 }
 
@@ -274,10 +311,21 @@ func (s *session) writeContext(request context.Context) (context.Context, contex
 }
 
 func (s *session) joinCancellation(cancel context.CancelFunc) context.CancelFunc {
+	join := joinedAfterFunc(s.ctx, cancel)
+	return func() { join(); cancel() }
+}
+
+func (s *session) joinParentStop() context.CancelFunc {
+	// The stored session parent owns cancellation. run's separate context
+	// carries request values and must never become this lifetime authority.
+	return joinedAfterFunc(s.parent, func() { s.stop(fail(ErrOffline, s.parent.Err())) })
+}
+
+func joinedAfterFunc(ctx context.Context, action func()) context.CancelFunc {
 	joined := make(chan struct{})
-	stop := context.AfterFunc(s.ctx, func() {
-		cancel()
-		close(joined)
+	stop := context.AfterFunc(ctx, func() {
+		defer close(joined)
+		action()
 	})
 	var once sync.Once
 	return func() {
@@ -285,7 +333,6 @@ func (s *session) joinCancellation(cancel context.CancelFunc) context.CancelFunc
 			if !stop() {
 				<-joined
 			}
-			cancel()
 		})
 	}
 }
@@ -345,7 +392,7 @@ func (s *session) reader(ctx context.Context) error {
 		if checkErr := s.check(ctx); checkErr != nil {
 			return checkErr
 		}
-		frame, err := protocol.DecodeFrame(data)
+		frame, err := protocol.DecodeFrameVersion(data, s.wireVersion)
 		if err != nil || frame.Generation != wireGeneration(s.generation) {
 			return fail(ErrProtocol, err)
 		}
@@ -366,8 +413,7 @@ func (s *session) route(ctx context.Context, frame protocol.Frame, data []byte, 
 		if !s.gateway {
 			return fail(ErrProtocol, nil)
 		}
-		var report protocol.CapabilityReport
-		if checkErr := protocol.DecodeStrict(frame.Payload, &report, protocol.MaxFrameBytes); checkErr != nil || report.Validate() != nil {
+		if checkErr := validateCapabilityPayload(frame.Payload, s.wireVersion); checkErr != nil {
 			return fail(ErrProtocol, checkErr)
 		}
 		s.mu.Lock()

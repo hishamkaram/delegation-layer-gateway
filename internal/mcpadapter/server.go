@@ -24,6 +24,7 @@ type Options struct {
 	Registry      Registry
 	Operations    Operations
 	Presence      Presence
+	Workspaces    WorkspaceTools
 	Authenticator Authenticator
 	Recorder      Recorder
 	ResourceURL   string
@@ -85,7 +86,12 @@ func (a *Adapter) verifyToken(ctx context.Context, raw string, _ *http.Request) 
 	}
 	scopes := make([]string, 0, len(verified.Actor.Scopes))
 	for _, scope := range verified.Actor.Scopes {
-		scopes = append(scopes, string(scope))
+		if scope.IsTask() {
+			scopes = append(scopes, string(scope))
+		}
+	}
+	if len(scopes) == 0 {
+		return nil, auth.ErrInvalidToken
 	}
 	return &auth.TokenInfo{UserID: string(verified.Actor.Principal), Scopes: scopes, Expiration: verified.ExpiresAt}, nil
 }

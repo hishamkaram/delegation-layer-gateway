@@ -45,9 +45,14 @@ func (s *Service) observe(ctx context.Context, actor domain.Actor, id domain.Ope
 	if err != nil {
 		return view, err
 	}
-	observed, err := s.acceptReply(ctx, actor, view.Correlation, transmission, reply, domain.TaskRead, "")
+	observed, evidence, err := s.acceptObservation(ctx, actor, view.Correlation, transmission, reply, domain.TaskRead, "")
 	if err != nil {
 		return view, err
+	}
+	// Only a fresh validated Native verdict makes collection final. Execution
+	// closure alone may still precede publication and cannot imply rejection.
+	if operation == protocol.Collect && evidence.Verdict == "rejected" {
+		return observed, &RemoteError{Failure: protocol.Failure{Code: "result_unavailable", Retryable: false}}
 	}
 	return observed, nil
 }

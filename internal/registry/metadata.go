@@ -10,8 +10,8 @@ import (
 
 // MetadataSnapshot is a consistent administrative view of registry configuration.
 // RegisteredDevices counts registered, non-revoked devices. AuthorizedDevices counts
-// those devices covered by at least one configured grant to a non-revoked
-// principal with a known scope. PutGrant owns grant validation. These counts
+// those devices covered by current owner policy or a legacy grant to a
+// non-revoked principal. Registry owns both policy forms. These counts
 // describe neither current OAuth claims, connectivity nor execution readiness,
 // and are not an authorization oracle.
 type MetadataSnapshot struct {
@@ -28,11 +28,11 @@ func (s *Store) MetadataSnapshot(ctx context.Context) (MetadataSnapshot, error) 
 	}
 	snapshot, err := transaction(ctx, s, func(tx *sql.Tx) (MetadataSnapshot, error) {
 		var result MetadataSnapshot
-		err := tx.QueryRowContext(ctx, `
+		err := tx.QueryRowContext(ctx, effectiveAccessCTE+`
 SELECT COUNT(*), COALESCE(SUM(CASE WHEN EXISTS (
-    SELECT 1 FROM grants g JOIN principals p ON p.id=g.principal
+    SELECT 1 FROM effective_access g JOIN principals p ON p.id=g.principal
     WHERE g.device=d.id AND p.revoked=0 AND EXISTS (
-        SELECT 1 FROM json_each(g.value,'$.Scopes') scope
+        SELECT 1 FROM json_each(g.scopes) scope
         WHERE scope.type='text' AND scope.value IN (?,?,?,?)
     )
 ) THEN 1 ELSE 0 END),0)

@@ -173,6 +173,18 @@ func (s *Service) dirtyLocked() {
 }
 func (s *Service) requireReconcile() { s.transition.Lock(); s.dirtyLocked(); s.transition.Unlock() }
 
+// completion already records the local ownership transition. A lost response
+// can require another census only for that same generation. A later complete
+// census has already captured this joined owner's absence; old network delivery
+// cannot invalidate it again.
+func (s *Service) replyUnavailable(call protocol.ControlCall) {
+	s.transition.Lock()
+	defer s.transition.Unlock()
+	if s.routing.inventory == nil || call.Generation == s.routing.inventory.Generation {
+		s.dirtyLocked()
+	}
+}
+
 func (s *Service) attachAllowedLocked(p peer) bool {
 	g := p.generation()
 	wire := protocol.Generation{BootEpoch: string(g.BootEpoch), Counter: g.Counter}

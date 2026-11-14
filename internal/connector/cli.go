@@ -40,14 +40,15 @@ func (p permit) release() {
 }
 
 type limits struct {
-	ordinary  chan struct{}
-	urgent    chan struct{}
-	admission chan struct{}
-	scan      chan struct{}
+	ordinary   chan struct{}
+	urgent     chan struct{}
+	admission  chan struct{}
+	scan       chan struct{}
+	resolution chan struct{}
 }
 
 func newLimits() limits {
-	return limits{ordinary: make(chan struct{}, 4), urgent: make(chan struct{}, 2), admission: make(chan struct{}, 2), scan: make(chan struct{}, 1)}
+	return limits{ordinary: make(chan struct{}, 4), urgent: make(chan struct{}, 2), admission: make(chan struct{}, 2), scan: make(chan struct{}, 1), resolution: make(chan struct{}, 2)}
 }
 
 func (l limits) acquire(op protocol.Operation) (permit, error) {
@@ -61,6 +62,9 @@ func (l limits) acquire(op protocol.Operation) (permit, error) {
 	}
 	if op.ScanConsumer() {
 		channels = append(channels, l.scan)
+	}
+	if op == protocol.ResolveProject {
+		channels = append(channels, l.resolution)
 	}
 	p := permit{}
 	for _, ch := range channels {
@@ -88,14 +92,16 @@ type controlOwner struct {
 // Adapter owns config generations, CLI permits and unsettled controls. It has
 // no task ledger: every task fact comes from a validated public CLI response.
 type Adapter struct {
-	mu       sync.RWMutex
-	config   *configuration
-	now      func() time.Time
-	limits   limits
-	owners   map[*controlOwner]struct{}
-	probed   bool
-	report   protocol.CapabilityReport
-	observed map[string]time.Time
+	mu           sync.RWMutex
+	config       *configuration
+	now          func() time.Time
+	limits       limits
+	owners       map[*controlOwner]struct{}
+	probed       bool
+	report       protocol.CapabilityReport
+	observed     map[string]time.Time
+	root         *protocol.RootCapability
+	rootObserved time.Time
 }
 
 type Status struct {
@@ -154,46 +160,61 @@ func (a *Adapter) Status() Status {
 }
 
 type invocation struct {
-	directory string
-	command   string
-	args      []string
-	config    *configuration
+	directory  string
+	command    string
+	args       []string
+	config     *configuration
+	startGuard func(context.Context) (func() error, error)
 }
 
 func (a *Adapter) run(ctx context.Context, call invocation) (cliResponse, error) {
 	if ctx.Err() != nil {
 		return cliResponse{}, ErrPending
 	}
-	stdout := &boundedOutput{limit: MaxStdoutBytes}
+	limit := MaxStdoutBytes
+	if call.config.ProjectStore != nil {
+		limit = MaxWorkspaceStdoutBytes
+	}
+	stdout := &boundedOutput{limit: limit}
 	stderr := &boundedOutput{limit: MaxStderrBytes}
 	command := exec.Command(call.config.Executable, call.args...)
 	command.Dir = call.directory
 	command.Env = cliEnvironment(os.Environ(), call.directory)
 	command.Stdout = stdout
 	command.Stderr = stderr
+	release, guardErr := acquireStartGuard(ctx, call)
+	if guardErr != nil {
+		return cliResponse{}, guardErr
+	}
 	// Start is the generation linearization point. Reload cannot change pins or
 	// ceilings between this check and starting the locally owned CLI process.
 	a.mu.RLock()
 	if a.config.generation != call.config.generation {
 		a.mu.RUnlock()
-		return cliResponse{}, ErrConflict
+		return cliResponse{}, errors.Join(ErrConflict, release())
 	}
 	if ctx.Err() != nil {
 		a.mu.RUnlock()
-		return cliResponse{}, ErrPending
+		return cliResponse{}, errors.Join(ErrPending, release())
 	}
 	startErr := command.Start()
 	a.mu.RUnlock()
+	unlockErr := release()
 	if startErr != nil {
-		return cliResponse{}, ErrEvidence
+		return cliResponse{}, errors.Join(ErrEvidence, unlockErr)
 	}
 	// No CommandContext/WaitDelay: observation expiry cannot kill this accepted
 	// control or release its permit while process/output copier ownership remains.
 	waitErr := command.Wait()
+	if unlockErr != nil {
+		// The accepted command has still been joined exactly once. Reporting
+		// uncertainty must never cause another Start with this invocation.
+		return cliResponse{}, errors.Join(ErrPending, unlockErr)
+	}
 	if stdout.overflow || stderr.overflow {
 		return cliResponse{}, ErrCapacity
 	}
-	response, err := decodeResponse(stdout.data, call.command)
+	response, err := decodeResponse(stdout.data, call.command, limit)
 	if err != nil {
 		return cliResponse{}, err
 	}
@@ -205,6 +226,13 @@ func (a *Adapter) run(ctx context.Context, call invocation) (cliResponse, error)
 		response.exitCode = exit.ExitCode()
 	}
 	return response, nil
+}
+
+func acquireStartGuard(ctx context.Context, call invocation) (func() error, error) {
+	if call.startGuard == nil {
+		return func() error { return nil }, nil
+	}
+	return call.startGuard(ctx)
 }
 
 func (a *Adapter) begin(ctx context.Context, cfg *configuration) (*controlOwner, error) {

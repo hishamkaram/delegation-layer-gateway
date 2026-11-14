@@ -1,6 +1,8 @@
 # Architecture
 
-Status: implementation in progress; integrated and live acceptance remain open.
+Status: Native-connect extension implemented as a candidate; its full engineering
+gates, live acceptance and final integrated review remain pending. Historical
+MVP acceptance is recorded separately in [verification](verification.md).
 
 See the maintained [component and operation-safety diagrams](../diagrams/README.md).
 
@@ -9,7 +11,7 @@ See the maintained [component and operation-safety diagrams](../diagrams/README.
 | Owner | Writes | Readers | Invariant |
 | --- | --- | --- | --- |
 | Gateway registry | Enrollment, credentials, grants, routing correlations and reservations | MCP handlers, device transport, local admin | One durable request identity; no blind replay or authority inferred from a timeout |
-| Connector configuration | Operator-bound project aliases and local ceilings | Connector policy and public CLI adapter | Remote requests cannot select arbitrary paths, commands or wider permissions |
+| Native local profile / connector configuration | Approved workspaces, immutable project pins and current local ceilings; legacy alias pins | Connector policy and public CLI adapter | Only approved workspace-relative directories can acquire new pins; saved identity never changes with policy |
 | Delegate | Admission/refusal, tasks, supervision, cancellation and accepted results | Connector through versioned public interfaces | Exactly one execution authority; accepted outcome and canonical closure are distinct from transport success |
 | Identity provider | User authentication and access tokens | Gateway verifier | Principal comes from validated issuer/subject, never tool arguments or OAuth client ID |
 | Observability Recorder | Private audit attempts and fixed aggregate counters | Protected local admin and operator | Observations cannot authorize, settle reservations or replace Native outcomes |
@@ -64,8 +66,9 @@ requires the completed authenticated wire handshake, including routing and
 capability exchange, and a session that is not closing. Transport's existing
 handshake-completion signal is authoritative; registering a candidate session
 alone does not make it online. Online still does not establish Delegate
-compatibility or provider authentication. Every operation requires current grants
-and the connector's local ceiling. Explicit device and project selection never
+compatibility or provider authentication. Every operation requires current Registry authority
+and the connector's local ceiling. Legacy devices use explicit project grants;
+owned devices use their current owner policy. Explicit device and project selection never
 silently falls back.
 
 Provider authentication currently remains `unknown` in connector capability
@@ -88,6 +91,59 @@ Observer cancellation remains bounded and does not assume the writer stopped.
 Session teardown retains its existing precedence: it can discard an unconsumed
 reply and return an offline error. These are connection-lifetime rules, not task
 outcome or execution-closure evidence.
+
+## Native-connect ownership and workspace routing
+
+The default user path is Native's embedded Gateway client and user service,
+not a separately installed connector. Native owns its profile, workspace policy,
+project-pin storage and service lifecycle; Gateway remains the authorization and
+routing authority, and Delegate remains the sole task authority. The standalone
+connector path remains available for legacy configurations. See
+[Native connect](native-connect.md) for OAuth device login, headless approval,
+private one-device-token bootstrap and platform service prerequisites. Those
+Native service behaviors are a separate implementation/acceptance boundary.
+
+Gateway's optional `device_login` composition publishes a bounded public
+descriptor and authenticated self-enrollment/owner-revocation endpoints.
+Self-enrollment requires a verified `device:enroll` scope and an enabled private
+Registry owner policy; replacement also requires `device:manage` and the exact
+prior credential generation. The durable enrollment request binds owner, CSR,
+key and selection. A token or successful login alone never creates eligibility.
+Legacy devices are not adopted by login or migration. Owner policy changes apply
+live without materializing per-project grants. Revocation commits authorization
+first; socket cleanup cannot undo it or prove Native task termination.
+See [ownership](../internal/registry/ownership.go),
+[self-enrollment](../internal/registry/self_enrollment.go) and
+[server composition](../internal/server/selfservice.go).
+
+Registry schema 9 adds durable project-resolution requests and references from
+owned project routes to the first accepted pin. The connector's local profile
+remains authoritative for local workspace approvals and project bindings. Native
+owns their canonical-path semantics. A replacement at the same approved path
+is valid; root, credential and process identities remain independently guarded.
+Wire v2 advertises at most 100
+workspaces and a dated pin-budget observation, not the retained project list.
+`resolve_project` uses an explicit device, workspace, relative directory and
+saved request ID. It starts no task and scans no filesystem tree. Same-ID replay
+returns the original binding; a changed selector conflicts. Gateway can advance
+the existing root-initialization phases through a narrowly bound owned-root
+port before first resolution; every transaction rechecks current ownership,
+regular credential and connection. This is not fleet-restore authority.
+See [resolution orchestration](../internal/gateway/workspaces/resolve.go) and
+[owned-root checks](../internal/registry/owned_root.go).
+
+Each project handle has fresh targeted capabilities for `get_capabilities`,
+preparation and dispatch; periodic metadata never grows with historical pins.
+The local policy lock covers reloading the current ceiling through CLI Start,
+then releases before Wait. Removed workspaces retain saved task identity for
+authorized observation/cancel/result controls but cannot authorize new resolution,
+admission or resume. There is no automatic repin, eviction or device fallback.
+The local retained-pin limits are 1,024 records including tombstones and four
+MiB of encoded pin data. Gateway also caps durable resolution requests per
+device at 1,024. Budget reports are dated observations, never reserved capacity.
+See [wire contracts](../internal/protocol/workspace.go),
+[targeted inspection](../internal/gateway/workspaces/inspect.go) and
+[local owner boundary](../internal/connector/workspace_contract.go).
 
 ## Admission and recovery
 
@@ -158,9 +214,13 @@ rows retain only the authenticated principal and denial category; they identify
 neither the inventory tool nor a target or wire-control class. Routed task tools
 retain Gateway-owned observations. Expected hidden-project filtering emits no
 denial; mixed operational failures propagate rather than becoming successful
-filtering. Known public policy/provider error categories require a qualified
-single cause; otherwise their response is `internal_error`. Existing timeout,
-input-validation and size-limit priorities remain separate.
+filtering. Returned operational errors require a qualified sole cause before mapping to
+timeout, invalid-input, size-limit or public policy/provider categories. A mixed
+joined operational error maps to non-retryable `internal_error`, including a
+known sentinel joined with a storage or release failure. Independent request
+validation and the actual token-expiry/cancellation gates retain their priority;
+an error graph cannot fabricate those gates. See the
+[tool boundary](../internal/mcpadapter/tool.go).
 
 A remote control failure joined with a release failure can therefore become a
 non-retryable `internal_error`. Keep the existing operation handle and explicitly

@@ -25,9 +25,10 @@ func (a *Adapter) registerTools() error {
 		register(a, "resolve_operation", "Passively resolve the same operation. Never starts, resumes or fences a task.", observe, read, a.resolve),
 		register(a, "get_task_status", "Read bounded task metadata and closure evidence. Accepted publication does not imply execution closure.", observe, read, a.status),
 		register(a, "recover_admission", "Explicitly resume only matching existing prepared work using its original task and canonical spec identity. Never creates an absent task.", dispatch, execute, a.recover),
-		register(a, "collect_result", "Collect an accepted immutable result descriptor. Execution may still be closing; use read_result_chunk for verified bytes.", observe, read, a.collect),
+		register(a, "collect_result", "Collect an accepted immutable result descriptor. Native rejection returns nonretryable result_unavailable. Execution may still be closing; use read_result_chunk for verified bytes.", observe, read, a.collect),
 		register(a, "read_result_chunk", "Read at most 65536 accepted bytes after whole-result verification. Each range costs a full bounded scan; authorization is rechecked before output.", observe, read, a.readResult),
 		register(a, "cancel_task", "Cancel an authorized operation with a stable cancellation ID. Requested stop, definitely-unsent draft and confirmed termination remain separate facts.", []domain.Scope{domain.TaskCancel}, execute, a.cancel),
+		a.registerWorkspaceTools(),
 	)
 }
 

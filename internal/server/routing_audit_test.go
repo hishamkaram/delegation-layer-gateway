@@ -137,7 +137,7 @@ func (p *routingAuditPeer) response(command protocol.Command, operation string) 
 		return p.reopen(command.Body)
 	case protocol.Admit:
 		return p.admit(command.Body, operation)
-	case protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
+	case protocol.ResolveProject, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
 		return nil, errors.New("unexpected task control in audit fixture")
 	default:
 		return nil, fmt.Errorf("unexpected audit fixture operation: %s", command.Operation)

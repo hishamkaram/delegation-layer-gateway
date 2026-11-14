@@ -48,6 +48,13 @@ type (
 		Refused             bool
 		CancelTaskFault     string
 		CancelRootFault     string
+		ProjectToken        string
+		Publication         string
+		OutcomeFault        string
+		CollectExit         int
+		CollectFailure      string
+		CollectMode         string
+		AfterCollect        *helperState
 	}
 	helperCall struct {
 		Command                 string
@@ -80,14 +87,35 @@ func helper(args []string) int {
 		}
 	}
 	response := helperResponse(flags, command, task, action, state)
-	if state.Mode == "unknown" {
+	mode := state.Mode
+	if command == "collect" && state.CollectMode != "" {
+		mode = state.CollectMode
+	}
+	if mode == "unknown" {
 		response["unrecognized_canary"] = "PRIVATE-CANARY"
 	}
 	exitCode := helperControlExit(flags, command, state, response)
-	if emitCode := emitHelperResponse(response, state.Mode); emitCode != 0 {
+	if emitCode := emitHelperResponse(response, mode); emitCode != 0 {
 		return emitCode
 	}
+	if advanceCode := advanceHelperCollection(root, command, state.AfterCollect); advanceCode != 0 {
+		return advanceCode
+	}
 	return exitCode
+}
+
+func advanceHelperCollection(root, command string, next *helperState) int {
+	if command != "collect" || next == nil {
+		return 0
+	}
+	data, err := json.Marshal(next)
+	if err != nil {
+		return 98
+	}
+	if err = os.WriteFile(filepath.Join(root, "helper-state.json"), data, 0o600); err != nil {
+		return 99
+	}
+	return 0
 }
 
 // Native unsuccessful connector envelopes scrub attestations. Incomplete passive
@@ -95,6 +123,9 @@ func helper(args []string) int {
 func helperControlExit(flags map[string]string, command string, state helperState, response map[string]any) int {
 	if command == "context" {
 		return helperContextExit(state.ContextFault, response)
+	}
+	if command == "collect" {
+		return helperCollectionExit(state, response)
 	}
 	if command != "resolve" {
 		return 0
@@ -124,6 +155,16 @@ func helperControlExit(flags map[string]string, command string, state helperStat
 		}
 	}
 	return code
+}
+
+func helperCollectionExit(state helperState, response map[string]any) int {
+	if state.CollectExit != 0 {
+		response["error"] = "PRIVATE-CANARY rejected diagnostic"
+		if state.CollectFailure != "" {
+			response["failure"] = map[string]string{"code": state.CollectFailure, "stage": "collect", "next_action": "PRIVATE-CANARY"}
+		}
+	}
+	return state.CollectExit
 }
 
 func helperContextExit(fault string, response map[string]any) int {
@@ -278,7 +319,7 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 	for index < len(args) {
 		name := strings.TrimPrefix(args[index], "--")
 		index++
-		if name == "json" || name == "resume-admission" || name == "fence-if-absent" {
+		if name == "json" || name == "resume-admission" || name == "fence-if-absent" || name == "include-workspace-constraint" {
 			flags[name] = "true"
 			continue
 		}
@@ -294,14 +335,7 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 }
 
 func helperResponse(flags map[string]string, command, task, action string, state helperState) map[string]any {
-	features := []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}
-	if state.Features != nil {
-		features = state.Features
-	}
-	if state.Disabled {
-		features = []string{}
-	}
-	connector := map[string]any{"contract_version": 1, "features": features, "root_token": strings.Repeat("a", 64), "project_token": "local-project-token-PRIVATE-CANARY"}
+	connector := helperConnectorHeader(flags, state)
 	response := map[string]any{"schema_version": 1, "command": command, "root_id": "fixture-root-a", "admission": "unknown", "liveness": "undetermined", "publication": "unknown", "connector": connector}
 	if command == "context" {
 		helperContextResponse(flags, state, response, connector)
@@ -322,6 +356,7 @@ func helperResponse(flags map[string]string, command, task, action string, state
 	if !helperReceipt(flags, task, state, response, connector) {
 		return response
 	}
+	helperOutcome(task, state, response)
 
 	if command == "dispatch" {
 		response["task_record"] = "created"
@@ -377,9 +412,6 @@ func helperOriginResponse(flags map[string]string, action string, connector map[
 }
 
 func helperContextResponse(flags map[string]string, state helperState, response, connector map[string]any) {
-	if state.ReceiptFault == "root-header" {
-		connector["root_token"] = strings.Repeat("f", 64)
-	}
 	if flags["cwd"] != "" {
 		info, statErr := os.Stat(flags["cwd"])
 		if statErr != nil || !info.IsDir() {
@@ -389,7 +421,7 @@ func helperContextResponse(flags map[string]string, state helperState, response,
 		if state.LiveProjectMismatch {
 			connector["project_token"] = "replacement-project-PRIVATE-CANARY"
 		}
-	} else {
+	} else if flags["expected-workspace"] == "" {
 		delete(connector, "project_token")
 		if state.ContextFault == "project" {
 			connector["project_token"] = "unexpected-project"
@@ -445,9 +477,8 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 	if !ok {
 		return false
 	}
+	helperAttachWorkspace(flags, receipt)
 	switch state.ReceiptFault {
-	case "root-header":
-		connector["root_token"] = strings.Repeat("f", 64)
 	case "root":
 		receipt["root_token"] = strings.Repeat("f", 64)
 	case "project":
@@ -460,6 +491,8 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 		connector["features"] = []string{}
 	case "liveness":
 		response["liveness"] = "invalid-observation"
+	case "workspace":
+		receipt["workspace_constraint"] = map[string]string{"token": "unexpected-workspace", "relative_project": "."}
 	}
 	if state.Closure {
 		connector["execution_closure"] = map[string]string{"kind": "registered-native", "reference_sha256": strings.Repeat("d", 64)}
@@ -471,6 +504,34 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 		}
 	}
 	return true
+}
+
+func helperOutcome(task string, state helperState, response map[string]any) {
+	if state.Publication == "" {
+		return
+	}
+	response["publication"] = state.Publication
+	if state.OutcomeFault == "missing" {
+		return
+	}
+	basename := "publish.reject"
+	if state.Publication == "committed" {
+		basename = "result.txt"
+	}
+	outcome := map[string]any{
+		"schema_version": 1, "task_id": task, "spec_sha256": strings.Repeat("c", 64), "verdict": state.Publication,
+		"payload":     map[string]any{"basename": basename, "sha256": helperHash("PRIVATE-CANARY"), "length": len("PRIVATE-CANARY")},
+		"diagnostics": []map[string]string{{"code": "PRIVATE-CANARY", "message": "PRIVATE-CANARY"}},
+	}
+	switch state.OutcomeFault {
+	case "schema":
+		outcome["schema_version"] = 2
+	case "task":
+		outcome["task_id"] = strings.Repeat("9", 32)
+	case "spec":
+		outcome["spec_sha256"] = strings.Repeat("f", 64)
+	}
+	response["outcome"] = outcome
 }
 
 func helperRange(response, connector map[string]any, flags map[string]string, state helperState) {
@@ -502,4 +563,29 @@ func helperOriginGeneration(state helperState) string {
 		return state.OriginGeneration
 	}
 	return "origin-one"
+}
+
+func helperConnectorHeader(flags map[string]string, state helperState) map[string]any {
+	features := []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}
+	if state.Features != nil {
+		features = state.Features
+	}
+	if state.Disabled {
+		features = []string{}
+	}
+	connector := map[string]any{"contract_version": 1, "features": features, "root_token": strings.Repeat("a", 64), "project_token": "local-project-token-PRIVATE-CANARY"}
+	if state.ProjectToken != "" {
+		connector["project_token"] = state.ProjectToken
+	}
+	if state.ReceiptFault == "root-header" {
+		connector["root_token"] = strings.Repeat("f", 64)
+	}
+	helperAttachWorkspace(flags, connector)
+	return connector
+}
+
+func helperAttachWorkspace(flags map[string]string, target map[string]any) {
+	if flags["expected-workspace"] != "" {
+		target["workspace_constraint"] = map[string]string{"token": flags["expected-workspace"], "relative_project": flags["relative-project"]}
+	}
 }

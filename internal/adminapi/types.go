@@ -63,6 +63,8 @@ type (
 		Disconnect(context.Context, domain.DeviceID) error
 	}
 	Options struct {
+		OwnedEnrollments OwnedEnrollments
+		OwnerPolicies    OwnerPolicies
 		// Metadata hooks are optional and mounted only at fixed private admin paths.
 		Roots                  Roots
 		Recoveries             Recoveries

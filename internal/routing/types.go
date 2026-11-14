@@ -13,11 +13,21 @@ import (
 // Request carries the exact encoded Command transiently. Stores persist only
 // its validated hash and immutable call/credential/process binding.
 type Request struct {
+	// WireVersion is supplied by the negotiated transport, never a peer body.
+	// Zero retains the original in-process v1 call contract.
+	WireVersion int
 	Credential  domain.CredentialRef
 	ProcessBoot string
 	Call        protocol.ControlCall
 	Payload     []byte
 	Now         time.Time
+}
+
+func (r Request) ProtocolVersion() int {
+	if r.WireVersion == 0 {
+		return protocol.Version
+	}
+	return r.WireVersion
 }
 
 type Readiness struct {

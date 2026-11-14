@@ -16,9 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicehub"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
@@ -65,7 +66,7 @@ func (censusPeer) Acknowledge(ctx context.Context, _ protocol.ControlInventoryAc
 type bridgeFixture struct {
 	gateway domain.GatewayID
 	store   *registry.Store
-	hub     *transport.Hub
+	hub     *devicehub.Hub
 	client  *transport.Client
 	link    *wirelink.Link
 	service *gateway.Service
@@ -95,7 +96,7 @@ func newBridgeFixture(t *testing.T) *bridgeFixture {
 	initialConnection, connectionErr := store.NextConnectionGeneration(t.Context(), ref, "fixture-root-boot", now)
 	mustOK(t, connectionErr)
 	root := testsupport.OpenRoot(t, t.Context(), store, domain.RootInitializationStart{Route: dest, ExpectedContext: domain.ContextBinding{Root: domain.RootGuard(contextBinding.Root), Project: domain.ProjectGuard(contextBinding.Project)}, Credential: ref, Connection: initialConnection, Now: now})
-	hub, err := transport.NewHub(t.Context(), transport.Config{GatewayID: generatedID, BootEpoch: "boot-one", Routing: store}, store, func() time.Time { return now })
+	hub, err := devicehub.NewHub(t.Context(), devicehub.Config{GatewayID: generatedID, BootEpoch: "boot-one", Routing: store}, store, func() time.Time { return now })
 	mustOK(t, err)
 	roots := x509.NewCertPool()
 	roots.AddCert(ca)
@@ -135,7 +136,7 @@ func issueRoutingCredential(t *testing.T, store *registry.Store, now time.Time) 
 		t.Fatal(caErr)
 	}
 	caCertificate := fixtureCertificate(t, caDER)
-	ca, authorityErr := identity.NewCertificateAuthority(caCertificate, caKey)
+	ca, authorityErr := devicecert.NewCertificateAuthority(caCertificate, caKey)
 	if authorityErr != nil {
 		t.Fatal(authorityErr)
 	}
@@ -144,7 +145,7 @@ func issueRoutingCredential(t *testing.T, store *registry.Store, now time.Time) 
 	if csrErr != nil {
 		t.Fatal(csrErr)
 	}
-	info, infoErr := identity.ParseCSR(csr)
+	info, infoErr := devicecert.ParseCSR(csr)
 	if infoErr != nil {
 		t.Fatal(infoErr)
 	}

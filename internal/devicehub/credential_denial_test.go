@@ -1,4 +1,4 @@
-package transport
+package devicehub
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/transport"
 )
 
 type registrationStore struct {
@@ -52,12 +53,12 @@ func TestRegistrationDenialOnlyObservesSolePolicyError(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			observed := []domain.CredentialRef{}
 			hub := registrationHub(t, f, registrationStore{checkErr: test.err}, func(ref domain.CredentialRef) { observed = append(observed, ref) })
-			_, err := hub.register(t.Context(), registrationRequest(f))
-			var failure *Error
-			if !errors.As(err, &failure) || !errors.Is(failure.kind, ErrForbidden) {
+			_, err := registrationAttempt(hub, t.Context(), registrationRequest(f))
+			var failure *transport.Error
+			if !errors.As(err, &failure) || !errors.Is(failure, transport.ErrForbidden) {
 				t.Fatal("registration changed its refusal classification")
 			}
-			if failure.cause != test.err { //nolint:errorlint // Exact cause identity proves the complete original chain was preserved.
+			if failure.Unwrap()[1] != test.err { //nolint:errorlint // Exact cause identity proves the complete original chain was preserved.
 				t.Fatal("registration changed the original denial chain")
 			}
 			if test.want {
@@ -95,7 +96,7 @@ func TestCredentialDenialExcludesMalformedPeersAndLaterGenerationFailures(t *tes
 	f := newFixture(t, Settings{})
 	observed := 0
 	hub := registrationHub(t, f, registrationStore{credential: f.store.value, nextErr: domain.Reject(domain.Forbidden)}, func(domain.CredentialRef) { observed++ })
-	if _, err := hub.register(t.Context(), httptest.NewRequest("GET", "https://gateway.example/device", nil)); err == nil {
+	if _, err := registrationAttempt(hub, t.Context(), httptest.NewRequest("GET", "https://gateway.example/device", nil)); err == nil {
 		t.Fatal("unverified peer accepted")
 	}
 	// CheckCredential succeeds; a subsequent generation rejection is not a new
@@ -116,19 +117,12 @@ func TestCredentialDenialExcludesExistingSessionChecks(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Duplicate registration has a valid credential but is rejected by h.add.
-	if _, err := f.hub.register(t.Context(), registrationRequest(f)); !errors.Is(err, ErrConflict) {
+	if _, err := registrationAttempt(f.hub, t.Context(), registrationRequest(f)); !errors.Is(err, ErrConflict) {
 		t.Fatal("duplicate registration did not preserve its refusal")
 	}
-	// Capture the currently live session before closing it, so this assertion
-	// cannot disappear merely because the asynchronous session retired early.
-	f.hub.mu.Lock()
-	s := f.hub.sessions["device-one"]
-	f.hub.mu.Unlock()
-	if s == nil {
-		t.Fatal("live session missing before revocation")
-	}
+	// A current-session refusal does not pass through the registration observer.
 	f.store.revoke()
-	if err := s.check(t.Context()); !errors.Is(err, ErrForbidden) {
+	if _, err := f.hub.Reserve(t.Context(), "device-one", inspect(t)); !errors.Is(err, ErrForbidden) {
 		t.Fatal("existing revoked session did not refuse")
 	}
 	if err := client.Close(); err != nil {
@@ -137,4 +131,12 @@ func TestCredentialDenialExcludesExistingSessionChecks(t *testing.T) {
 	if observed != 0 {
 		t.Fatal("duplicate or existing-session denial became fresh registration evidence")
 	}
+}
+
+func registrationAttempt(h *Hub, ctx context.Context, r *http.Request) (*transport.InboundSession, error) {
+	certificate, ref, err := verifiedPeer(r)
+	if err != nil {
+		return nil, err
+	}
+	return h.register(ctx, certificate, ref)
 }

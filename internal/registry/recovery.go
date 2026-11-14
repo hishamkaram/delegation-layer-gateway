@@ -65,7 +65,7 @@ func startRecovery(ctx context.Context, tx *sql.Tx, input domain.RecoveryStart) 
 	if _, err := tx.ExecContext(ctx, "UPDATE settings SET epoch=?,blocked=1,recovery=? WHERE id=1", input.Epoch, input.ID); err != nil {
 		return domain.RecoverySession{}, err
 	}
-	for _, statement := range []string{"DELETE FROM enrollment", "DELETE FROM credentials", "DELETE FROM grants"} {
+	for _, statement := range []string{"DELETE FROM enrollment", "DELETE FROM credentials", "DELETE FROM grants", "DELETE FROM owner_policies"} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return domain.RecoverySession{}, err
 		}
@@ -165,26 +165,7 @@ func (s *Store) RecordBarrier(ctx context.Context, input domain.ValidatedBarrier
 		return err
 	}
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) {
-		if err := activeRecovery(ctx, tx, input.Destination.Recovery, true); err != nil {
-			return struct{}{}, err
-		}
-		var previous domain.AdmissionGeneration
-		var barrier []byte
-		err := tx.QueryRowContext(ctx, "SELECT generation,barrier FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", input.Destination.Recovery, input.Destination.Device, input.Destination.Root).Scan(&previous, &barrier)
-		if err != nil {
-			return struct{}{}, notFound(err)
-		}
-		if previous == "" || previous != input.Generation {
-			return struct{}{}, domain.Reject(domain.Conflict)
-		}
-		if len(barrier) > 0 {
-			if !bytes.Equal(barrier, input.Receipt[:]) {
-				return struct{}{}, domain.Reject(domain.Conflict)
-			}
-			return struct{}{}, nil
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE recovery_destinations SET barrier=? WHERE recovery=? AND device=? AND root_guard=?", input.Receipt[:], input.Destination.Recovery, input.Destination.Device, input.Destination.Root)
-		return struct{}{}, err
+		return recordBarrier(ctx, tx, input)
 	})
 	return err
 }
@@ -487,19 +468,7 @@ func (s *Store) RecordReopen(ctx context.Context, input domain.ValidatedReopenRe
 		return err
 	}
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) {
-		if err := checkReopenTarget(ctx, tx, input.Target, input.Now); err != nil {
-			return struct{}{}, err
-		}
-		d := input.Target.Destination
-		var prior []byte
-		if err := tx.QueryRowContext(ctx, "SELECT reopened FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", d.Recovery, d.Device, d.Root).Scan(&prior); err != nil {
-			return struct{}{}, notFound(err)
-		}
-		if len(prior) > 0 && !bytes.Equal(prior, input.Receipt[:]) {
-			return struct{}{}, domain.Reject(domain.Conflict)
-		}
-		_, err := tx.ExecContext(ctx, "UPDATE recovery_destinations SET reopened=? WHERE recovery=? AND device=? AND root_guard=?", input.Receipt[:], d.Recovery, d.Device, d.Root)
-		return struct{}{}, err
+		return recordReopen(ctx, tx, input)
 	})
 	return err
 }
@@ -511,25 +480,8 @@ func (s *Store) FinishRecovery(ctx context.Context, input domain.RecoveryFinish)
 	if domain.RoutingToken(string(input.Recovery)) != nil || input.Now.IsZero() {
 		return domain.ErrInvalid
 	}
-	id := input.Recovery
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) {
-		if err := checkRecoveryFinish(ctx, tx, input); err != nil {
-			return struct{}{}, err
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE root_admissions SET generation=(SELECT generation FROM recovery_destinations d WHERE d.recovery=? AND d.device=root_admissions.device AND d.root_guard=root_admissions.root_guard),state='open' WHERE session=?`, id, id); err != nil {
-			return struct{}{}, err
-		}
-		state, err := readRecovery(ctx, tx, id)
-		if err != nil {
-			return struct{}{}, err
-		}
-		if state.kind == domain.RestoreRecovery {
-			if _, err = tx.ExecContext(ctx, "UPDATE settings SET blocked=0 WHERE id=1"); err != nil {
-				return struct{}{}, err
-			}
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE recoveries SET status='finished' WHERE id=?", id)
-		return struct{}{}, err
+		return finishRecovery(ctx, tx, input)
 	})
 	return err
 }
@@ -733,4 +685,64 @@ func advanceReopenRevision(ctx context.Context, tx *sql.Tx, recovery domain.Reco
 	}
 
 	return nil
+}
+
+func recordBarrier(ctx context.Context, tx *sql.Tx, input domain.ValidatedBarrierReceipt) (struct{}, error) {
+	if err := activeRecovery(ctx, tx, input.Destination.Recovery, true); err != nil {
+		return struct{}{}, err
+	}
+	var previous domain.AdmissionGeneration
+	var barrier []byte
+	err := tx.QueryRowContext(ctx, "SELECT generation,barrier FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", input.Destination.Recovery, input.Destination.Device, input.Destination.Root).Scan(&previous, &barrier)
+	if err != nil {
+		return struct{}{}, notFound(err)
+	}
+	if previous == "" || previous != input.Generation {
+		return struct{}{}, domain.Reject(domain.Conflict)
+	}
+	if len(barrier) > 0 {
+		if !bytes.Equal(barrier, input.Receipt[:]) {
+			return struct{}{}, domain.Reject(domain.Conflict)
+		}
+		return struct{}{}, nil
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE recovery_destinations SET barrier=? WHERE recovery=? AND device=? AND root_guard=?", input.Receipt[:], input.Destination.Recovery, input.Destination.Device, input.Destination.Root)
+	return struct{}{}, err
+}
+
+func recordReopen(ctx context.Context, tx *sql.Tx, input domain.ValidatedReopenReceipt) (struct{}, error) {
+	if err := checkReopenTarget(ctx, tx, input.Target, input.Now); err != nil {
+		return struct{}{}, err
+	}
+	d := input.Target.Destination
+	var prior []byte
+	if err := tx.QueryRowContext(ctx, "SELECT reopened FROM recovery_destinations WHERE recovery=? AND device=? AND root_guard=?", d.Recovery, d.Device, d.Root).Scan(&prior); err != nil {
+		return struct{}{}, notFound(err)
+	}
+	if len(prior) > 0 && !bytes.Equal(prior, input.Receipt[:]) {
+		return struct{}{}, domain.Reject(domain.Conflict)
+	}
+	_, err := tx.ExecContext(ctx, "UPDATE recovery_destinations SET reopened=? WHERE recovery=? AND device=? AND root_guard=?", input.Receipt[:], d.Recovery, d.Device, d.Root)
+	return struct{}{}, err
+}
+
+func finishRecovery(ctx context.Context, tx *sql.Tx, input domain.RecoveryFinish) (struct{}, error) {
+	id := input.Recovery
+	if err := checkRecoveryFinish(ctx, tx, input); err != nil {
+		return struct{}{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE root_admissions SET generation=(SELECT generation FROM recovery_destinations d WHERE d.recovery=? AND d.device=root_admissions.device AND d.root_guard=root_admissions.root_guard),state='open' WHERE session=?`, id, id); err != nil {
+		return struct{}{}, err
+	}
+	state, err := readRecovery(ctx, tx, id)
+	if err != nil {
+		return struct{}{}, err
+	}
+	if state.kind == domain.RestoreRecovery {
+		if _, err = tx.ExecContext(ctx, "UPDATE settings SET blocked=0 WHERE id=1"); err != nil {
+			return struct{}{}, err
+		}
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE recoveries SET status='finished' WHERE id=?", id)
+	return struct{}{}, err
 }

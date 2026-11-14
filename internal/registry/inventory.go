@@ -32,7 +32,7 @@ func (s *Store) ListDevices(ctx context.Context, actor domain.Actor, page domain
 		if err = checkPrincipal(ctx, tx, actor.Principal); err != nil {
 			return result, err
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT DISTINCT d.id,d.name,d.revoked,d.credential_generation,d.counter FROM devices d JOIN grants g ON g.device=d.id WHERE g.principal=? AND d.revoked=0 AND d.id>? AND EXISTS(SELECT 1 FROM json_each(g.value,'$.Scopes') WHERE value=?) ORDER BY d.id LIMIT ?`, actor.Principal, page.After, domain.InventoryRead, limit+1)
+		rows, err := tx.QueryContext(ctx, effectiveAccessCTE+`SELECT DISTINCT d.id,d.name,d.revoked,d.credential_generation,d.counter FROM devices d JOIN effective_access g ON g.device=d.id WHERE g.principal=? AND d.revoked=0 AND d.id>? AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?) ORDER BY d.id LIMIT ?`, actor.Principal, page.After, domain.InventoryRead, limit+1)
 		if err != nil {
 			return result, err
 		}
@@ -70,7 +70,7 @@ func (s *Store) ListProjects(ctx context.Context, actor domain.Actor, device dom
 		if err = checkPrincipal(ctx, tx, actor.Principal); err != nil {
 			return result, err
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT p.alias,p.root_guard,p.project_guard FROM projects p JOIN devices d ON d.id=p.device JOIN grants g ON g.device=p.device AND g.project=p.alias WHERE g.principal=? AND p.device=? AND d.revoked=0 AND p.alias>? AND EXISTS(SELECT 1 FROM json_each(g.value,'$.Scopes') WHERE value=?) ORDER BY p.alias LIMIT ?`, actor.Principal, device, page.After, domain.InventoryRead, limit+1)
+		rows, err := tx.QueryContext(ctx, effectiveAccessCTE+`SELECT p.alias,p.root_guard,p.project_guard FROM projects p JOIN devices d ON d.id=p.device JOIN effective_access g ON g.device=p.device AND g.project=p.alias WHERE g.principal=? AND p.device=? AND d.revoked=0 AND p.alias>? AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?) ORDER BY p.alias LIMIT ?`, actor.Principal, device, page.After, domain.InventoryRead, limit+1)
 		if err != nil {
 			return result, err
 		}
@@ -129,7 +129,7 @@ func (s *Store) ListOperations(ctx context.Context, actor domain.Actor, page dom
 }
 
 func operationIDs(ctx context.Context, tx *sql.Tx, actor domain.Actor, page domain.OperationPageRequest, limit int) (ids []domain.OperationID, err error) {
-	rows, err := tx.QueryContext(ctx, `SELECT o.id FROM operations o JOIN devices d ON d.id=o.device JOIN grants g ON g.device=o.device AND g.project=o.project AND g.principal=o.owner WHERE o.owner=? AND o.id>? AND d.revoked=0 AND ((? AND EXISTS(SELECT 1 FROM json_each(g.value,'$.Scopes') WHERE value=?)) OR (? AND o.state IN (?,?) AND EXISTS(SELECT 1 FROM json_each(g.value,'$.Scopes') WHERE value=?))) ORDER BY o.id LIMIT ?`, actor.Principal, page.After, actor.Scopes.Has(domain.TaskRead), domain.TaskRead, actor.Scopes.Has(domain.TaskDispatch), domain.Prepared, domain.ExpiredUnsent, domain.TaskDispatch, limit+1)
+	rows, err := tx.QueryContext(ctx, effectiveAccessCTE+`SELECT o.id FROM operations o JOIN devices d ON d.id=o.device JOIN effective_access g ON g.device=o.device AND g.project=o.project AND g.principal=o.owner WHERE o.owner=? AND o.id>? AND d.revoked=0 AND ((? AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?)) OR (? AND o.state IN (?,?) AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?))) ORDER BY o.id LIMIT ?`, actor.Principal, page.After, actor.Scopes.Has(domain.TaskRead), domain.TaskRead, actor.Scopes.Has(domain.TaskDispatch), domain.Prepared, domain.ExpiredUnsent, domain.TaskDispatch, limit+1)
 	if err != nil {
 		return nil, err
 	}

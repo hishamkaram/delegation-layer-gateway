@@ -1,7 +1,9 @@
 # Root initialization and recovery
 
-The candidate implements root initialization, fleet restore orchestration and
-private administrative task controls. Integrated verification remains in progress.
+The Native-connect extension adds owned-device and workspace-pin state to the
+existing root initialization, fleet restore and private task controls. Its full
+gates, live flows and final integrated review remain pending. Historical MVP
+acceptance does not validate the new paths.
 The current acceptance status is recorded in [verification](verification.md).
 Use these controls to preserve Registry and Delegate evidence through recovery.
 
@@ -17,6 +19,51 @@ A project registration contains `device_id`, `project_alias`, `root_guard` and
 local paths and raw Delegate context tokens stay on the device. An operator
 cannot supply an admission generation. Registry owns eligibility once per
 bound device/root, shared by its aliases.
+
+## Native-owned profiles, policy and retained project identity
+
+The normal Native-connect path embeds the client in Native's own user service.
+OAuth/headless login, private browserless enrollment tokens, workspace approval
+and service commands are maintained in [Native connect](native-connect.md).
+Gateway does not take over that service or Native task supervision. Disconnect
+and device revocation are not cancellation or execution-closure proofs.
+
+A self-enrolled device has one immutable Registry owner and uses that owner's
+current enabled policy rather than copied per-project grants. Owner disablement
+preserves ownership/history while denying current authority. Legacy devices
+continue to require explicit grants; login, migration or restore never assigns
+a legacy device to the next user. Self-enrollment replay retains the original
+request/CSR identity; device replacement needs exact owner and generation checks.
+See [ownership](../internal/registry/ownership.go) and
+[self-enrollment](../internal/registry/self_enrollment.go).
+
+Wire-v2 project handles reference the first accepted workspace-relative pin.
+Retain the original resolution request ID after lost replies, directory
+replacement or policy changes. A changed selector conflicts; a completed replay
+is identity, not current execution permission. All retained Gateway resolution
+requests, including unsuccessful or pending attempts, count toward the
+1,024/device cap. Retrying the same request uses its existing slot; no automatic
+compaction or reset is provided. Local pins, including tombstones, also have a
+1,024-record and four-MiB encoded-data cap. Nothing evicts old identity to make
+room. Workspace metadata advertises only dated local pin-budget usage, rather
+than the separate Gateway request count; it reserves no slot.
+See [resolution storage](../internal/registry/project_resolution.go) and
+[wire bounds](../internal/protocol/workspace.go).
+
+First-use owned-root initialization uses the existing durable phases through an
+exact device/root/credential/connection-bound port, with current owner policy
+rechecked inside every transaction. It can initialize an eligible empty root
+before a project exists; it cannot bypass an active fleet restore, import task
+history, grant private administration or waive routing coverage. A nonempty
+namespace still needs explicit supported restore. See
+[owned-root authority](../internal/registry/owned_root.go) and
+[allowed routed commands](../internal/registry/owned_root_routing.go).
+
+Workspace removal disables new resolution/admission/resume without erasing
+saved task bindings. Authorized passive controls retain the frozen identity;
+current principal/device authority is still mandatory. Refresh capabilities for
+one saved handle rather than replaying a stale project list. Neither policy
+revision nor fresh metadata can rewrite an old task or release uncertainty.
 
 ## Stale administrative socket after an unclean exit
 
@@ -45,8 +92,9 @@ gateway admin --socket "$admin_socket" --action root-progress --input-file "$roo
 `initialize-root` advances one durable phase per call. Repeat the same input
 until `stage` is `ready`: barrier, complete inventory, approval, then reopen.
 Every retry uses Registry's persisted session and generation. The final phase
-explicitly inspects Delegate again so the connector can publish refreshed
-capabilities. Registry readiness, dated connector capabilities and provider
+explicitly verifies the root namespace again. Project readiness is separate:
+legacy projects require explicit refresh, and wire-v2 handles use fresh targeted
+inspection. Root-only evidence cannot promote a missing workspace to ready. Registry readiness, dated connector capabilities and provider
 authentication are separate facts; capability publication can lag a completed
 phase.
 
@@ -74,9 +122,11 @@ gateway begin-recovery --database "$database" --recovery-id "$recovery_id"
 gateway serve --config "$gateway_config"
 ```
 
-Migration upgrades schema 6 to 7 atomically and preserves the existing identity,
-grants, task correlations, observations and routing evidence. Running it against
-a valid schema-7 database succeeds without replacing that authority. The offline
+Migration upgrades schema 6, 7 or 8 to schema 9 atomically and preserves the
+existing identity, grants, task correlations, observations and routing evidence.
+A valid schema-9 database is an idempotent success. Ownership tables do not adopt
+legacy devices, and project-resolution tables do not infer missing pins.
+See [migration source](../internal/registry/migration.go). The offline
 recovery command commits credential/grant fencing under the existing instance
 lease. Start serving after both commands succeed. Use a fresh recovery ID for
 each distinct restore event and reuse that ID for retries of the same intent.

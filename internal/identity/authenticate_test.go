@@ -260,6 +260,25 @@ func TestAuthenticateTLSAndClaims(t *testing.T) {
 	requireCode(t, err, identity.InvalidToken)
 }
 
+func TestManagementScopesAuthenticateWithoutTaskAuthority(t *testing.T) {
+	key := rsaKey(t)
+	server := httptest.NewTLSServer(&keyServer{body: jwksBody(t, key, "one"), status: http.StatusOK})
+	t.Cleanup(server.Close)
+	a := authenticator(t, server, &testClock{value: time.Now()}, validResolver)
+	header := map[string]any{"alg": "RS256", "kid": "one"}
+	management := goodClaims(server.URL + "/")
+	management["scope"] = "device:enroll device:manage"
+	manager, err := a.Authenticate(t.Context(), jwtToken(t, key, header, management))
+	if err != nil || len(manager.Scopes) != 2 || !manager.Scopes.Has(domain.DeviceEnroll) || !manager.Scopes.Has(domain.DeviceManage) {
+		t.Fatalf("management token lost its exact authority: %v", err)
+	}
+	for _, scope := range manager.Scopes {
+		if scope.IsTask() {
+			t.Fatal("management authentication invented task authority")
+		}
+	}
+}
+
 func TestJWKSRotationFailureAndHardCacheBound(t *testing.T) {
 	one, two := rsaKey(t), rsaKey(t)
 	state := &keyServer{body: jwksBody(t, one, "one"), status: http.StatusOK}

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connectorconfig"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicehub"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
@@ -36,7 +37,7 @@ type networkFixture struct {
 	cfg         *connectorconfig.Config
 	identity    *deviceidentity.Store
 	registry    *registry.Store
-	hub         *transport.Hub
+	hub         *devicehub.Hub
 	ca          testCA
 	renewal     *enrollment.Service
 	diagnostics *networkDiagnostics
@@ -144,11 +145,11 @@ func newNetworkFixture(t *testing.T, mode domain.CredentialMode, age time.Durati
 	require(t, store.CreateEnrollment(t.Context(), domain.EnrollmentGrant{TokenHash: domain.Hash(raw), Device: "device", Mode: mode, Generation: 1, CreatedAt: issuedAt, ExpiresAt: issuedAt.Add(domain.EnrollmentTTL)}))
 	service, err := enrollment.New(store, f.ca.signer, rand.Reader, func() time.Time { return issuedAt })
 	issuer := checked(t, service, err)
-	handler, err := enrollment.HTTPHandler(issuer, time.Now)
+	handler, err := enrollment.HTTPHandler(issuer, time.Now, false)
 	enroller := checked(t, handler, err)
 	renewal, err := enrollment.New(store, f.ca.signer, rand.Reader, time.Now)
 	f.renewal = checked(t, renewal, err)
-	hub, err := transport.NewHub(t.Context(), transport.Config{Routing: diagnosticRouting{Store: store, diagnostics: f.diagnostics}, GatewayID: generatedID, BootEpoch: "gateway-boot"}, store, time.Now)
+	hub, err := devicehub.NewHub(t.Context(), devicehub.Config{Routing: diagnosticRouting{Store: store, diagnostics: f.diagnostics}, GatewayID: generatedID, BootEpoch: "gateway-boot"}, store, time.Now)
 	f.hub = checked(t, hub, err)
 	t.Cleanup(func() { require(t, f.hub.Close()) })
 	mux := http.NewServeMux()

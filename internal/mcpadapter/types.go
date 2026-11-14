@@ -8,6 +8,7 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway/workspaces"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/observability"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
@@ -20,6 +21,7 @@ type Recorder interface{ Record(observability.Event) }
 type Registry interface {
 	CheckProjectReadiness(context.Context, domain.ProjectReadinessRequest) (bool, error)
 	Authorize(context.Context, domain.AuthorizationRequest) (domain.Authorization, error)
+	AuthorizeOwnedDevice(context.Context, domain.OwnedDeviceRequest) (domain.OwnedDeviceAuthorization, error)
 	ListDevices(context.Context, domain.Actor, domain.DevicePageRequest) (domain.DevicePage, error)
 	ListProjects(context.Context, domain.Actor, domain.DeviceID, domain.ProjectPageRequest) (domain.ProjectPage, error)
 	ListOperations(context.Context, domain.Actor, domain.OperationPageRequest) (domain.OperationPage, error)
@@ -33,6 +35,12 @@ type Operations interface {
 	Recover(context.Context, domain.Actor, domain.OperationID) (domain.OperationView, error)
 	Cancel(context.Context, domain.Actor, domain.OperationID, domain.CancellationID) (gateway.CancellationResult, error)
 	ReadResult(context.Context, domain.Actor, domain.OperationID, protocol.Descriptor, int64, int) (protocol.ResultRange, error)
+}
+
+type WorkspaceTools interface {
+	gateway.TargetedCapabilities
+	ListWorkspaces(context.Context, domain.Actor, domain.DeviceID) (workspaces.Inventory, error)
+	ResolveProject(context.Context, domain.Actor, workspaces.ResolveInput) (workspaces.Resolution, error)
 }
 type (
 	Presence interface {
@@ -91,7 +99,36 @@ type ToolError struct {
 	Code         string `json:"code"`
 	Retryable    bool   `json:"retryable"`
 	OperationID  string `json:"operation_id,omitempty"`
+	RequestID    string `json:"request_id,omitempty"`
 	RetryAfterMS int    `json:"retry_after_ms,omitempty"`
+}
+
+type (
+	WorkspacesInput struct {
+		DeviceID string `json:"device_id"`
+	}
+	ResolveProjectInput struct {
+		DeviceID     string `json:"device_id"`
+		RequestID    string `json:"request_id" jsonschema:"Stable 32-character lowercase hex pin request ID; retain and reuse it with identical selection after retries."`
+		WorkspaceID  string `json:"workspace_id"`
+		RelativePath string `json:"relative_path" jsonschema:"Existing directory relative to the approved workspace; use a dot for its root. No absolute paths or traversal."`
+	}
+)
+
+type WorkspaceInventory struct {
+	DeviceID      string                         `json:"device_id"`
+	Online        bool                           `json:"online"`
+	DelegateReady bool                           `json:"delegate_ready"`
+	ObservedAt    *time.Time                     `json:"observed_at,omitempty"`
+	Workspaces    []protocol.WorkspaceCapability `json:"workspaces"`
+	ProjectBudget *protocol.ProjectBudget        `json:"project_budget,omitempty"`
+}
+type ResolvedProject struct {
+	DeviceID     string                    `json:"device_id"`
+	RequestID    string                    `json:"request_id"`
+	ProjectAlias string                    `json:"project_alias"`
+	Workspace    protocol.WorkspaceBinding `json:"workspace"`
+	Context      protocol.ContextBinding   `json:"context"`
 }
 type Device struct {
 	DeviceID           string     `json:"device_id"`
@@ -117,15 +154,17 @@ type ProjectPage struct {
 	NextCursor string    `json:"next_cursor,omitempty"`
 }
 type Capabilities struct {
-	DeviceID           string     `json:"device_id"`
-	ProjectAlias       string     `json:"project_alias"`
-	TaskReadAllowed    bool       `json:"task_read_allowed"`
-	TaskCancelAllowed  bool       `json:"task_cancel_allowed"`
-	Online             bool       `json:"online"`
-	DelegateReady      bool       `json:"delegate_ready"`
-	ExecutionReadiness string     `json:"execution_readiness"`
-	ObservedAt         *time.Time `json:"observed_at,omitempty"`
-	Providers          []Provider `json:"providers"`
+	DeviceID              string                     `json:"device_id"`
+	ProjectAlias          string                     `json:"project_alias"`
+	TaskReadAllowed       bool                       `json:"task_read_allowed"`
+	TaskCancelAllowed     bool                       `json:"task_cancel_allowed"`
+	Online                bool                       `json:"online"`
+	DelegateReady         bool                       `json:"delegate_ready"`
+	ExecutionReadiness    string                     `json:"execution_readiness"`
+	ObservedAt            *time.Time                 `json:"observed_at,omitempty"`
+	Providers             []Provider                 `json:"providers"`
+	Workspace             *protocol.WorkspaceBinding `json:"workspace,omitempty"`
+	CurrentPolicyRevision *uint64                    `json:"current_policy_revision,omitempty"`
 }
 
 type Provider struct {

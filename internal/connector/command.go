@@ -23,6 +23,9 @@ type request struct {
 	barrier      *protocol.OriginBarrierRequest
 	inventory    *protocol.OriginInventoryRequest
 	reopen       *protocol.OriginReopenRequest
+	workspace    *workspaceRequest
+	resolution   *protocol.ResolveProjectRequest
+	startOptions *executionOptions
 }
 
 func decodeRequest(cfg *configuration, command protocol.Command) (request, error) {
@@ -61,6 +64,8 @@ func (r *request) decodeBody() error {
 		return r.decodeInventory()
 	case protocol.OriginReopen:
 		return r.decodeReopen()
+	case protocol.ResolveProject:
+		return ErrEvidence // Decoded separately before root/project lookup.
 	default:
 		return ErrEvidence
 	}
@@ -238,16 +243,16 @@ func (r request) guarded(ctx context.Context, owner *controlOwner, command strin
 		args = append(args, "--expected-spec-sha256", r.task.SpecSHA256)
 	}
 	args = append(args, extra...)
+	if r.workspace != nil {
+		args = append(args, "--expected-workspace", r.workspace.pin.WorkspaceContext, "--relative-project", r.workspace.pin.Request.RelativePath)
+	}
 	return r.common(ctx, command, args...)
 }
 
 func (r request) invocation(ctx context.Context, owner *controlOwner) (invocation, error) {
 	switch r.command.Operation {
 	case protocol.ContextInspect:
-		if r.rootOnly {
-			return r.common(ctx, "context", "inspect", "--gateway-id", string(r.config.GatewayID))
-		}
-		return r.common(ctx, "context", "inspect", "--cwd", r.project.Directory, "--gateway-id", string(r.config.GatewayID))
+		return r.inspectionInvocation(ctx)
 	case protocol.Admit:
 		return r.admissionInvocation(ctx, owner)
 	case protocol.Resolve:
@@ -267,9 +272,11 @@ func (r request) invocation(ctx context.Context, owner *controlOwner) (invocatio
 	case protocol.OriginBarrier:
 		return r.common(ctx, "origin", "barrier", "--gateway-id", r.barrier.GatewayID, "--recovery-id", r.barrier.RecoveryID, "--expected-generation", r.barrier.ExpectedGeneration, "--generation", r.barrier.Generation, "--expected-root", r.project.RootToken)
 	case protocol.OriginInventory:
-		return r.common(ctx, "origin", "inventory", "--gateway-id", r.inventory.GatewayID, "--generation", r.inventory.Generation, "--cursor", r.inventory.Cursor, "--limit", strconv.Itoa(r.inventory.Limit), "--expected-root", r.project.RootToken)
+		return r.inventoryInvocation(ctx)
 	case protocol.OriginReopen:
 		return r.common(ctx, "origin", "reopen", "--gateway-id", r.reopen.GatewayID, "--recovery-id", r.reopen.RecoveryID, "--generation", r.reopen.Generation, "--completeness-receipt", r.reopen.CompletenessReceipt, "--expected-root", r.project.RootToken)
+	case protocol.ResolveProject:
+		return invocation{}, ErrEvidence // Resolution uses guarded context inspection.
 	default:
 		return invocation{}, ErrEvidence
 	}
@@ -311,4 +318,28 @@ func (r request) resultInvocation(ctx context.Context, owner *controlOwner) (inv
 func briefHash(value string) string {
 	digest := domain.Hash([]byte(value))
 	return hex.EncodeToString(digest[:])
+}
+
+func (r request) inspectionInvocation(ctx context.Context) (invocation, error) {
+	if r.rootOnly {
+		return r.common(ctx, "context", "inspect", "--gateway-id", string(r.config.GatewayID))
+	}
+	if r.workspace != nil {
+		return r.common(ctx, "context", "inspect", "--expected-workspace", r.workspace.pin.WorkspaceContext, "--relative-project", r.workspace.pin.Request.RelativePath, "--gateway-id", string(r.config.GatewayID))
+	}
+	return r.common(ctx, "context", "inspect", "--cwd", r.project.Directory, "--gateway-id", string(r.config.GatewayID))
+}
+
+func (r request) inventoryInvocation(ctx context.Context) (invocation, error) {
+	limit := r.inventory.Limit
+	if r.config.ProjectStore != nil {
+		// Shorter pages are valid. Bound local raw tokens before normalizing
+		// them to path-free wire guards, independently of wire page capacity.
+		limit = 1
+	}
+	call, err := r.common(ctx, "origin", "inventory", "--gateway-id", r.inventory.GatewayID, "--generation", r.inventory.Generation, "--cursor", r.inventory.Cursor, "--limit", strconv.Itoa(limit), "--expected-root", r.project.RootToken)
+	if r.config.ProjectStore != nil {
+		call.args = append(call.args, "--include-workspace-constraint")
+	}
+	return call, err
 }

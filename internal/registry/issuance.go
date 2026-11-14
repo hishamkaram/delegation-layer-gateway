@@ -51,6 +51,9 @@ func (s *Store) createEnrollment(ctx context.Context, input domain.EnrollmentGra
 		if device.Revoked || input.Generation != device.CredentialGeneration+1 {
 			return struct{}{}, domain.Reject(domain.Conflict)
 		}
+		if err = checkOwnedDeviceSlot(ctx, tx, input.Device, input.CreatedAt); err != nil {
+			return struct{}{}, err
+		}
 		var blocked bool
 		if err = tx.QueryRowContext(ctx, "SELECT blocked FROM settings WHERE id=1").Scan(&blocked); err != nil {
 			return struct{}{}, err
@@ -138,6 +141,11 @@ func (s *Store) BeginEnrollment(ctx context.Context, input domain.EnrollmentAtte
 		if err != nil {
 			return domain.IssuanceIntent{}, notFound(err)
 		}
+		if input.RequireOwned {
+			if err = requireDeviceOwner(ctx, tx, deviceID); err != nil {
+				return domain.IssuanceIntent{}, err
+			}
+		}
 		expiry, err := time.Parse(time.RFC3339Nano, expires)
 		if err != nil {
 			return domain.IssuanceIntent{}, err
@@ -157,34 +165,46 @@ func reserveEnrollment(ctx context.Context, tx *sql.Tx, input domain.EnrollmentA
 	if device.Revoked || device.CredentialGeneration > generation {
 		return domain.IssuanceIntent{}, domain.Reject(domain.Forbidden)
 	}
+	if err = checkDeviceOwner(ctx, tx, id); err != nil {
+		return domain.IssuanceIntent{}, err
+	}
 	if existing != "" {
 		return matchingIntent(ctx, tx, existing, input.CSRHash, input.PublicKeyHash)
 	}
 	if generation != device.CredentialGeneration+1 {
 		return domain.IssuanceIntent{}, domain.Reject(domain.Conflict)
 	}
-	var epoch domain.CredentialEpoch
-	var blocked bool
-	if err = tx.QueryRowContext(ctx, "SELECT epoch,blocked FROM settings WHERE id=1").Scan(&epoch, &blocked); err != nil {
-		return domain.IssuanceIntent{}, err
-	}
-	if blocked && mode != domain.RecoveryOnly {
-		if err = allowRegularRecoveryEnrollment(ctx, tx, id, input.Now); err != nil {
-			return domain.IssuanceIntent{}, err
-		}
-	}
-	intent := newIntent(input.Issuance, input.Serial, domain.CredentialRef{Device: id, Epoch: epoch, Generation: generation}, mode, input.CSRHash, input.PublicKeyHash, input.Now)
-	if _, err = persistIntent(ctx, tx, "enroll:"+hex.EncodeToString(input.TokenHash[:]), intent); err != nil {
-		return intent, err
-	}
-	if _, err = tx.ExecContext(ctx, "UPDATE devices SET credential_generation=? WHERE id=?", generation, id); err != nil {
-		return intent, err
-	}
-	if _, err = tx.ExecContext(ctx, "DELETE FROM credentials WHERE device=?", id); err != nil {
+	intent, err := reserveFreshEnrollment(ctx, tx, input, id, mode, generation, "enroll:"+hex.EncodeToString(input.TokenHash[:]))
+	if err != nil {
 		return intent, err
 	}
 	_, err = tx.ExecContext(ctx, "UPDATE enrollment SET issuance=? WHERE token=?", input.Issuance, input.TokenHash[:])
 	return intent, err
+}
+
+// Both authentication paths reserve through the same issuance/generation owner.
+func reserveFreshEnrollment(ctx context.Context, tx *sql.Tx, input domain.EnrollmentAttempt, id domain.DeviceID, mode domain.CredentialMode, generation uint64, replay string) (domain.IssuanceIntent, error) {
+	var epoch domain.CredentialEpoch
+	var blocked bool
+	if err := tx.QueryRowContext(ctx, "SELECT epoch,blocked FROM settings WHERE id=1").Scan(&epoch, &blocked); err != nil {
+		return domain.IssuanceIntent{}, err
+	}
+	if blocked && mode != domain.RecoveryOnly {
+		if err := allowRegularRecoveryEnrollment(ctx, tx, id, input.Now); err != nil {
+			return domain.IssuanceIntent{}, err
+		}
+	}
+	intent := newIntent(input.Issuance, input.Serial, domain.CredentialRef{Device: id, Epoch: epoch, Generation: generation}, mode, input.CSRHash, input.PublicKeyHash, input.Now)
+	if _, err := persistIntent(ctx, tx, replay, intent); err != nil {
+		return intent, err
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE devices SET credential_generation=? WHERE id=?", generation, id); err != nil {
+		return intent, err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM credentials WHERE device=?", id); err != nil {
+		return intent, err
+	}
+	return intent, nil
 }
 
 func matchingIntent(ctx context.Context, tx *sql.Tx, id domain.IssuanceID, csr, key domain.Digest) (domain.IssuanceIntent, error) {
@@ -292,6 +312,9 @@ func (s *Store) CompleteIssuance(ctx context.Context, input domain.IssuanceCompl
 		if err != nil {
 			return domain.CertificateReceipt{}, err
 		}
+		if err = checkOwnedIssuance(ctx, tx, intent, len(certificate) != 0, input.Now); err != nil {
+			return domain.CertificateReceipt{}, err
+		}
 		if err = validateCertificate(intent, input.CertificateDER); err != nil {
 			return domain.CertificateReceipt{}, err
 		}
@@ -299,6 +322,12 @@ func (s *Store) CompleteIssuance(ctx context.Context, input domain.IssuanceCompl
 			return issuanceReceipt(ctx, tx, intent, certificate, input.Now)
 		}
 		if _, err = issuanceReceipt(ctx, tx, intent, input.CertificateDER, input.Now); err != nil {
+			return domain.CertificateReceipt{}, err
+		}
+		// A signing delay can outlive the old credential and let its owner slot
+		// be reused. Recheck first activation after all deadlines/validity gates;
+		// committed receipt replay above acquires no slot and stays unchanged.
+		if err = checkOwnedDeviceSlot(ctx, tx, intent.Credential.Device, input.Now); err != nil {
 			return domain.CertificateReceipt{}, err
 		}
 		return activateIssuance(ctx, tx, intent, input.CertificateDER)
@@ -319,6 +348,9 @@ func issuanceReceipt(ctx context.Context, tx *sql.Tx, intent domain.IssuanceInte
 	}
 	if device.Revoked || epoch != intent.Credential.Epoch || device.CredentialGeneration != intent.Credential.Generation {
 		return domain.CertificateReceipt{}, domain.Reject(domain.Forbidden)
+	}
+	if err = checkDeviceOwner(ctx, tx, device.ID); err != nil {
+		return domain.CertificateReceipt{}, err
 	}
 	if now.Before(intent.NotBefore) || !now.Before(intent.NotAfter) {
 		return domain.CertificateReceipt{}, domain.Reject(domain.Expired)

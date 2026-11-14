@@ -6,7 +6,8 @@ validated with Ubuntu Nginx 1.24 and Certbot 2.9. It does not start Gateway, enr
 change DNS, install packages, edit existing virtual hosts or configure port 8443.
 
 Nginx owns public port 443. It forwards only `/mcp`, the two OAuth protected
-resource metadata routes, and `/v1/enroll` to Gateway HTTPS on
+resource metadata routes, `/.well-known/delegation-gateway`, `/v1/enroll`,
+`/v1/self/enroll` and `/v1/self/devices/revoke` to Gateway HTTPS on
 `127.0.0.1:9443`. Nginx verifies the upstream certificate against the system CA
 bundle and the public hostname, using TLS 1.3 and SNI. Gateway therefore needs a
 valid certificate for that hostname too. No TLS verification bypass is offered.
@@ -63,9 +64,17 @@ hostname definitions and downgrading HTTPS to bootstrap. Any Nginx-reported
 conflicting server name, including one between existing sites, blocks installation. Run the HTTPS phase
 again to validate and reload an unchanged generated config. `--upstream-port`
 can select another unprivileged loopback port; it must match Gateway's listener.
+The exact earlier generated HTTPS templates are recognized for upgrade to the
+Native discovery/enrollment routes and client-address forwarding. Edited versions still require manual review;
+the managed-file marker alone never authorizes replacement.
 
 ## Operation and limits
 
+- Enable `"trust_loopback_proxy_client_ip": true` in Gateway's private config
+  when using this proxy. It overwrites `X-Real-IP` with `$remote_addr`; Gateway
+  accepts that rate-limit key only from loopback with the explicit setting.
+  Other forwarded identity headers are cleared. No header authenticates a user
+  or a device. Direct Gateway deployment leaves the setting false.
 - Keep the Cloudflare DNS record **DNS only** for the intended direct device
   mTLS connection. This script never changes Cloudflare settings.
 - Permit the configured device TCP port through the host and upstream firewalls

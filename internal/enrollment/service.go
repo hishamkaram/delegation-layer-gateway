@@ -1,5 +1,5 @@
 // Package enrollment composes strict CSR validation, durable issuance intents
-// and certificate signing. Registry alone owns redemption and active identity.
+// and certificate signing. Registry alone owns redemption and active devicecert.
 package enrollment
 
 import (
@@ -12,8 +12,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 )
 
 type Store interface {
@@ -25,7 +25,16 @@ type Signer interface {
 	Sign(context.Context, domain.IssuanceIntent, []byte, *big.Int, io.Reader) ([]byte, error)
 }
 type Service struct {
-	store  Store
+	store Store
+	*issuer
+}
+
+// issuer is the shared signing/completion owner. Its narrow completion port
+// lets each enrollment use case retain its own typed reservation authority.
+type issuer struct {
+	store interface {
+		CompleteIssuance(context.Context, domain.IssuanceCompletion) (domain.CertificateReceipt, error)
+	}
 	signer Signer
 	random io.Reader
 	now    func() time.Time
@@ -35,17 +44,27 @@ func New(store Store, signer Signer, random io.Reader, now func() time.Time) (*S
 	if store == nil || signer == nil || random == nil || now == nil {
 		return nil, domain.ErrInvalid
 	}
-	return &Service{store: store, signer: signer, random: random, now: now}, nil
+	return &Service{store: store, issuer: &issuer{store: store, signer: signer, random: random, now: now}}, nil
 }
 
 // Redeem binds one token to the exact CSR. Repeated requests pass the same proof
 // through the registry, which returns the first persisted intent and receipt.
 func (s *Service) Redeem(ctx context.Context, token string, csrDER []byte) (domain.CertificateReceipt, error) {
+	return s.redeem(ctx, token, csrDER, false)
+}
+
+// RedeemOwned requires Registry-owned Native eligibility, including replays.
+// The same issuer and CSR/token correlation serve both compatibility paths.
+func (s *Service) RedeemOwned(ctx context.Context, token string, csrDER []byte) (domain.CertificateReceipt, error) {
+	return s.redeem(ctx, token, csrDER, true)
+}
+
+func (s *Service) redeem(ctx context.Context, token string, csrDER []byte, requireOwned bool) (domain.CertificateReceipt, error) {
 	decoded, err := base64.RawURLEncoding.Strict().DecodeString(token)
 	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != token {
 		return domain.CertificateReceipt{}, domain.Reject(domain.Forbidden)
 	}
-	csr, err := identity.ParseCSR(csrDER)
+	csr, err := devicecert.ParseCSR(csrDER)
 	if err != nil {
 		return domain.CertificateReceipt{}, err
 	}
@@ -53,7 +72,7 @@ func (s *Service) Redeem(ctx context.Context, token string, csrDER []byte) (doma
 	if err != nil {
 		return domain.CertificateReceipt{}, err
 	}
-	intent, err := s.store.BeginEnrollment(ctx, domain.EnrollmentAttempt{TokenHash: domain.Hash(decoded), CSRHash: csr.CSRHash, PublicKeyHash: csr.PublicKeyHash, Issuance: id, Serial: serial, Now: s.now()})
+	intent, err := s.store.BeginEnrollment(ctx, domain.EnrollmentAttempt{RequireOwned: requireOwned, TokenHash: domain.Hash(decoded), CSRHash: csr.CSRHash, PublicKeyHash: csr.PublicKeyHash, Issuance: id, Serial: serial, Now: s.now()})
 	if err != nil {
 		return domain.CertificateReceipt{}, err
 	}
@@ -66,7 +85,7 @@ func (s *Service) Renew(ctx context.Context, credential domain.CredentialRef, re
 	if credential.Validate() != nil || domain.Token(string(request)) != nil {
 		return domain.CertificateReceipt{}, domain.ErrInvalid
 	}
-	csr, err := identity.ParseCSR(csrDER)
+	csr, err := devicecert.ParseCSR(csrDER)
 	if err != nil {
 		return domain.CertificateReceipt{}, err
 	}
@@ -81,7 +100,7 @@ func (s *Service) Renew(ctx context.Context, credential domain.CredentialRef, re
 	return s.complete(ctx, intent, csrDER)
 }
 
-func (s *Service) candidate(ctx context.Context) (domain.IssuanceID, []byte, error) {
+func (s *issuer) candidate(ctx context.Context) (domain.IssuanceID, []byte, error) {
 	if err := ctx.Err(); err != nil {
 		return "", nil, err
 	}
@@ -94,7 +113,7 @@ func (s *Service) candidate(ctx context.Context) (domain.IssuanceID, []byte, err
 	return domain.IssuanceID(hex.EncodeToString(entropy[:16])), serial, nil
 }
 
-func (s *Service) complete(ctx context.Context, intent domain.IssuanceIntent, csrDER []byte) (domain.CertificateReceipt, error) {
+func (s *issuer) complete(ctx context.Context, intent domain.IssuanceIntent, csrDER []byte) (domain.CertificateReceipt, error) {
 	certificate, err := s.signer.Sign(ctx, intent, csrDER, new(big.Int).SetBytes(intent.Serial), s.random)
 	if err != nil {
 		return domain.CertificateReceipt{}, err

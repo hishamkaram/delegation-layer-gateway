@@ -10,8 +10,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 )
 
 type RenewalIntent struct {
@@ -21,6 +21,8 @@ type RenewalIntent struct {
 }
 
 type record struct {
+	OwnerPrincipal     string             `json:"owner_principal,omitempty"`
+	Enrollment         *enrollmentRecord  `json:"enrollment,omitempty"`
 	Replacement        *replacementRecord `json:"replacement,omitempty"`
 	Version            int                `json:"version"`
 	KeyDER             []byte             `json:"key_der"`
@@ -62,8 +64,15 @@ func (r record) key() (*ecdsa.PrivateKey, error) {
 	return key, nil
 }
 
+func (r record) validVersion() bool {
+	if r.Version == 1 {
+		return r.Enrollment == nil && r.OwnerPrincipal == ""
+	}
+	return r.Version == 2 && r.Enrollment != nil
+}
+
 func (r record) valid() error {
-	if r.Version != 1 || len(r.KeyDER) > 1024 || len(r.CertificateDER) > 64<<10 {
+	if !r.validVersion() || len(r.KeyDER) > 1024 || len(r.CertificateDER) > 64<<10 {
 		return ErrInvalid
 	}
 	key, keyErr := r.key()
@@ -71,6 +80,9 @@ func (r record) valid() error {
 		return keyErr
 	}
 	if csrMatches(r.CSRDER, key) != nil {
+		return ErrInvalid
+	}
+	if r.validEnrollment(key) != nil {
 		return ErrInvalid
 	}
 	if r.CompletedRenewalID != "" && !renewalID(r.CompletedRenewalID) {
@@ -90,7 +102,7 @@ func (r record) validCertificate(key *ecdsa.PrivateKey) error {
 	if parseErr != nil || !keyMatches(leaf, key) {
 		return ErrInvalid
 	}
-	ref, refErr := identity.CredentialFromCertificate(leaf)
+	ref, refErr := devicecert.CredentialFromCertificate(leaf)
 	if refErr != nil {
 		return ErrInvalid
 	}
@@ -106,7 +118,7 @@ func (r record) validCertificate(key *ecdsa.PrivateKey) error {
 }
 
 func csrMatches(csr []byte, key *ecdsa.PrivateKey) error {
-	info, parseErr := identity.ParseCSR(csr)
+	info, parseErr := devicecert.ParseCSR(csr)
 	if parseErr != nil {
 		return ErrInvalid
 	}
@@ -169,7 +181,7 @@ func verifyCertificate(der []byte, key *ecdsa.PrivateKey, expected domain.Creden
 	if parseErr != nil || !keyMatches(leaf, key) {
 		return nil, ErrInvalid
 	}
-	ref, refErr := identity.CredentialFromCertificate(leaf)
+	ref, refErr := devicecert.CredentialFromCertificate(leaf)
 	if refErr != nil || ref != expected || leaf.NotAfter.Sub(leaf.NotBefore) != domain.CertificateLifetime || leaf.SerialNumber.Sign() <= 0 || len(leaf.SerialNumber.Bytes()) > 20 {
 		return nil, ErrInvalid
 	}
@@ -197,7 +209,7 @@ func (s *Store) Certificate(roots *x509.CertPool, now time.Time) (tls.Certificat
 	if parseErr != nil {
 		return tls.Certificate{}, domain.CredentialRef{}, ErrInvalid
 	}
-	ref, refErr := identity.CredentialFromCertificate(parsed)
+	ref, refErr := devicecert.CredentialFromCertificate(parsed)
 	if refErr != nil {
 		return tls.Certificate{}, domain.CredentialRef{}, ErrInvalid
 	}
@@ -249,7 +261,7 @@ func (s *Store) BeginRenewal(expected domain.CredentialRef, random io.Reader) (R
 	if parseErr != nil {
 		return RenewalIntent{}, ErrInvalid
 	}
-	ref, refErr := identity.CredentialFromCertificate(leaf)
+	ref, refErr := devicecert.CredentialFromCertificate(leaf)
 	if refErr != nil || ref != expected {
 		return RenewalIntent{}, ErrConflict
 	}

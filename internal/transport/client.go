@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -35,7 +35,7 @@ func Dial(ctx context.Context, config ClientConfig, client *http.Client, now fun
 	if err != nil {
 		return nil, fail(ErrProtocol, err)
 	}
-	ref, err := identity.CredentialFromCertificate(certificate)
+	ref, err := devicecert.CredentialFromCertificate(certificate)
 	if err != nil {
 		return nil, fail(ErrForbidden, err)
 	}
@@ -43,6 +43,12 @@ func Dial(ctx context.Context, config ClientConfig, client *http.Client, now fun
 }
 
 func checkedClientConfig(config ClientConfig) (ClientConfig, error) {
+	if config.WireVersion == 0 {
+		config.WireVersion = protocol.Version
+	}
+	if _, err := protocol.WireSubprotocol(config.WireVersion); err != nil {
+		return ClientConfig{}, fail(ErrProtocol, err)
+	}
 	u, err := url.Parse(config.URL)
 	if err != nil || u.Scheme != "wss" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || config.Certificate == nil {
 		return ClientConfig{}, fail(ErrProtocol, err)
@@ -54,11 +60,18 @@ func checkedClientConfig(config ClientConfig) (ClientConfig, error) {
 	if config.Mode == "" {
 		config.Mode = domain.Regular
 	}
-	if config.Mode.Validate() != nil || config.Capabilities.Validate() != nil {
+	if config.Mode.Validate() != nil || !validClientCapabilities(config) {
 		return ClientConfig{}, fail(ErrProtocol, nil)
 	}
 	config.Settings = checked
 	return config, nil
+}
+
+func validClientCapabilities(config ClientConfig) bool {
+	if config.WireVersion == protocol.WireVersion2 {
+		return config.Capabilities.ObservedAt.IsZero() && len(config.Capabilities.Projects) == 0 && config.CapabilitiesV2 != nil && config.CapabilitiesV2.Validate() == nil
+	}
+	return config.CapabilitiesV2 == nil && config.Capabilities.Validate() == nil
 }
 
 func dial(ctx context.Context, config ClientConfig, client *http.Client, now func() time.Time, certificate *x509.Certificate, ref domain.CredentialRef) (*Client, error) {
@@ -68,6 +81,7 @@ func dial(ctx context.Context, config ClientConfig, client *http.Client, now fun
 	owned.Timeout = checked.HandshakeTimeout
 	owned.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 	s := newSession(ctx, checked, now, &budget{}, make(chan *Received, QueueFrames))
+	s.wireVersion = config.WireVersion
 	s.strictRouting = config.Routing != nil
 	s.ref = ref
 	s.certificate = certificate
@@ -78,7 +92,12 @@ func dial(ctx context.Context, config ClientConfig, client *http.Client, now fun
 	}
 	handshake, cancel := context.WithTimeout(ctx, checked.HandshakeTimeout)
 	defer cancel()
-	conn, response, err := websocket.Dial(handshake, config.URL, &websocket.DialOptions{HTTPClient: &owned, Subprotocols: []string{protocol.Subprotocol}, CompressionMode: websocket.CompressionDisabled})
+	subprotocol, protocolErr := protocol.WireSubprotocol(config.WireVersion)
+	if protocolErr != nil {
+		s.cancel()
+		return nil, fail(ErrProtocol, protocolErr)
+	}
+	conn, response, err := websocket.Dial(handshake, config.URL, &websocket.DialOptions{HTTPClient: &owned, Subprotocols: []string{subprotocol}, CompressionMode: websocket.CompressionDisabled})
 	// websocket v1.8.15 transfers the live HTTP body to Conn. Only its
 	// bounded failure diagnostic body remains on the returned response.
 	if response != nil && response.Body != nil {
@@ -96,21 +115,21 @@ func dial(ctx context.Context, config ClientConfig, client *http.Client, now fun
 	}
 	s.conn = conn
 	conn.SetReadLimit(protocol.MaxFrameBytes)
-	if conn.Subprotocol() != protocol.Subprotocol {
+	if conn.Subprotocol() != subprotocol {
 		s.stop(fail(ErrProtocol, nil))
-		return nil, fail(ErrProtocol, nil)
+		return nil, errors.Join(fail(ErrProtocol, nil), s.closeFailure())
 	}
 	c := &Client{session: s, gateway: config.GatewayID, routing: config.Routing}
-	if checkErr := c.handshake(handshake, config.Capabilities); checkErr != nil {
+	if checkErr := c.handshake(handshake, config); checkErr != nil {
 		s.stop(checkErr)
-		return nil, checkErr
+		return nil, errors.Join(checkErr, s.closeFailure())
 	}
 	close(s.ready)
 	go s.run(ctx)
 	return c, nil
 }
 
-func (c *Client) handshake(ctx context.Context, report protocol.CapabilityReport) error {
+func (c *Client) handshake(ctx context.Context, config ClientConfig) error {
 	s := c.session
 	kind, data, err := s.conn.Read(ctx)
 	if err != nil {
@@ -119,7 +138,7 @@ func (c *Client) handshake(ctx context.Context, report protocol.CapabilityReport
 	if kind != websocket.MessageText {
 		return fail(ErrProtocol, nil)
 	}
-	frame, err := protocol.DecodeFrame(data)
+	frame, err := protocol.DecodeFrameVersion(data, s.wireVersion)
 	if err != nil || frame.Type != protocol.Hello || frame.OperationID != "" {
 		return fail(ErrProtocol, err)
 	}
@@ -131,7 +150,10 @@ func (c *Client) handshake(ctx context.Context, report protocol.CapabilityReport
 	if checkErr := s.writeHandshake(ctx, frame); checkErr != nil {
 		return checkErr
 	}
-	report, err = c.handshakeCapabilities(ctx, report)
+	if s.wireVersion == protocol.WireVersion2 {
+		return c.handshakeCapabilitiesV2(ctx, config.CapabilitiesV2)
+	}
+	report, err := c.handshakeCapabilities(ctx, config.Capabilities)
 	if err != nil {
 		return err
 	}
@@ -143,13 +165,17 @@ func (c *Client) handshake(ctx context.Context, report protocol.CapabilityReport
 }
 
 func (c *Client) capabilityFrame(report protocol.CapabilityReport) (protocol.Frame, error) {
-	if report.Validate() != nil {
+	if c.session.wireVersion != protocol.Version || report.Validate() != nil {
 		return protocol.Frame{}, fail(ErrProtocol, nil)
 	}
 	payload, err := protocol.Encode(report, protocol.MaxFrameBytes)
 	if err != nil {
 		return protocol.Frame{}, fail(ErrProtocol, err)
 	}
+	return c.capabilityPayloadFrame(payload)
+}
+
+func (c *Client) capabilityPayloadFrame(payload []byte) (protocol.Frame, error) {
 	s := c.session
 	s.mu.Lock()
 	id, idErr := s.nextIDLocked()
@@ -158,7 +184,7 @@ func (c *Client) capabilityFrame(report protocol.CapabilityReport) (protocol.Fra
 		s.stop(idErr)
 		return protocol.Frame{}, idErr
 	}
-	return protocol.Frame{Version: protocol.Version, Type: protocol.Capabilities, RequestID: id, Generation: wireGeneration(s.generation), TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}, nil
+	return protocol.Frame{Version: s.wireVersion, Type: protocol.Capabilities, RequestID: id, Generation: wireGeneration(s.generation), TTLMillis: protocol.MaxTTL.Milliseconds(), Payload: payload}, nil
 }
 
 func (c *Client) ReportCapabilities(ctx context.Context, report protocol.CapabilityReport) error {
@@ -184,6 +210,7 @@ func (c *Client) Reserve(ctx context.Context, frame protocol.Frame) (*Reservatio
 	return c.session.reserve(ctx, frame)
 }
 func (c *Client) Generation() domain.ConnectionGeneration { return c.session.generation }
+func (c *Client) WireVersion() int                        { return c.session.wireVersion }
 func (c *Client) Close() error {
 	c.session.stop(fail(ErrOffline, nil))
 	<-c.session.done

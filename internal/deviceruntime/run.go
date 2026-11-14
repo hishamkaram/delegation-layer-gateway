@@ -7,18 +7,41 @@ import (
 	"encoding/hex"
 	"errors"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connector"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connectorconfig"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/transport"
 )
 
-// Run retains its Adapter/Service ownership across socket generations. Caller
+// Configuration is the runtime consumer's immutable connection/local-boundary
+// snapshot. Legacy file configuration and Native's durable profile implement
+// the same contract; neither owns a second execution or reconnect loop.
+type Configuration interface {
+	Adapter() connector.Config
+	DeviceID() domain.DeviceID
+	WSSURL() *url.URL
+	Roots() (*x509.CertPool, error)
+	DeviceRoots() (*x509.CertPool, error)
+	NetworkTimeout() time.Duration
+}
+
+// Run preserves the legacy static-configuration entry point and nil rejection.
+func Run(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity.Store) error {
+	if cfg == nil {
+		return ErrConfiguration
+	}
+	return RunConfigured(ctx, cfg, store)
+}
+
+// RunConfigured retains its Adapter/Service ownership across socket generations. Caller
 // owns the identity lease and must retain it until Run has joined all CLI owners.
 // Context cancellation stops network observation; accepted CLI ownership drains.
-func Run(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity.Store) (result error) {
+func RunConfigured(ctx context.Context, cfg Configuration, store *deviceidentity.Store) (result error) {
 	if ctx == nil || cfg == nil || store == nil {
 		return ErrConfiguration
 	}
@@ -41,8 +64,11 @@ func Run(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity
 	// Startup inspection is one local finite CLI owner, outside Gateway-routed
 	// fleet permits. No native Probe runs on a heartbeat or reconnect timer.
 	probe, cancelProbe := context.WithTimeout(owner, cfg.Adapter().ControlTimeout)
-	report := adapter.Probe(probe)
+	probeErr := probeAdapter(probe, adapter)
 	cancelProbe()
+	if probeErr != nil {
+		return errors.Join(failed(ErrConfiguration, probeErr), drainAdapter(adapter))
+	}
 	boot := make([]byte, 16)
 	if _, err = rand.Read(boot); err != nil {
 		return errors.Join(failed(ErrConfiguration, err), drainAdapter(adapter))
@@ -52,13 +78,10 @@ func Run(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity
 		return errors.Join(failed(ErrConfiguration, err), drainAdapter(adapter))
 	}
 	defer func() { cancelOwner(); result = errors.Join(result, drainService(owner, service, adapter)) }()
-	if report.Validate() != nil {
-		return ErrConfiguration
-	}
 	return runConnections(ctx, cfg, store, deviceRoots, adapter, service)
 }
 
-func runConnections(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity.Store, deviceRoots *x509.CertPool, adapter *connector.Adapter, service *connector.Service) error {
+func runConnections(ctx context.Context, cfg Configuration, store *deviceidentity.Store, deviceRoots *x509.CertPool, adapter *connector.Adapter, service *connector.Service) error {
 	transportRoots, err := cfg.Roots()
 	if err != nil {
 		return failed(ErrConfiguration, err)
@@ -66,27 +89,16 @@ func runConnections(ctx context.Context, cfg *connectorconfig.Config, store *dev
 	delay := time.Second
 	var lastFailure error
 	for ctx.Err() == nil {
-		certificate, ref, certErr := store.Certificate(deviceRoots, time.Now())
-		if certErr != nil || ref.Device != cfg.DeviceID() {
-			return failed(ErrConfiguration, certErr)
+		lastFailure = runConnection(ctx, cfg, store, deviceRoots, transportRoots, adapter, service)
+		if errors.Is(lastFailure, ErrConfiguration) {
+			return lastFailure
 		}
-		clientHTTP, owned := directClient(transportRoots, &certificate, cfg.NetworkTimeout())
-		client, dialErr := transport.Dial(ctx, transport.ClientConfig{URL: cfg.WSSURL().String(), GatewayID: cfg.Adapter().GatewayID, Certificate: certificate.Leaf, Capabilities: adapter.Capabilities(), Routing: service}, clientHTTP, time.Now)
-		if dialErr != nil {
-			lastFailure = failed(ErrConnection, dialErr)
-		} else {
-			connectionErr := connectionLifetime(ctx, cfg, store, service, client, deviceRoots)
-			lastFailure = nil
-			if connectionErr != nil && ctx.Err() == nil {
-				lastFailure = failed(ErrConnection, connectionErr)
-			}
-		}
-		owned.CloseIdleConnections()
+
 		if ctx.Err() != nil {
 			break
 		}
 		if err := waitReconnect(ctx, delay); err != nil {
-			return failed(ErrConnection, err)
+			return errors.Join(lastFailure, failed(ErrConnection, err))
 		}
 		if delay < 30*time.Second {
 			delay *= 2
@@ -149,7 +161,7 @@ func drainService(owner context.Context, service *connector.Service, adapter *co
 			}
 			return nil
 		}
-		if !errors.Is(err, connector.ErrPending) {
+		if !onlyPending(err) {
 			failureSeen = true // An unexpected error still provides no worker-join proof.
 		}
 		if retryErr := adapter.RetryCleanup(); retryErr != nil {
@@ -160,7 +172,7 @@ func drainService(owner context.Context, service *connector.Service, adapter *co
 	}
 }
 
-func connectionLifetime(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity.Store, service *connector.Service, client *transport.Client, roots *x509.CertPool) error {
+func connectionLifetime(ctx context.Context, cfg Configuration, store *deviceidentity.Store, service *connector.Service, client *transport.Client, roots *x509.CertPool) error {
 	observation, cancel := context.WithCancel(ctx)
 	defer cancel()
 	attached := make(chan error, 1)
@@ -194,26 +206,29 @@ func connectionLifetime(ctx context.Context, cfg *connectorconfig.Config, store 
 	}
 	cancel()
 	closeErr := client.Close()
+	if ctx.Err() != nil && onlyPending(result) {
+		result = ctx.Err()
+	}
 	return errors.Join(result, closeErr, joinConnectionWorkers(attached, renewed, attachJoined, renewJoined))
 }
 
 func joinConnectionWorkers(attached, renewed <-chan error, attachJoined, renewJoined bool) (result error) {
 	if !attachJoined {
 		joinErr := <-attached
-		if joinErr != nil && !errors.Is(joinErr, connector.ErrPending) && !errors.Is(joinErr, context.Canceled) {
+		if joinErr != nil && !onlyPending(joinErr) && !IsExpectedCancellation(joinErr) {
 			result = errors.Join(result, joinErr)
 		}
 	}
 	if !renewJoined {
 		joinErr := <-renewed
-		if joinErr != nil && !errors.Is(joinErr, context.Canceled) {
+		if joinErr != nil && !IsExpectedCancellation(joinErr) {
 			result = errors.Join(result, joinErr)
 		}
 	}
 	return result
 }
 
-func scheduledRenewal(ctx context.Context, cfg *connectorconfig.Config, store *deviceidentity.Store, client *transport.Client, roots *x509.CertPool) error {
+func scheduledRenewal(ctx context.Context, cfg Configuration, store *deviceidentity.Store, client *transport.Client, roots *x509.CertPool) error {
 	certificate, _, err := store.Certificate(roots, time.Now())
 	if err != nil {
 		return failed(ErrRenewal, err)
@@ -230,4 +245,48 @@ func scheduledRenewal(ctx context.Context, cfg *connectorconfig.Config, store *d
 	case <-timer.C:
 		return renew(ctx, cfg, store, client, roots, time.Now)
 	}
+}
+
+func probeAdapter(ctx context.Context, adapter *connector.Adapter) error {
+	if adapter.WorkspaceMode() {
+		return adapter.ProbeWorkspaces(ctx)
+	}
+	if adapter.Probe(ctx).Validate() != nil {
+		return ErrConfiguration
+	}
+	return nil
+}
+
+func connectionConfig(ctx context.Context, cfg Configuration, certificate *x509.Certificate, adapter *connector.Adapter, service *connector.Service) (transport.ClientConfig, error) {
+	result := transport.ClientConfig{URL: cfg.WSSURL().String(), GatewayID: cfg.Adapter().GatewayID, Certificate: certificate, Routing: service}
+	if adapter.WorkspaceMode() {
+		report, err := adapter.CapabilitiesV2(ctx)
+		if err != nil {
+			return transport.ClientConfig{}, err
+		}
+		result.WireVersion = protocol.WireVersion2
+		result.CapabilitiesV2 = &report
+	} else {
+		result.Capabilities = adapter.Capabilities()
+	}
+	return result, nil
+}
+
+func runConnection(ctx context.Context, cfg Configuration, store *deviceidentity.Store, deviceRoots, transportRoots *x509.CertPool, adapter *connector.Adapter, service *connector.Service) error {
+	certificate, ref, err := store.Certificate(deviceRoots, time.Now())
+	if err != nil || ref.Device != cfg.DeviceID() {
+		return failed(ErrConfiguration, err)
+	}
+	clientHTTP, owned := directClient(transportRoots, &certificate, cfg.NetworkTimeout())
+	defer owned.CloseIdleConnections()
+	config, err := connectionConfig(ctx, cfg, certificate.Leaf, adapter, service)
+	if err != nil {
+		return failed(ErrConfiguration, err)
+	}
+	client, err := transport.Dial(ctx, config, clientHTTP, time.Now)
+	if err != nil {
+		return failed(ErrConnection, err)
+	}
+	err = connectionLifetime(ctx, cfg, store, service, client, deviceRoots)
+	return connectionFailure(err, ctx.Err() != nil)
 }

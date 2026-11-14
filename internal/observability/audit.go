@@ -16,6 +16,7 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/instance"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
 )
 
@@ -30,33 +31,36 @@ var ErrUnavailable = errors.New("metadata_audit_unavailable")
 type Code string
 
 const (
-	AuthenticationDenied       Code = "authentication_denied"
-	DeviceCredentialDenied     Code = "device_credential_denied"
-	EnrollmentIssued           Code = "enrollment_issued"
-	DeviceConnected            Code = "device_connected"
-	DeviceDisconnected         Code = "device_disconnected"
-	DeviceConnectionFailed     Code = "device_connection_failed"
-	CredentialRevoked          Code = "credential_revoked"
-	OperationPrepared          Code = "operation_prepared"
-	ControlSent                Code = "control_sent"
-	ControlCompleted           Code = "control_completed"
-	ControlUnknown             Code = "control_unknown"
-	AuthorizationDenied        Code = "authorization_denied"
-	ResourceDenied             Code = "resource_denied"
-	RecoveryBlocked            Code = "recovery_blocked"
-	ShutdownStarted            Code = "shutdown_started"
-	MCPRequestStarted          Code = "mcp_request_started"
-	MCPRequestCompleted        Code = "mcp_request_completed"
-	MCPToolResponseReady       Code = "mcp_tool_response_ready"
-	MCPToolErrorReady          Code = "mcp_tool_error_ready"
-	EnrollmentRequestStarted   Code = "enrollment_request_started"
-	EnrollmentRequestCompleted Code = "enrollment_request_completed"
-	MetadataRequestStarted     Code = "metadata_request_started"
-	MetadataRequestCompleted   Code = "metadata_request_completed"
-	DeviceRequestStarted       Code = "device_request_started"
-	DeviceRequestCompleted     Code = "device_request_completed"
-	RenewalIssued              Code = "renewal_issued"
-	RenewalUnavailable         Code = "renewal_unavailable"
+	AuthenticationDenied         Code = "authentication_denied"
+	DeviceCredentialDenied       Code = "device_credential_denied"
+	EnrollmentIssued             Code = "enrollment_issued"
+	DeviceConnected              Code = "device_connected"
+	DeviceDisconnected           Code = "device_disconnected"
+	DeviceConnectionFailed       Code = "device_connection_failed"
+	CredentialRevoked            Code = "credential_revoked"
+	RevocationCleanupUnavailable Code = "revocation_cleanup_unavailable"
+	OwnerPolicyChanged           Code = "owner_policy_changed"
+	EnrollmentGrantCreated       Code = "enrollment_grant_created"
+	OperationPrepared            Code = "operation_prepared"
+	ControlSent                  Code = "control_sent"
+	ControlCompleted             Code = "control_completed"
+	ControlUnknown               Code = "control_unknown"
+	AuthorizationDenied          Code = "authorization_denied"
+	ResourceDenied               Code = "resource_denied"
+	RecoveryBlocked              Code = "recovery_blocked"
+	ShutdownStarted              Code = "shutdown_started"
+	MCPRequestStarted            Code = "mcp_request_started"
+	MCPRequestCompleted          Code = "mcp_request_completed"
+	MCPToolResponseReady         Code = "mcp_tool_response_ready"
+	MCPToolErrorReady            Code = "mcp_tool_error_ready"
+	EnrollmentRequestStarted     Code = "enrollment_request_started"
+	EnrollmentRequestCompleted   Code = "enrollment_request_completed"
+	MetadataRequestStarted       Code = "metadata_request_started"
+	MetadataRequestCompleted     Code = "metadata_request_completed"
+	DeviceRequestStarted         Code = "device_request_started"
+	DeviceRequestCompleted       Code = "device_request_completed"
+	RenewalIssued                Code = "renewal_issued"
+	RenewalUnavailable           Code = "renewal_unavailable"
 )
 
 func (c Code) valid() bool {
@@ -79,6 +83,7 @@ type CredentialIdentity struct {
 // Event contains only bounded identity metadata. Code is a closed enum; no
 // free-text message or map can carry a prompt, payload or native diagnostic.
 type Event struct {
+	RootOnly             bool                        `json:"root_only,omitempty"`
 	Code                 Code                        `json:"code"`
 	Credential           CredentialIdentity          `json:"credential,omitzero"`
 	Principal            domain.PrincipalID          `json:"principal,omitempty"`
@@ -95,18 +100,16 @@ type record struct {
 }
 
 func (e Event) validate() bool {
-	if !e.Code.valid() {
-		return false
-	}
-	for _, value := range []string{string(e.Principal), string(e.Device), string(e.Operation), string(e.Project)} {
-		if value != "" && domain.Token(value) != nil {
-			return false
-		}
-	}
-	if e.ConnectionDurationNS < 0 || e.Connection != (domain.ConnectionGeneration{}) && e.Connection.Validate() != nil {
+	if !e.Code.valid() || !e.validIdentity() {
 		return false
 	}
 	switch {
+	case e.Code == OwnerPolicyChanged:
+		return e.Principal != "" && e == (Event{Code: OwnerPolicyChanged, Principal: e.Principal})
+	case e.Code == EnrollmentGrantCreated:
+		return e.Principal != "" && e.Device != "" && e == (Event{Code: EnrollmentGrantCreated, Principal: e.Principal, Device: e.Device})
+	case e.Code == RevocationCleanupUnavailable:
+		return e.validRevocationCleanupMetadata()
 	case e.Code.connectionEvent():
 		return e.validConnectionMetadata()
 	case e.Code.controlEvent():
@@ -114,6 +117,22 @@ func (e Event) validate() bool {
 	default:
 		return e.Credential == (CredentialIdentity{}) && e.Control == (routing.ControlMetadata{}) && e.Project == "" && e.Connection == (domain.ConnectionGeneration{}) && e.ConnectionDurationNS == 0
 	}
+}
+
+func (e Event) validIdentity() bool {
+	if e.RootOnly && !e.Code.controlEvent() {
+		return false
+	}
+	for _, value := range []string{string(e.Principal), string(e.Device), string(e.Operation), string(e.Project)} {
+		if value != "" && domain.Token(value) != nil {
+			return false
+		}
+	}
+	return e.ConnectionDurationNS >= 0 && (e.Connection == (domain.ConnectionGeneration{}) || e.Connection.Validate() == nil)
+}
+
+func (e Event) validRevocationCleanupMetadata() bool {
+	return e.Device != "" && e.Principal != "" && e.Operation == "" && e.Credential == (CredentialIdentity{}) && e.Control == (routing.ControlMetadata{}) && e.Project == "" && e.Connection == (domain.ConnectionGeneration{}) && e.ConnectionDurationNS == 0
 }
 
 func (code Code) connectionEvent() bool {
@@ -164,7 +183,7 @@ func (e Event) validControlMetadata() bool {
 }
 
 func (e Event) validUnavailableControl() bool {
-	return (e.Code == AuthorizationDenied || e.Code == ResourceDenied) && e.Device == "" && e.Project == "" && e.Operation == ""
+	return !e.RootOnly && (e.Code == AuthorizationDenied || e.Code == ResourceDenied) && e.Device == "" && e.Project == "" && e.Operation == ""
 }
 
 func (e Event) validPreparedIdentity() bool {
@@ -174,6 +193,9 @@ func (e Event) validPreparedIdentity() bool {
 func (e Event) validControlIdentity() bool {
 	if e.Control.Validate() != nil || (e.Control.Actor == routing.PrincipalActor) != (e.Principal != "") {
 		return false
+	}
+	if e.RootOnly {
+		return e.Device != "" && e.Project == "" && protocol.Operation(e.Control.Class).RootRouted()
 	}
 	return (e.Device == "") == (e.Project == "") && (e.Operation == "" || e.Device != "")
 }

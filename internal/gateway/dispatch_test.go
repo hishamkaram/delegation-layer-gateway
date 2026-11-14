@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/routing"
@@ -224,7 +224,7 @@ func issueDispatchCredential(t *testing.T, store *registry.Store, now time.Time)
 	deviceKey := dispatchMust(t, key, err)
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, deviceKey)
 	csrDER := dispatchMust(t, csr, err)
-	info, err := identity.ParseCSR(csrDER)
+	info, err := devicecert.ParseCSR(csrDER)
 	csrInfo := dispatchMust(t, info, err)
 	token := domain.Hash([]byte("fixture enrollment token"))
 	dispatchOK(t, store.CreateEnrollment(t.Context(), domain.EnrollmentGrant{TokenHash: token, Device: "device", Mode: domain.Regular, Generation: 1, CreatedAt: now, ExpiresAt: now.Add(domain.EnrollmentTTL)}))
@@ -240,7 +240,7 @@ func issueDispatchCredential(t *testing.T, store *registry.Store, now time.Time)
 	return completed.Intent.Credential
 }
 
-func dispatchCA(t *testing.T, now time.Time) *identity.CertificateAuthority {
+func dispatchCA(t *testing.T, now time.Time) *devicecert.CertificateAuthority {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	signer := dispatchMust(t, key, err)
@@ -249,7 +249,7 @@ func dispatchCA(t *testing.T, now time.Time) *identity.CertificateAuthority {
 	der := dispatchMust(t, certificate, err)
 	parsed, err := x509.ParseCertificate(der)
 	public := dispatchMust(t, parsed, err)
-	ca, err := identity.NewCertificateAuthority(public, signer)
+	ca, err := devicecert.NewCertificateAuthority(public, signer)
 	return dispatchMust(t, ca, err)
 }
 
@@ -434,7 +434,7 @@ func TestRevocationBetweenCommitAndPublishDeniesWriteAndRetainsUncertainty(t *te
 	if f.link.writes != 0 || f.link.awaits != 0 || f.link.releases != 1 {
 		t.Fatal("revoked queued frame was written or its resource leaked")
 	}
-	f.grant(t) // Explicit admin reapproval permits inspecting the retained identity.
+	f.grant(t) // Explicit admin reapproval permits inspecting the retained devicecert.
 	view := f.view(t, prepared.Correlation.Operation)
 	if !view.Reserved || view.Delivery != domain.PossibleSend {
 		t.Fatal("revocation incorrectly proved absence or freed uncertain execution capacity")

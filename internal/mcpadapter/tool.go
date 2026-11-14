@@ -63,6 +63,11 @@ func register[In, Out any](a *Adapter, name, description string, scopes []domain
 		}
 		ctx, cancel := context.WithTimeout(ctx, a.options.Timeout)
 		defer cancel()
+		// The token is valid only through its verified expiry. Cancellation ends
+		// observation; it never proves that a possibly sent task was not admitted.
+		expires := request.Extra.TokenInfo.Expiration
+		ctx, cancelExpiry := context.WithDeadline(ctx, expires)
+		defer cancelExpiry()
 		var args In
 		raw := request.Params.Arguments
 		if len(raw) == 0 {
@@ -73,20 +78,44 @@ func register[In, Out any](a *Adapter, name, description string, scopes []domain
 			return recordedToolResult(a, actor, outValidator, Envelope[Out]{Error: &ToolError{Code: "invalid_request"}}, ""), nil
 		}
 		value, callErr := handler(ctx, actor, args)
+		if failure, challenge = a.postHandlerFailure(ctx, expires, scopes); failure != nil {
+			a.recordToolRejection(actor, name, failure.Code, time.Since(started))
+			return recordedToolResult(a, actor, outValidator, Envelope[Out]{Error: retainInputFailure(args, failure)}, challenge), nil
+		}
 		if callErr != nil {
 			a.recordInventoryFailure(actor, name, callErr)
-			return recordedToolResult(a, actor, outValidator, Envelope[Out]{Error: classify(callErr)}, ""), nil
+			return recordedToolResult(a, actor, outValidator, Envelope[Out]{Error: inputFailure(args, callErr)}, ""), nil
 		}
-		return recordedToolResult(a, actor, outValidator, Envelope[Out]{Data: &value}, ""), nil
+		result := recordedToolResult(a, actor, outValidator, Envelope[Out]{Data: &value}, "")
+		// Encoding, schema validation and synchronous metadata sinks can take
+		// time. Gate the complete text+structured result immediately before
+		// handing it to the SDK; network delivery is outside this local gate.
+		if failure, challenge = a.postHandlerFailure(ctx, expires, scopes); failure != nil {
+			a.recordToolRejection(actor, name, failure.Code, time.Since(started))
+			return recordedToolResult(a, actor, outValidator, Envelope[Out]{Error: retainInputFailure(args, failure)}, challenge), nil
+		}
+		return result, nil
 	})
 	return nil
+}
+
+func (a *Adapter) postHandlerFailure(ctx context.Context, expires time.Time, scopes []domain.Scope) (*ToolError, string) {
+	if !a.options.Now().Before(expires) {
+		// A completed handler may already have sent work. Reauthenticate and
+		// resolve/retry its retained identity; this never authorizes replacement.
+		return &ToolError{Code: "unauthenticated", Retryable: true}, a.challenge("invalid_token", "Access token expired; reauthenticate and resolve or retry the same retained identity", scopes)
+	}
+	if err := ctx.Err(); err != nil {
+		return classify(err), ""
+	}
+	return nil, ""
 }
 
 // These inventory handlers return Registry/readiness decisions directly. Task
 // controls have Gateway-owned observations and must not be recorded twice here.
 func (a *Adapter) recordInventoryFailure(actor domain.Actor, name string, err error) {
 	switch name {
-	case "list_devices", "list_projects", "get_capabilities", "list_operations":
+	case "list_devices", "list_projects", "get_capabilities", "list_operations", "list_workspaces":
 		if a.options.Recorder != nil && gateway.AuthorizationObservation(err) == routing.DeniedOrMissing {
 			a.options.Recorder.Record(observability.Event{Code: observability.AuthorizationDenied, Principal: actor.Principal})
 		}
@@ -123,6 +152,8 @@ func (a *Adapter) recordToolRejection(actor domain.Actor, name, code string, ela
 
 func observedToolClass(name string) routing.ControlClass {
 	switch name {
+	case "resolve_project":
+		return routing.ControlClass(protocol.ResolveProject)
 	case "prepare_dispatch":
 		return routing.PrepareClass
 	case "dispatch_task":
@@ -184,16 +215,16 @@ func toolResult[Out any](schema *jsonschema.Resolved, envelope Envelope[Out], ch
 }
 
 func classify(err error) *ToolError {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	cause := gateway.SoleError(err)
+	if errors.Is(cause, context.DeadlineExceeded) || errors.Is(cause, context.Canceled) {
 		return &ToolError{Code: "timeout", Retryable: true}
 	}
-	if errors.Is(err, domain.ErrInvalid) || errors.Is(err, protocol.ErrInvalid) {
+	if errors.Is(cause, domain.ErrInvalid) || errors.Is(cause, protocol.ErrInvalid) {
 		return &ToolError{Code: "invalid_request"}
 	}
-	if errors.Is(err, protocol.ErrTooLarge) {
+	if errors.Is(cause, protocol.ErrTooLarge) {
 		return &ToolError{Code: "resource_limit", Retryable: false}
 	}
-	cause := gateway.SoleError(err)
 	var failure *domain.Error
 	if errors.As(cause, &failure) && failure != nil {
 		return &ToolError{Code: string(failure.Code), Retryable: failure.Code == domain.Pending || failure.Code == domain.ResourceLimit}
@@ -205,8 +236,23 @@ func classify(err error) *ToolError {
 	return &ToolError{Code: "internal_error", Retryable: false}
 }
 
+// Only a checked consumer-owned input can retain its caller's request identity.
+// Error graphs continue to describe causes, never correlation authority.
+type retainedRequestInput interface{ retainedRequestID() string }
+
+func inputFailure[In any](input In, err error) *ToolError {
+	return retainInputFailure(input, classify(err))
+}
+
+func retainInputFailure[In any](input In, failure *ToolError) *ToolError {
+	if retained, ok := any(input).(retainedRequestInput); ok {
+		failure.RequestID = retained.retainedRequestID()
+	}
+	return failure
+}
+
 func constrainInput(schema *jsonschema.Schema) {
-	for _, name := range []string{"device_id", "project_alias", "provider", "operation_id"} {
+	for _, name := range []string{"device_id", "project_alias", "provider", "operation_id", "workspace_id"} {
 		if property := schema.Properties[name]; property != nil {
 			property.MinLength = pointer(1)
 			property.MaxLength = pointer(128)
@@ -229,6 +275,15 @@ func constrainInput(schema *jsonschema.Schema) {
 	}
 	if property := schema.Properties["cancellation_id"]; property != nil {
 		property.Pattern = `^[a-f0-9]{32}$`
+	}
+	if property := schema.Properties["request_id"]; property != nil {
+		property.Pattern = `^[a-f0-9]{32}$`
+		property.MinLength = pointer(32)
+		property.MaxLength = pointer(32)
+	}
+	if property := schema.Properties["relative_path"]; property != nil {
+		property.MinLength = pointer(1)
+		property.MaxLength = pointer(4096)
 	}
 	if property := schema.Properties["permission"]; property != nil {
 		property.Enum = []any{"read-only", "workspace-write", "danger-full-access"}

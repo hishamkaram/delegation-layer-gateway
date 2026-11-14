@@ -24,9 +24,9 @@ type ConnectionObservation struct {
 	Duration   time.Duration
 }
 
-// ActiveConnections samples ready, non-closing sessions owned by this Hub.
+// ActiveConnections samples ready, non-closing sessions owned by this Server.
 // It is a bounded gauge, never execution readiness or Delegate task capacity.
-func (h *Hub) ActiveConnections() uint64 {
+func (h *Server) ActiveConnections() uint64 {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
@@ -45,32 +45,4 @@ func (h *Hub) ActiveConnections() uint64 {
 		s.mu.Unlock()
 	}
 	return active
-}
-
-// Admission to this existing join group is serialized with Close. Failed
-// registrations otherwise have no registered session worker to own callbacks.
-func (h *Hub) beginConnectionObservation() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.closed || h.ctx.Err() != nil {
-		return false
-	}
-	h.workers.Add(1)
-	return true
-}
-
-func (h *Hub) observeConnection(started time.Time, state ConnectionState, s *session) {
-	if h.config.ConnectionObserved == nil {
-		return
-	}
-	value := ConnectionObservation{State: state}
-	if s != nil {
-		s.mu.Lock()
-		value.Credential, value.Generation = s.ref, s.generation
-		s.mu.Unlock()
-	}
-	// Sample before the observer's own recording work. This is elapsed local
-	// connection observation, not network latency or a provider/task deadline.
-	value.Duration = time.Since(started)
-	h.config.ConnectionObserved(value)
 }

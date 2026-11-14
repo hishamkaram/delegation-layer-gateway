@@ -21,10 +21,10 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicecert"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -58,7 +58,7 @@ type (
 	}
 )
 
-func cliAuthority(t *testing.T, files config.TLSFiles) *identity.CertificateAuthority {
+func cliAuthority(t *testing.T, files config.TLSFiles) *devicecert.CertificateAuthority {
 	t.Helper()
 	data, err := os.ReadFile(files.Certificate)
 	require(t, err)
@@ -80,14 +80,14 @@ func cliAuthority(t *testing.T, files config.TLSFiles) *identity.CertificateAuth
 	if !ok {
 		t.Fatal("wrong fixture key")
 	}
-	authority, err := identity.NewCertificateAuthority(certificate, signer)
+	authority, err := devicecert.NewCertificateAuthority(certificate, signer)
 	require(t, err)
 	return authority
 }
 
-func cliSign(t *testing.T, ca *identity.CertificateAuthority, csr []byte, ref domain.CredentialRef) []byte {
+func cliSign(t *testing.T, ca *devicecert.CertificateAuthority, csr []byte, ref domain.CredentialRef) []byte {
 	t.Helper()
-	info, err := identity.ParseCSR(csr)
+	info, err := devicecert.ParseCSR(csr)
 	require(t, err)
 	serial := big.NewInt(3)
 	now := time.Now().UTC().Truncate(time.Second)

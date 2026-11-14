@@ -1,12 +1,56 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestOptionalDeviceLoginRequiresExplicitReachableWSSIdentity(t *testing.T) {
+	c := validConfig()
+	if err := c.Validate(); err != nil {
+		t.Fatal("legacy configuration changed", err)
+	}
+	c.DeviceLogin = &DeviceLogin{NativeClientID: "native-public-client", DeviceWSSURL: "wss://gateway.example:8443/device"}
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := ReadGateway(strings.NewReader(string(data)))
+	if err != nil || decoded.DeviceLogin == nil || *decoded.DeviceLogin != *c.DeviceLogin {
+		t.Fatal("device login did not survive strict configuration loading", err)
+	}
+	for name, mutate := range map[string]func(*Gateway){
+		"empty client":       func(c *Gateway) { c.DeviceLogin.NativeClientID = "" },
+		"oversize client":    func(c *Gateway) { c.DeviceLogin.NativeClientID = strings.Repeat("a", 129) },
+		"client space":       func(c *Gateway) { c.DeviceLogin.NativeClientID = "client secret" },
+		"plaintext":          func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "ws://gateway.example:8443/device" },
+		"foreign host":       func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://other.example:8443/device" },
+		"missing port":       func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://gateway.example/device" },
+		"zero port":          func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://gateway.example:0/device" },
+		"overflow port":      func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://gateway.example:65536/device" },
+		"wrong path":         func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://gateway.example:8443/other" },
+		"encoded path":       func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://gateway.example:8443/%64evice" },
+		"query":              func(c *Gateway) { c.DeviceLogin.DeviceWSSURL += "?code=private-canary" },
+		"empty query":        func(c *Gateway) { c.DeviceLogin.DeviceWSSURL += "?" },
+		"fragment":           func(c *Gateway) { c.DeviceLogin.DeviceWSSURL += "#secret" },
+		"credentials":        func(c *Gateway) { c.DeviceLogin.DeviceWSSURL = "wss://secret@gateway.example:8443/device" },
+		"different audience": func(c *Gateway) { c.Identity.Audience = "https://gateway.example/other" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			input := c
+			login := *c.DeviceLogin
+			input.DeviceLogin = &login
+			mutate(&input)
+			if err := input.Validate(); !errors.Is(err, ErrInvalid) || strings.Contains(err.Error(), "private-canary") {
+				t.Fatal("unsafe login configuration accepted or exposed", err)
+			}
+		})
+	}
+}
 
 func validConfig() Gateway {
 	return Gateway{GatewayID: "gateway-1", PublicURL: "https://gateway.example", PublicAddress: ":443", DeviceAddress: ":8443", TLS: TLSFiles{"/private/server.pem", "/private/server.key"}, DeviceCA: TLSFiles{"/private/ca.pem", "/private/ca.key"}, Database: "/private/gateway.db", AdminSocket: "/private/admin.sock", AuditDirectory: "/private/audit", Identity: Identity{"https://issuer.example/", "https://gateway.example/mcp", "https://issuer.example/.well-known/jwks.json"}, ControlTimeoutSeconds: 30, HTTPTimeoutSeconds: 35}

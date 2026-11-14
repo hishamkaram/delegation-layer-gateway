@@ -14,10 +14,13 @@ import (
 )
 
 const (
-	MaxStdoutBytes        = 256 << 10
-	MaxStderrBytes        = 16 << 10
-	DefaultControlTimeout = 30 * time.Second
-	MaxControlTimeout     = 300 * time.Second
+	MaxStdoutBytes = 256 << 10
+	MaxStderrBytes = 16 << 10
+	// V2 local envelopes may contain two one-MiB opaque Native tokens. They
+	// are normalized before the separate bounded wire frame is constructed.
+	MaxWorkspaceStdoutBytes = 4 << 20
+	DefaultControlTimeout   = 30 * time.Second
+	MaxControlTimeout       = 300 * time.Second
 )
 
 var (
@@ -52,7 +55,10 @@ type (
 		TemporaryDirectory string
 		GatewayID          domain.GatewayID
 		Projects           []Project
-		ControlTimeout     time.Duration
+		// ProjectStore enables the opt-in workspace protocol. It is exclusive
+		// with static Projects and remains the local policy/pin authority.
+		ProjectStore   ProjectStore
+		ControlTimeout time.Duration
 	}
 )
 
@@ -89,7 +95,7 @@ func checkedConfig(input Config) (*configuration, error) {
 }
 
 func checkConfigPaths(input Config) error {
-	if !filepath.IsAbs(input.Executable) || !filepath.IsAbs(input.TemporaryDirectory) || domain.Token(string(input.GatewayID)) != nil || len(input.Projects) == 0 || len(input.Projects) > 100 {
+	if !filepath.IsAbs(input.Executable) || !filepath.IsAbs(input.TemporaryDirectory) || domain.Token(string(input.GatewayID)) != nil || !validProjectMode(input) {
 		return ErrConfiguration
 	}
 	executable, err := os.Stat(input.Executable)
@@ -101,6 +107,13 @@ func checkConfigPaths(input Config) error {
 	}
 
 	return nil
+}
+
+func validProjectMode(input Config) bool {
+	if input.ProjectStore != nil {
+		return len(input.Projects) == 0
+	}
+	return len(input.Projects) > 0 && len(input.Projects) <= 100
 }
 
 func existingDirectory(path string) bool {

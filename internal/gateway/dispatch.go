@@ -30,11 +30,13 @@ type DispatchStore interface {
 	CheckConnection(context.Context, domain.CredentialRef, domain.ConnectionGeneration, time.Time) (domain.Credential, error)
 }
 type LinkSnapshot struct {
-	ProcessBoot  string
-	Credential   domain.CredentialRef
-	Connection   domain.ConnectionGeneration
-	Capabilities protocol.CapabilityReport
-	ObservedAt   time.Time
+	WireVersion    int
+	CapabilitiesV2 *protocol.CapabilityReportV2
+	ProcessBoot    string
+	Credential     domain.CredentialRef
+	Connection     domain.ConnectionGeneration
+	Capabilities   protocol.CapabilityReport
+	ObservedAt     time.Time
 }
 
 // Link owns only live routing resources. Reserve fixes and encodes the actual
@@ -59,13 +61,21 @@ type Service struct {
 	gateway  domain.GatewayID
 	random   io.Reader
 	now      func() time.Time
+	targeted TargetedCapabilities
 }
 
-func New(store DispatchStore, link Link, gateway domain.GatewayID, random io.Reader, now func() time.Time, observer RoutingObserver) (*Service, error) {
+func New(store DispatchStore, link Link, gateway domain.GatewayID, random io.Reader, now func() time.Time, observer RoutingObserver, targeted ...TargetedCapabilities) (*Service, error) {
 	if store == nil || link == nil || domain.Token(string(gateway)) != nil || random == nil || now == nil || observer == nil {
 		return nil, domain.ErrInvalid
 	}
-	return &Service{store: store, link: link, gateway: gateway, random: random, now: now, observer: observer}, nil
+	if len(targeted) > 1 || (len(targeted) == 1 && targeted[0] == nil) {
+		return nil, domain.ErrInvalid
+	}
+	service := &Service{store: store, link: link, gateway: gateway, random: random, now: now, observer: observer}
+	if len(targeted) == 1 {
+		service.targeted = targeted[0]
+	}
+	return service, nil
 }
 
 func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination domain.Destination, request domain.FrozenRequest) (prepared domain.PreparedOperation, err error) {
@@ -87,7 +97,7 @@ func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination d
 	if snapshot.Credential.Device != destination.Device {
 		return domain.PreparedOperation{}, domain.Reject(domain.Conflict)
 	}
-	capability, err := project(snapshot, destination.Project)
+	capability, err := s.currentProject(ctx, actor, destination, snapshot)
 	if err != nil {
 		s.observeClassAuthorizationFailure(actor, routing.PrepareClass, err)
 		return domain.PreparedOperation{}, err
@@ -142,7 +152,7 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	if view.Operation.Delivery != domain.Prepared {
 		return DispatchResult{Operation: view.Operation}, nil
 	}
-	reservation, err := s.reserveDispatch(ctx, view, operation)
+	reservation, err := s.reserveDispatch(ctx, actor, view, operation)
 	if err != nil {
 		s.observeAuthorizationFailure(actor, protocol.Admit, err)
 		return DispatchResult{}, err
@@ -197,19 +207,31 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	return DispatchResult{Operation: observed}, nil
 }
 
-func (s *Service) reserveDispatch(ctx context.Context, view domain.DispatchView, operation domain.OperationID) (Reservation, error) {
+func (s *Service) reserveDispatch(ctx context.Context, actor domain.Actor, view domain.DispatchView, operation domain.OperationID) (Reservation, error) {
 	snapshot, err := s.link.Snapshot(view.Operation.Correlation.Destination.Device)
 	if err != nil {
 		return nil, err
 	}
-	if err = matches(snapshot, view); err != nil {
+	capability, err := s.currentProject(ctx, actor, view.Operation.Correlation.Destination, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	if err = matchesCapability(snapshot, capability, view); err != nil {
 		return nil, err
 	}
 	command, err := admissionCommand(view.Operation.Correlation, view.Request)
 	if err != nil {
 		return nil, err
 	}
-	return s.link.Reserve(ctx, view.Operation.Correlation.Destination.Device, operation, command)
+	reservation, err := s.link.Reserve(ctx, view.Operation.Correlation.Destination.Device, operation, command)
+	if err != nil {
+		return nil, err
+	}
+	if err = matchReservation(snapshot, reservation); err != nil {
+		releaseReservation(ctx, reservation, &err)
+		return nil, err
+	}
+	return reservation, nil
 }
 
 func project(snapshot LinkSnapshot, alias domain.ProjectAlias) (protocol.ProjectCapability, error) {
@@ -227,11 +249,7 @@ func project(snapshot LinkSnapshot, alias domain.ProjectAlias) (protocol.Project
 	return protocol.ProjectCapability{}, domain.Reject(domain.NotFound)
 }
 
-func matches(snapshot LinkSnapshot, view domain.DispatchView) error {
-	capability, err := project(snapshot, view.Operation.Correlation.Destination.Project)
-	if err != nil {
-		return err
-	}
+func matchesCapability(snapshot LinkSnapshot, capability protocol.ProjectCapability, view domain.DispatchView) error {
 	c := view.Operation.Correlation
 	if snapshot.Credential.Device != c.Destination.Device || capability.Context.Root != string(c.Context.Root) || capability.Context.Project != string(c.Context.Project) || capability.AdmissionGeneration != string(c.AdmissionGeneration) {
 		return domain.Reject(domain.Conflict)

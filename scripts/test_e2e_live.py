@@ -1062,19 +1062,22 @@ class CommandTests(unittest.TestCase):
     def test_success_summary_excludes_token_config_prompt_and_result_bytes(self):
         output = io.StringIO()
         with redirect_stdout(output):
-            self.assertEqual(
-                live.main(
-                    [
-                        "provider",
-                        "--run-real-provider",
-                        "--config",
-                        str(self.config_file),
-                        "--receipt-directory",
-                        str(self.receipt),
-                    ]
-                ),
-                0,
+            code = live.main(
+                [
+                    "provider",
+                    "--run-real-provider",
+                    "--config",
+                    str(self.config_file),
+                    "--receipt-directory",
+                    str(self.receipt),
+                ]
             )
+        summary = json.loads(output.getvalue())
+        diagnostic = {
+            key: summary.get(key)
+            for key in ("result", "reason", "phase", "controller_cleanup_confirmed")
+        }
+        self.assertEqual(code, 0, diagnostic)
         self.assertNotIn("PRIVATE_TOKEN_CANARY", output.getvalue())
         self.assertNotIn(str(self.base), output.getvalue())
         self.assertNotIn("GATEWAY_PROVIDER_ACCEPTANCE_", output.getvalue())

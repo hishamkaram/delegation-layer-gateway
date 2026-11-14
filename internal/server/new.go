@@ -8,14 +8,17 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/config"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/devicehub"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway"
+	"github.com/hishamkaram/delegation-layer-gateway/internal/gateway/workspaces"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpguard"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/httpsserver"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/identity"
@@ -50,7 +53,7 @@ func New(ctx context.Context, cfg config.Gateway, options Options) (runtime *Run
 	if err = r.openBackend(cfg, bundle, authority); err != nil {
 		return nil, err
 	}
-	public, err := r.publicHandler(cfg, options.JWKSClient)
+	public, err := r.publicHandler(cfg, bundle, options.JWKSClient)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +93,7 @@ func (r *Runtime) openStorage(cfg config.Gateway) error {
 	return nil
 }
 
-func (r *Runtime) publicHandler(cfg config.Gateway, jwksClient *http.Client) (http.Handler, error) {
+func (r *Runtime) publicHandler(cfg config.Gateway, bundle tlsconfig.Bundle, jwksClient *http.Client) (http.Handler, error) {
 	if jwksClient == nil {
 		jwksClient, r.ownJWKS = defaultJWKSClient()
 	}
@@ -102,15 +105,31 @@ func (r *Runtime) publicHandler(cfg config.Gateway, jwksClient *http.Client) (ht
 	if err != nil {
 		return nil, failed(err)
 	}
-	service, err := gateway.New(r.store, link, r.gatewayID, rand.Reader, r.now, r)
+	workspaceService, err := r.workspaceService(cfg, link)
 	if err != nil {
 		return nil, failed(err)
 	}
-	adapter, err := mcpadapter.New(mcpadapter.Options{Registry: r.store, Operations: service, Presence: link, Authenticator: auditedAuthenticator{authenticator, r.recorder}, Recorder: r.recorder, ResourceURL: cfg.PublicURL + "/mcp", Issuer: cfg.Identity.Issuer, Timeout: time.Duration(cfg.ControlTimeoutSeconds) * time.Second, Now: r.now})
+	var targets []gateway.TargetedCapabilities
+	if workspaceService != nil {
+		targets = append(targets, workspaceService)
+	}
+	service, err := gateway.New(r.store, link, r.gatewayID, rand.Reader, r.now, r, targets...)
 	if err != nil {
 		return nil, failed(err)
 	}
-	handler, err := enrollment.HTTPHandler(auditedEnrollment{r.enrollment, r.recorder}, r.now)
+	options := mcpadapter.Options{Registry: r.store, Operations: service, Presence: link, Authenticator: auditedAuthenticator{authenticator, r.recorder}, Recorder: r.recorder, ResourceURL: cfg.PublicURL + "/mcp", Issuer: cfg.Identity.Issuer, Timeout: time.Duration(cfg.ControlTimeoutSeconds) * time.Second, Now: r.now}
+	if workspaceService != nil {
+		options.Workspaces = workspaceService
+	}
+	adapter, err := mcpadapter.New(options)
+	if err != nil {
+		return nil, failed(err)
+	}
+	handler, err := enrollment.HTTPHandler(auditedEnrollment{r.enrollment, r.recorder}, r.now, cfg.TrustLoopbackProxyIP)
+	if err != nil {
+		return nil, failed(err)
+	}
+	self, err := r.selfServiceHandler(cfg, bundle, auditedAuthenticator{authenticator, r.recorder})
 	if err != nil {
 		return nil, failed(err)
 	}
@@ -118,7 +137,25 @@ func (r *Runtime) publicHandler(cfg config.Gateway, jwksClient *http.Client) (ht
 	if err != nil {
 		return nil, failed(err)
 	}
-	return guard.Wrap(r.publicRoutes(adapter, handler)), nil
+	return guard.Wrap(r.publicRoutes(adapter, handler, self)), nil
+}
+
+func (r *Runtime) workspaceService(cfg config.Gateway, link gateway.Link) (*workspaces.Service, error) {
+	if cfg.DeviceLogin == nil {
+		return nil, nil
+	}
+	controls, err := gateway.NewMetadataControls(link, r.now, r)
+	if err != nil {
+		return nil, err
+	}
+	roots := func(ctx context.Context, binding domain.OwnedRootBinding) (workspaces.Initializer, error) {
+		port, portErr := registry.NewOwnedRootPort(ctx, r.store, binding, r.now)
+		if portErr != nil {
+			return nil, portErr
+		}
+		return recovery.NewOwnedInitializer(port, link, r.gatewayID, r.now, r)
+	}
+	return workspaces.New(workspaces.Options{Store: r.store, Presence: link, Controls: controls, Roots: roots, GatewayID: r.gatewayID, Now: r.now})
 }
 
 func (r *Runtime) bindTLS(cfg config.Gateway, bundle tlsconfig.Bundle, public http.Handler) error {
@@ -144,7 +181,17 @@ func (r *Runtime) bindTLS(cfg config.Gateway, bundle tlsconfig.Bundle, public ht
 	if err != nil {
 		return failed(errors.Join(err, devices.Close()))
 	}
-	device, err := httpsserver.New(devices, bundle.Devices, r.deviceHandler(net.JoinHostPort(origin.Hostname(), port)), 256, time.Duration(cfg.HTTPTimeoutSeconds)*time.Second)
+	authority := net.JoinHostPort(origin.Hostname(), port)
+	if cfg.DeviceLogin != nil {
+		// Public discovery, rather than an internal bind/NAT address, owns the
+		// authority sent by device clients. Configuration already validated it.
+		advertised, parseErr := url.Parse(cfg.DeviceLogin.DeviceWSSURL)
+		if parseErr != nil {
+			return failed(errors.Join(parseErr, devices.Close()))
+		}
+		authority = advertised.Host
+	}
+	device, err := httpsserver.New(devices, bundle.Devices, r.deviceHandler(authority), 256, time.Duration(cfg.HTTPTimeoutSeconds)*time.Second)
 	if err != nil {
 		return failed(errors.Join(err, devices.Close()))
 	}
@@ -159,7 +206,7 @@ func defaultJWKSClient() (*http.Client, *http.Transport) {
 	return &http.Client{Transport: owned, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, owned
 }
 
-type deviceDisconnector struct{ hub *transport.Hub }
+type deviceDisconnector struct{ hub *devicehub.Hub }
 
 func (d deviceDisconnector) Disconnect(ctx context.Context, device domain.DeviceID) error {
 	err := d.hub.DisconnectContext(ctx, device)
@@ -223,7 +270,7 @@ func (r *Runtime) openBackend(cfg config.Gateway, bundle tlsconfig.Bundle, autho
 	if err != nil {
 		return failed(err)
 	}
-	hub, err := transport.NewHub(r.lifetime, transport.Config{Routing: store, GatewayID: r.gatewayID, BootEpoch: domain.BootEpoch(boot), CredentialDenied: r.recordCredentialDenied, ConnectionObserved: r.observeConnection}, store, r.now)
+	hub, err := devicehub.NewHub(r.lifetime, devicehub.Config{Routing: store, EnableWireV2: cfg.DeviceLogin != nil, GatewayID: r.gatewayID, BootEpoch: domain.BootEpoch(boot), CredentialDenied: r.recordCredentialDenied, ConnectionObserved: r.observeConnection}, store, r.now)
 	if err != nil {
 		return failed(err)
 	}
@@ -252,7 +299,8 @@ func (r *Runtime) bindAdmin(cfg config.Gateway, authority *adminapi.Authorizer) 
 	if err != nil {
 		return failed(err)
 	}
-	handler, err := adminapi.NewHandler(adminapi.Options{Roots: initializer, Recoveries: restorer, Tasks: drainer, Projects: namespace, Permits: r.store, RoutingDrains: r.store, GenerationDisconnector: deviceDisconnector{r.hub}, Store: auditedAdministrativeStore{Store: r.store, recorder: r.recorder}, Authority: authority, Disconnector: deviceDisconnector{r.hub}, Random: rand.Reader, Now: r.now, MetadataMetrics: r.MetadataMetrics(), MetadataHealth: r.Health})
+	administrative := auditedAdministrativeStore{Store: r.store, recorder: r.recorder}
+	handler, err := adminapi.NewHandler(adminapi.Options{OwnedEnrollments: administrative, OwnerPolicies: administrative, Roots: initializer, Recoveries: restorer, Tasks: drainer, Projects: namespace, Permits: r.store, RoutingDrains: r.store, GenerationDisconnector: deviceDisconnector{r.hub}, Store: administrative, Authority: authority, Disconnector: deviceDisconnector{r.hub}, Random: rand.Reader, Now: r.now, MetadataMetrics: r.MetadataMetrics(), MetadataHealth: r.Health})
 	if err != nil {
 		return failed(err)
 	}

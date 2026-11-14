@@ -4,6 +4,12 @@ A trusted, self-hosted gateway connecting remote MCP clients to explicitly selec
 devices running [Delegation Layer](https://github.com/hishamkaram/delegation-layer).
 Clients use MCP over HTTPS; device connectors initiate outbound WSS connections.
 
+**Native connection improvements are under implementation.** The new
+`delegate gateway connect` flow, browser/headless enrollment and explicit
+workspace resolution have separate validation gates. Start with the
+[deployment and Native connection guide](docs/native-connect.md). The MVP
+evidence below describes the earlier implementation.
+
 **MVP implementation and live acceptance passed within the recorded scopes.** Real process flows, installed-Claude
 execution and persistent connectors passed on both Macs. Auth0-backed SDK,
 ChatGPT Cloud and Claude.ai tasks passed; rollback, network reconnection,

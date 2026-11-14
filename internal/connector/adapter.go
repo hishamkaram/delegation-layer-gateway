@@ -70,7 +70,7 @@ func (a *Adapter) execute(ctx context.Context, command protocol.Command, accepte
 		held.release()
 		return failed(command.Operation, ErrConflict)
 	}
-	r, err := decodeRequest(cfg, command)
+	r, err := a.decodeRequest(ctx, cfg, command)
 	if err != nil {
 		held.release()
 		return failed(command.Operation, err)
@@ -97,6 +97,9 @@ func (a *Adapter) execute(ctx context.Context, command protocol.Command, accepte
 }
 
 func (a *Adapter) executeOwned(ctx context.Context, r request, owner *controlOwner) protocol.Reply {
+	if r.resolution != nil {
+		return a.resolveProject(ctx, r, owner)
+	}
 	if (r.command.Operation == protocol.Admit || r.command.Operation == protocol.ResumeExisting) && a.Status().CleanupPending != 0 {
 		return failed(r.command.Operation, ErrPending)
 	}
@@ -106,6 +109,10 @@ func (a *Adapter) executeOwned(ctx context.Context, r request, owner *controlOwn
 	if r.rootOnly || r.command.Operation.Administrative() {
 		return a.executeRootControl(ctx, r, owner)
 	}
+	return a.executeProject(ctx, r, owner)
+}
+
+func (a *Adapter) executeProject(ctx context.Context, r request, owner *controlOwner) protocol.Reply {
 	if !existingDirectory(r.project.Directory) {
 		a.observeProject(r.config.generation, protocol.ProjectCapability{Alias: r.project.Alias, Context: r.project.wireContext()})
 		return failure(r.command.Operation, "device_not_ready")
@@ -118,6 +125,9 @@ func (a *Adapter) executeOwned(ctx context.Context, r request, owner *controlOwn
 	a.observeProject(r.config.generation, a.projectReport(r, probe))
 	if r.command.Operation == protocol.ContextInspect {
 		project := a.projectReport(r, probe)
+		if r.workspace != nil {
+			return bodyReply(r.command.Operation, protocol.ProjectCapabilityV2{Project: r.workspace.pin.WireIdentity(), CurrentPolicyRevision: r.workspace.policy.Revision, Capability: project})
+		}
 		return bodyReply(r.command.Operation, project)
 	}
 	if !compatible(r, probe) {
@@ -150,7 +160,7 @@ func (a *Adapter) inspect(ctx context.Context, r request, owner *controlOwner) (
 
 func compatible(r request, response cliResponse) bool {
 	c := response.Connector
-	return c != nil && c.ContractVersion == 1 && protocol.NativeFeaturesCompatible(c.Features) && c.RootToken == r.project.RootToken && c.ProjectToken == r.project.ProjectToken
+	return c != nil && c.ContractVersion == 1 && protocol.NativeFeaturesCompatible(c.Features) && c.RootToken == r.project.RootToken && c.ProjectToken == r.project.ProjectToken && r.matchesWorkspace(c.WorkspaceConstraint)
 }
 
 func registeredOrigin(r request, response cliResponse) bool {
@@ -175,6 +185,9 @@ func (a *Adapter) invoke(ctx context.Context, r request, owner *controlOwner) (c
 		return cliResponse{}, err
 	}
 	call.directory = owner.temporary
+	if r.workspace != nil && (r.command.Operation == protocol.Admit || r.command.Operation == protocol.ResumeExisting) {
+		call.startGuard = r.startGuard
+	}
 	return a.run(ctx, call)
 }
 
@@ -183,7 +196,10 @@ func (a *Adapter) invokeReply(ctx context.Context, r request, owner *controlOwne
 	if err != nil {
 		return failed(r.command.Operation, err)
 	}
-	if response.exitCode != 0 || response.Error != "" || response.Failure != nil {
+	// Exit 4 is a collection outcome, including diagnostic Error/Failure fields.
+	// Only a fresh healthy guarded resolve can authorize its rejected projection.
+	rejectedCollect := r.command.Operation == protocol.Collect && response.exitCode == 4
+	if !rejectedCollect && (response.exitCode != 0 || response.Error != "" || response.Failure != nil) {
 		if response.Failure != nil {
 			candidate := protocol.Failure{Code: response.Failure.Code, Retryable: true}
 			if candidate.Validate() == nil {
@@ -196,21 +212,28 @@ func (a *Adapter) invokeReply(ctx context.Context, r request, owner *controlOwne
 		return failed(r.command.Operation, ErrEvidence)
 	}
 	if needsCanonicalRead(r.command.Operation, response) {
-		verified, verifyErr := a.canonicalRead(ctx, r, owner)
-		if verifyErr != nil {
-			return failed(r.command.Operation, verifyErr)
-		}
-		// Only this successful guarded cancellation supplies a fresh stop receipt.
-		// Passive resolve supplies immutable binding and canonical task evidence.
-		if r.command.Operation == protocol.Cancel {
-			if response.TaskID != r.task.TaskID || response.RootID == "" || response.RootID != verified.RootID {
-				return failed(r.command.Operation, ErrEvidence)
-			}
-			verified.Stop = response.Stop
-		}
-		return r.translate(verified)
+		return a.canonicalReply(ctx, r, owner, response)
 	}
 	return r.translate(response)
+}
+
+func (a *Adapter) canonicalReply(ctx context.Context, r request, owner *controlOwner, response cliResponse) protocol.Reply {
+	verified, err := a.canonicalRead(ctx, r, owner)
+	if err != nil {
+		return failed(r.command.Operation, err)
+	}
+	if r.command.Operation == protocol.Collect && response.exitCode == 4 && (verified.Publication != "rejected" || verified.Outcome == nil || verified.Outcome.Verdict != "rejected") {
+		return failed(r.command.Operation, ErrEvidence)
+	}
+	// Only this successful guarded cancellation supplies a fresh stop receipt.
+	// Passive resolve supplies immutable binding and canonical task evidence.
+	if r.command.Operation == protocol.Cancel {
+		if response.TaskID != r.task.TaskID || response.RootID == "" || response.RootID != verified.RootID {
+			return failed(r.command.Operation, ErrEvidence)
+		}
+		verified.Stop = response.Stop
+	}
+	return r.translate(verified)
 }
 
 func needsCanonicalRead(op protocol.Operation, response cliResponse) bool {
@@ -219,7 +242,7 @@ func needsCanonicalRead(op protocol.Operation, response cliResponse) bool {
 		return true
 	case protocol.FenceAbsent:
 		return response.Connector != nil && response.Connector.Resolution == "existing"
-	case protocol.ContextInspect, protocol.Resolve, protocol.ResultChunk, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
+	case protocol.ContextInspect, protocol.Resolve, protocol.ResultChunk, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
 		return false
 	default:
 		return false
@@ -255,6 +278,8 @@ func (a *Adapter) resume(ctx context.Context, r request, owner *controlOwner) pr
 	if response.Connector == nil || response.Connector.Receipt == nil || response.Connector.Resolution != "existing" || !r.optionsAllowed(response.Connector.Receipt.ExecutionOptions) {
 		return failure(r.command.Operation, "forbidden")
 	}
+	options := response.Connector.Receipt.ExecutionOptions
+	r.startOptions = &options
 	return a.invokeReply(ctx, r, owner)
 }
 
@@ -290,6 +315,9 @@ func (a *Adapter) projectReport(r request, response cliResponse) protocol.Projec
 		}
 	}
 	result.Ready = compatible(r, response) && result.AdmissionOpen && result.AdmissionGeneration != "" && a.Status().CleanupPending == 0
+	if r.workspace != nil && !r.workspace.policy.Enabled {
+		result.Ready = false
+	}
 	if !registeredOrigin(r, response) {
 		result.Ready = false
 	}
@@ -384,7 +412,7 @@ func taskControl(operation protocol.Operation) bool {
 	switch operation {
 	case protocol.Resolve, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.FenceAbsent:
 		return true
-	case protocol.Admit, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
+	case protocol.Admit, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
 		return false
 	default:
 		return false
@@ -412,7 +440,7 @@ func (a *Adapter) executeTaskControl(ctx context.Context, r request, owner *cont
 		}
 		r.task.SpecSHA256 = response.Connector.Receipt.SpecSHA256
 		return a.invokeReply(ctx, r, owner)
-	case protocol.Admit, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
+	case protocol.Admit, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
 		return failed(r.command.Operation, ErrEvidence)
 	default:
 		return failed(r.command.Operation, ErrEvidence)
@@ -435,11 +463,20 @@ func (a *Adapter) executeRootControl(ctx context.Context, r request, owner *cont
 	if err != nil {
 		return failed(r.command.Operation, err)
 	}
+	a.observeRoot(r.config.generation, report)
 	if r.command.Operation == protocol.ContextInspect {
 		return bodyReply(r.command.Operation, report)
 	}
 	if r.command.Operation == protocol.OriginBarrier || r.command.Operation == protocol.OriginReopen {
 		a.invalidateRootReadiness(r.config.generation, r.project.RootToken)
 	}
-	return a.invokeReply(ctx, r, owner)
+	reply := a.invokeReply(ctx, r, owner)
+	if reply.Error == nil && (r.command.Operation == protocol.OriginBarrier || r.command.Operation == protocol.OriginReopen) {
+		var state protocol.OriginStateReport
+		if protocol.DecodeStrict(reply.Body, &state, protocol.MaxFrameBytes) == nil && state.Validate() == nil {
+			report.OriginRegistered, report.Origin = true, &state
+			a.observeRoot(r.config.generation, report)
+		}
+	}
+	return reply
 }

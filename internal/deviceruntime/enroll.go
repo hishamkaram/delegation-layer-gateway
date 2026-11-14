@@ -20,7 +20,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connectorconfig"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/deviceidentity"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/enrollment"
+
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -97,7 +97,7 @@ func enrollWith(ctx context.Context, cfg *connectorconfig.Config, store *devicei
 	if err != nil {
 		return failed(ErrEnrollment, err)
 	}
-	encoded, err := json.Marshal(enrollment.EnrollmentRequest{Token: token, CSRDERBase64: base64.StdEncoding.EncodeToString(csr)})
+	encoded, err := json.Marshal(protocol.EnrollmentRequest{Token: token, CSRDERBase64: base64.StdEncoding.EncodeToString(csr)})
 	if err != nil {
 		return failed(ErrEnrollment, err)
 	}
@@ -137,16 +137,16 @@ func directClient(roots *x509.CertPool, certificate *tls.Certificate, timeout ti
 
 // installEnrollment borrows the body; enrollWith owns its close.
 func installEnrollment(response *http.Response, cfg *connectorconfig.Config, roots *x509.CertPool, now time.Time, install enrollmentInstaller) (result error) {
-	data, err := io.ReadAll(io.LimitReader(response.Body, enrollment.MaxEnrollmentBodyBytes+1))
-	if err != nil || response.StatusCode != http.StatusOK || len(data) > enrollment.MaxEnrollmentBodyBytes {
+	data, err := io.ReadAll(io.LimitReader(response.Body, protocol.MaxEnrollmentBodyBytes+1))
+	if err != nil || response.StatusCode != http.StatusOK || len(data) > protocol.MaxEnrollmentBodyBytes {
 		return failed(ErrEnrollment, err)
 	}
 	media, _, mediaErr := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if mediaErr != nil || media != "application/json" {
 		return ErrEnrollment
 	}
-	var output enrollment.EnrollmentResponse
-	if protocol.DecodeStrict(data, &output, enrollment.MaxEnrollmentBodyBytes) != nil || output.DeviceID != string(cfg.DeviceID()) || output.Mode.Validate() != nil {
+	var output protocol.EnrollmentResponse
+	if protocol.DecodeStrict(data, &output, protocol.MaxEnrollmentBodyBytes) != nil || output.DeviceID != string(cfg.DeviceID()) || output.Mode.Validate() != nil {
 		return ErrEnrollment
 	}
 	ref := domain.CredentialRef{Device: domain.DeviceID(output.DeviceID), Epoch: domain.CredentialEpoch(output.Epoch), Generation: output.Generation}

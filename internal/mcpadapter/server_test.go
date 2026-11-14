@@ -173,7 +173,7 @@ func TestPublicMetadataAndHTTPBearerChallengesExposeNoInventoryOrSecrets(t *test
 	if metadata.Resource != f.server.URL+"/mcp" || len(metadata.AuthorizationServers) != 1 || len(metadata.ScopesSupported) != 4 {
 		t.Fatal("protected resource metadata does not match configured OAuth boundary")
 	}
-	for _, token := range []string{"", privateCanary, "expired"} {
+	for _, token := range []string{"", privateCanary, "expired", "management"} {
 		request, err = http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
 		req = checked(t, request, err)
 		req.Header.Set("Content-Type", "application/json")

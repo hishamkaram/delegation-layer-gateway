@@ -12,7 +12,11 @@ import (
 // RootStore owns root eligibility and every durable initialization phase.
 // The initializer owns no queue, background goroutine or task lifecycle.
 type RootStore interface {
+	initializationStore
 	AbandonRootInitialization(context.Context, domain.RecoveryID) error
+}
+
+type initializationStore interface {
 	ReadRootInitializationProgress(context.Context, domain.RootInitializationLookup) (domain.RootInitializationProgress, error)
 	BeginRootInitialization(context.Context, domain.RootInitializationStart) (domain.RootInitializationProgress, error)
 	RecordBarrier(context.Context, domain.ValidatedBarrierReceipt) error
@@ -23,16 +27,17 @@ type RootStore interface {
 }
 
 type Initializer struct {
-	store     RootStore
-	namespace *Service
+	store     initializationStore
+	namespace initializationNamespace
 	now       func() time.Time
+	abandon   func(context.Context, domain.RecoveryID) error
 }
 
 func NewInitializer(store RootStore, namespace *Service, now func() time.Time) (*Initializer, error) {
 	if store == nil || namespace == nil || now == nil {
 		return nil, domain.ErrInvalid
 	}
-	return &Initializer{store: store, namespace: namespace, now: now}, nil
+	return &Initializer{store: store, namespace: projectInitialization{namespace}, now: now, abandon: store.AbandonRootInitialization}, nil
 }
 
 // Advance performs at most one durable initialization phase. A caller retries
@@ -49,11 +54,11 @@ func (i *Initializer) Advance(ctx context.Context, lookup domain.RootInitializat
 	if progress.Stage == domain.RootRestoreRequired {
 		return progress, domain.Reject(domain.Conflict)
 	}
-	report, tx, err := i.namespace.Inspect(ctx, lookup.Route, lookup.ExpectedContext)
+	inspection, tx, err := i.namespace.inspect(ctx, lookup)
 	if err != nil {
 		return progress, err
 	}
-	progress, err = i.store.BeginRootInitialization(ctx, domain.RootInitializationStart{Route: lookup.Route, ExpectedContext: lookup.ExpectedContext, Credential: tx.Credential, Connection: tx.Connection, Now: i.now()})
+	progress, err = i.store.BeginRootInitialization(ctx, domain.RootInitializationStart{Route: lookup.Route, ExpectedContext: lookup.ExpectedContext, RootRoute: lookup.RootRoute, Credential: tx.Credential, Connection: tx.Connection, Now: i.now()})
 	if err != nil {
 		return progress, err
 	}
@@ -62,7 +67,7 @@ func (i *Initializer) Advance(ctx context.Context, lookup domain.RootInitializat
 	}
 	// A fresh namespace is expected absent. A retry may see only its own target;
 	// Delegate additionally verifies the original recovery ID on barrier replay.
-	if report.AdmissionGeneration != "" && report.AdmissionGeneration != string(progress.Generation) {
+	if inspection.Generation != "" && inspection.Generation != string(progress.Generation) || inspection.Recovery != "" && inspection.Recovery != progress.RecoveryID {
 		return progress, domain.Reject(domain.Conflict)
 	}
 	if err = i.advance(ctx, progress, tx); err != nil {
@@ -72,11 +77,15 @@ func (i *Initializer) Advance(ctx context.Context, lookup domain.RootInitializat
 }
 
 func (i *Initializer) advance(ctx context.Context, p domain.RootInitializationProgress, tx domain.Transmission) error {
-	destination := domain.RecoveryDestination{Recovery: p.RecoveryID, Device: p.Route.Device, Root: p.Context.Root}
+	root, err := p.Lookup().Namespace()
+	if err != nil {
+		return err
+	}
+	destination := domain.RecoveryDestination{Recovery: p.RecoveryID, Device: root.Device, Root: root.Root}
 	plan := domain.BarrierPlan{Destination: destination, Generation: p.Generation}
 	switch p.Stage {
 	case domain.RootNeedsBarrier:
-		report, err := i.namespace.Barrier(ctx, p.Route, domain.BarrierPreparation{Destination: destination, Credential: tx.Credential, Connection: tx.Connection, Now: i.now()})
+		report, err := i.namespace.barrier(ctx, p.Lookup(), domain.BarrierPreparation{Destination: destination, Credential: tx.Credential, Connection: tx.Connection, Now: i.now()})
 		if err != nil {
 			return err
 		}
@@ -105,18 +114,12 @@ func (i *Initializer) finishInitialization(ctx context.Context, p domain.RootIni
 	if p.Reopen == nil {
 		return domain.Reject(domain.EvidenceInvalid)
 	}
-	report, err := i.namespace.Reopen(ctx, p.Route, p.Context.Root, *p.Reopen)
+	report, err := i.namespace.reopen(ctx, p.Lookup(), *p.Reopen)
 	if err != nil {
 		return err
 	}
-	// Fresh initialization refreshes the selected live project's capability
-	// independently of the verified root namespace.
-	project, _, err := i.namespace.Inspect(ctx, p.Route, p.Context)
-	if err != nil {
+	if err = i.namespace.ready(ctx, p); err != nil {
 		return err
-	}
-	if !project.AdmissionOpen || project.AdmissionGeneration != string(p.Generation) {
-		return domain.Reject(domain.Conflict)
 	}
 	receipt, err := stateReceipt(report)
 	if err != nil {
@@ -129,7 +132,7 @@ func (i *Initializer) finishInitialization(ctx context.Context, p domain.RootIni
 }
 
 func (i *Initializer) inventory(ctx context.Context, p domain.RootInitializationProgress, plan domain.BarrierPlan) error {
-	report, err := i.namespace.Inventory(ctx, p.Route, plan, p.Cursor)
+	report, err := i.namespace.inventory(ctx, p.Lookup(), plan, p.Cursor)
 	if err != nil {
 		return err
 	}
@@ -178,5 +181,5 @@ func (i *Initializer) Progress(ctx context.Context, lookup domain.RootInitializa
 }
 
 func (i *Initializer) Abandon(ctx context.Context, id domain.RecoveryID) error {
-	return i.store.AbandonRootInitialization(ctx, id)
+	return i.abandon(ctx, id)
 }

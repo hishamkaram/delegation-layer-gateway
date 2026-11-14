@@ -30,13 +30,13 @@ func (r *Reservation) routingLocked() (routing.Request, error) {
 		if len(r.unusedPayload) == 0 {
 			return routing.Request{}, fail(ErrConflict, nil)
 		}
-		return routing.Request{Credential: s.ref, ProcessBoot: r.metadata.ProcessBoot, Call: r.metadata.Call, Payload: bytes.Clone(r.unusedPayload), Now: s.now()}, nil
+		return routing.Request{WireVersion: s.wireVersion, Credential: s.ref, ProcessBoot: r.metadata.ProcessBoot, Call: r.metadata.Call, Payload: bytes.Clone(r.unusedPayload), Now: s.now()}, nil
 	}
-	frame, decodeErr := protocol.DecodeFrame(data)
+	frame, decodeErr := protocol.DecodeFrameVersion(data, s.wireVersion)
 	if decodeErr != nil {
 		return routing.Request{}, fail(ErrProtocol, decodeErr)
 	}
-	return routing.Request{Credential: s.ref, ProcessBoot: r.metadata.ProcessBoot, Call: r.metadata.Call, Payload: frame.Payload, Now: s.now()}, nil
+	return routing.Request{WireVersion: s.wireVersion, Credential: s.ref, ProcessBoot: r.metadata.ProcessBoot, Call: r.metadata.Call, Payload: frame.Payload, Now: s.now()}, nil
 }
 
 // ArmRouting is called only after the durable routing acquisition commits. An
@@ -50,7 +50,7 @@ func (r *Reservation) ArmRouting(input routing.Request) error {
 		return fail(ErrConflict, nil)
 	}
 	hash := domain.Hash(input.Payload)
-	if input.Credential != r.metadata.Credential || input.ProcessBoot != r.metadata.ProcessBoot || input.Call != r.metadata.Call || hex.EncodeToString(hash[:]) != input.Call.RequestSHA256 || input.Now.IsZero() {
+	if input.ProtocolVersion() != s.wireVersion || input.Credential != r.metadata.Credential || input.ProcessBoot != r.metadata.ProcessBoot || input.Call != r.metadata.Call || hex.EncodeToString(hash[:]) != input.Call.RequestSHA256 || input.Now.IsZero() {
 		return fail(ErrProtocol, nil)
 	}
 	r.armed = true

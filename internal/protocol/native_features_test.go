@@ -14,6 +14,7 @@ func TestRecognizedNativeFeaturesPreservesOnlyActualEvidence(t *testing.T) {
 		{"admission-only", []string{"namespace-admission-v1", "future-feature"}, []string{"namespace-admission-v1"}},
 		{"lease-only", []string{"namespace-mutation-lease-v1"}, []string{"namespace-mutation-lease-v1"}},
 		{"both-reordered-duplicates", []string{"namespace-mutation-lease-v1", "namespace-admission-v1", "namespace-mutation-lease-v1", "future-feature"}, []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}},
+		{"path-evidence", []string{"connector-path-project-v1", "workspace-constrained-connector-v1", "namespace-mutation-lease-v1", "namespace-admission-v1", "connector-path-project-v1"}, []string{"namespace-admission-v1", "namespace-mutation-lease-v1", "workspace-constrained-connector-v1", "connector-path-project-v1"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := RecognizedNativeFeatures(test.input)
@@ -39,6 +40,8 @@ func TestProjectCapabilityRequiresNamespaceMutationLeaseForReadiness(t *testing.
 		{"admission-only", []string{"namespace-admission-v1"}, false},
 		{"lease-only", []string{"namespace-mutation-lease-v1"}, false},
 		{"both", []string{"namespace-admission-v1", "namespace-mutation-lease-v1"}, true},
+		{"path-missing-workspace", []string{"namespace-admission-v1", "namespace-mutation-lease-v1", "connector-path-project-v1"}, false},
+		{"path-with-workspace", []string{"namespace-admission-v1", "namespace-mutation-lease-v1", "workspace-constrained-connector-v1", "connector-path-project-v1"}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			project := ProjectCapability{
