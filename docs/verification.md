@@ -261,8 +261,107 @@ its stated provenance or promoting a cached observation to Native authority.
 
 The original rejection remains final; the new probe has separate task identity.
 Historical unresolved cleanup evidence remains open independently of these
-passing checks. Home provider/service acceptance through the new flow and
-other missing matrix categories must not be inferred from the Office result.
+passing checks. The Home checkpoint below supplies separate evidence; other
+missing matrix categories must not be inferred from either provider result.
+
+### Home browser onboarding and installed-provider checkpoint
+
+The physical Home Mac built the exact Native `c74d79cd` source with Go 1.27.4
+for Darwin arm64, using the SDK at `2e6a269`. Source and candidate metadata
+matched the retained build receipt, and the original build/SSH command owners
+joined. No installed executable contents or credentials were copied or hashed.
+
+The first test setup used a 103-byte canonical state-root path. That exceeded
+the documented macOS limit: Native adds 14 bytes for its owner socket, whose
+encoded path may contain at most 103 bytes. This was an unsupported fixture
+setup, not evidence of a missing task engine or initialization step. The exact
+original admission envelope was not retained, so its first failing branch is
+unverified. Its one operation remained uncertain until an explicit Cloud
+cancellation through Native's existing refusal/fence path reported confirmed
+closure. Gateway subsequently showed refusal, resolved delivery and no
+reservation. This does not prove the task was never sent. The operator
+disconnected that test service. A retained `credential_revoked` audit event at
+17:20:34Z binds revocation to that exact old device, after its generation-1
+disconnect. This is device-scoped revocation: Registry invalidates its
+credentials together, rather than emitting an epoch-specific revocation row.
+The old root, history and refusal evidence were preserved without moving task
+state.
+
+A separate new root used a 49-byte canonical path. The operator connected it
+from an ordinary macOS Terminal with the browser flow and default managed
+service, without tmux. One workspace ancestor was approved with only
+`claude:print`, read-only permission and a 60-second ceiling. A child directory
+was created after that approval; a separate listing preserved the workspace
+identity, revision and policy. Cloud resolution selected that exact child and
+device, establishing dynamic-project use through this Home service.
+
+The first task under the supported root reached terminal closure but had
+rejected publication. Public Native status/collection established
+`provider_authentication_failed`, with collection exit 4 and
+`provider_output_rejected`; Cloud collection returned nonretryable
+`result_unavailable`. No accepted PONG was produced for that task. The operator
+then reported the selected Claude CLI's Terminal metadata as logged out and
+performed login themselves. That current metadata does not reconstruct the
+failed task's complete historical authentication context. Root did not log in,
+inject credentials, retry or continue the rejected operation.
+
+The operator deliberately ran one new Cloud probe using the same Home device
+and existing project handle: operation `ee4138553d7eb4611fc31e4c61034914`, task
+`a48f2dee9ed8432ceee8dab3f37f7eb9`, `claude:print`, read-only, 60 seconds.
+The report records exactly one preparation and one dispatch. Initial
+`possible_send` resolved to terminal `registered-native` closure with no
+reservation and reference SHA-256
+`3dc5b3c8289493907a9e6e936479f63a20c7767b7b2330860e8ea6b21484f515`.
+The accepted result was exactly `PONG`, four UTF-8 bytes, base64 `UE9ORw==`,
+EOF true, SHA-256
+`95784973cc639977bff93619700168505cb8f7855e44fa643d34622a43706c87`.
+The Cloud client reported independently calculating that hash from the
+retrieved bytes. Root recomputed the reported bytes' digest, without separately
+retrieving Gateway result bytes. This is operator-reported actual ChatGPT Cloud
+acceptance, not a raw transport capture. Gateway audit independently recorded
+one preparation and one admit, with no redispatch or admission recovery. No
+login, device switch or network change was reported during that new probe.
+
+Independent public Native `status` and `collect --watch 0s` both exited 0 and
+reported the same committed outcome and four-byte descriptor. Candidate/root
+metadata matched; all original Native/SSH owners joined, with no pending
+helper. Those observations read no result bytes and did not independently
+attest guarded closure. Gateway metadata separately matched the exact task and
+operation as terminal, resolved and unreserved; all twenty recorded operations
+were unreserved at that snapshot. Audit health and both current device
+connections were healthy at the recorded checkpoint. Home and Office using
+separate Internet connections remains operator-attested.
+
+The operator then disconnected Home's original Internet connection and switched
+to an alternate connection. Retained audit-prefix commitments validated the
+before/after comparison. Gateway recorded disconnect and same-credential
+generation-1 reconnect six seconds later, with connection counter 2 advancing
+to 3 in the same Gateway boot. The operator's actual ChatGPT Cloud report
+retrieved the same completed task's PONG bytes and independently matched its
+SHA-256, descriptor and original closure reference. Gateway audit corroborated
+status, collection and chunk reads on connection 3, with no Home preparation,
+admit or resume after the baseline. Root did not separately retrieve Gateway
+bytes or measure the public IP/packet path; the underlying network switch is
+operator-attested.
+
+The operator restored the original connection. Gateway recorded another
+same-credential reconnect, counter 4. The explicit public managed-service stop
+then reported installed=true, state=absent and stop_requested=true. Gateway
+recorded Home's disconnect while Office's latest event remained connected.
+Service stop does not establish Native-task closure; this task had already
+closed. The foreground operator CLI's parent Wait was not adopted by Root.
+
+Starting that same profile then reported installed=true, state=registered and
+stop_requested=false. Gateway recorded a fresh same-credential connection,
+counter 5. The operator's final actual ChatGPT Cloud read retrieved the original
+completed task's PONG, matching its descriptor, independently computed hash and
+unchanged closure reference. Gateway audit independently matched exactly
+status, collection and chunk replies on connection 5, with no new Home
+preparation, admit or resume. Operator-shared service JSON and Gateway's fresh
+same-credential connection support managed-service restart and completed-task
+access through that connection; this does not adopt launchd's original process
+Wait or establish new provider execution. All network and service
+checks reused completed-task reads, without another provider dispatch.
 
 [Native CI on the service correction](https://github.com/hishamkaram/delegation-layer/actions/runs/43572730269)
 passed on Linux and macOS, including the capacity scenario that failed in the
@@ -315,9 +414,10 @@ identity; no review was redispatched. The underlying failed observation remains
 unverified. An optional-record read racing deadline expiry is a source-backed
 possible explanation, not an established cause or a completed repair.
 
-Unverified: final integrated source gates and correction reviews, remaining
-physical-device and Cloud acceptance, and historical unresolved descendant
-closure. The source and evidence checkpoint below remains dated history.
+Unverified: historical unresolved descendant closure and retained cleanup
+provenance described below. Integrated source gates and
+scoped correction reviews are recorded above at their actual revisions. The
+source and evidence checkpoint below remains dated history.
 
 ## November 14 canonical-path candidate
 

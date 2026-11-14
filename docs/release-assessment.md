@@ -27,7 +27,18 @@ returned final nonretryable `result_unavailable`. A separate fresh probe then
 retrieved exactly PONG; independent public Native status/collection corroborated
 its committed four-byte descriptor, and Gateway metadata matched its terminal,
 unreserved operation. Cloud result bytes and guarded closure were not separately
-retrieved by Root. Remaining external matrix categories stay open. The earlier
+retrieved by Root. Home subsequently completed separate browser enrollment,
+dynamic child-project resolution and installed-Claude Cloud execution through
+its new managed service. Public Native observations corroborated its committed
+four-byte PONG descriptor; Gateway metadata matched terminal, unreserved
+delivery. Its earlier unsupported long-root setup was explicitly fenced and
+retired without moving state. A later authentication-rejected task remains
+rejected; only a deliberately new task after operator-performed login passed.
+Home's operator-attested alternate-network reconnect passed same-credential
+WSS and same-completed-result Cloud checks, followed by reconnect on the
+restored original network. Its new-profile service stop/start and post-restart
+same-task Cloud result retrieval also passed, with same-credential WSS
+corroboration. These retain their stated operator/metadata provenance. The earlier
 capacity refusal's cause is not established by the later passing checks.
 Historical timeout descendant cleanup remains unresolved. Scoped reviews and
 these live results are not global approval or a release verdict.
@@ -55,8 +66,11 @@ Delegate prerequisite must be integrated before a Gateway release.
   and live scopes in [verification](verification.md). No fixture is promoted to
   installed-provider or Cloud acceptance.
 - Linux and Office Native user-service lifecycles have recorded controls and
-  creator joins. Home's new-flow provider/GUI-service coverage and remaining
-  physical-network/client matrix categories are not inferred from Office.
+  creator joins. Home has its own new-flow browser/service, dynamic-project and
+  Cloud provider and alternate-network recovery evidence. Its new-profile
+  service stop/start and post-restart completed-task reads passed.
+  Other physical-network and client categories are not inferred from a
+  successful PONG.
 - Keep fixture, installed-provider, physical-device/network and Cloud-client
   results separate. Earlier MVP evidence supplies no automatic pass for the
   new enrollment, dynamic-project or service flows.

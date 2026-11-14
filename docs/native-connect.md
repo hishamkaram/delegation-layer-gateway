@@ -103,6 +103,13 @@ never upgrades a busy root or restarts its shared supervisor automatically.
 Follow [Native's root cutover procedure](https://github.com/hishamkaram/delegation-layer/blob/0a17c93cda0717bdd8cf28d24142e3c35d66d38d/docs/gateway-connect.md#native-root-and-profile)
 before retrying a connection that reports `root_cutover_required`.
 
+For a new custom Native state root, check its canonical UTF-8 path length before
+enrollment: at most 89 bytes on macOS or 93 on Linux. Native's owner socket adds
+14 bytes to that path. Keep builds, evidence and approved workspaces separate
+from the short state root; project paths do not share this socket-path limit.
+Do not move existing task state to shorten it. See
+[Native's socket-path guidance](https://github.com/hishamkaram/delegation-layer/blob/c74d79cd4853cea0afdc03f9f4a83261cc91729e/docs/troubleshooting.md#supervisor-configuration-fails).
+
 ```sh
 delegate gateway connect https://gateway.example.com
 ```
