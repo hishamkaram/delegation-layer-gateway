@@ -166,8 +166,35 @@ Validation on pinned Go 1.27.4:
   tested graph. This is not an assertion that all required modules are free of
   vulnerabilities or that another platform has the same graph.
 
-Unverified: published correction pins, rebuilt Native service, final correction
-CI, controlled deployment and corrected collection of the same existing Cloud
+Native revision `c74d79cd4853cea0afdc03f9f4a83261cc91729e` now pins published
+Gateway SDK `2e6a269496c130aba4714ec4e2937c92786f9b9c`, with no module
+replacement or other dependency-version change. Downloaded adapter source
+matched the reviewed source bytes. `go test -race -count=1 -timeout=5m
+./internal/gatewaycommand ./internal/gatewayservice` passed against that pin
+in 4.488 and 24.649 seconds respectively. Gateway acceptance CI selects that
+same Native revision.
+
+Gateway correction CI at `2e6a269` passed Linux, macOS and harness jobs:
+[correction run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43584964281).
+The follow-up pin review used actual Sol turn `eb775e96dfabc40aee0fd06f16032d49`
+and Opus turn `ec9a9bd625e4c16ade6715dcfc7ec9a9`; both complete accepted answers
+were validated/read and found no P0/P1/P2 in their inspected scope. Feature
+commit pins must still be aligned with retained merged commits/tags before
+release or branch deletion.
+
+The actual local process scenario then passed against Gateway `2e6a269` and
+Native `c74d79cd` in 66.908 seconds: two embedded connectors, exactly three
+literal Pi fixture attempts, dynamic nested projects, duplicate identity,
+same-path replacement before/during execution, restart/reconnect, cancellation,
+result checks and metadata canaries. Canonical closure covered all three tasks;
+two completed worker Waits returned 0 and the requested cancellation returned 1.
+The driver reported `native_connect_passed`, cleanup confirmed and no cleanup
+errors. Original driver/controller owners joined and private evidence paths
+were retained. This is actual fixture execution, not installed-provider,
+physical-Mac or Cloud proof.
+
+Unverified: rebuilt Native service, final correction CI, controlled deployment
+and corrected collection of the same existing Cloud
 operation. Successful provider authentication and an accepted Office PONG remain
 unverified; no automatic login or replacement task follows from the source fix.
 
