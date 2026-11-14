@@ -8,9 +8,10 @@ import (
 	"errors"
 	"flag"
 	"io"
+
+	"github.com/hishamkaram/delegation-layer-gateway/internal/appversion"
 )
 
-const Version = "0.0.0-dev"
 const (
 	exitSuccess = 0
 	exitRuntime = 1
@@ -113,7 +114,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		}
 		return writeJSON(stdout, struct {
 			Version string `json:"version"`
-		}{Version})
+		}{appversion.Current})
 	case "init", "identity", "migrate", "begin-recovery":
 		return databaseCommand(ctx, args[1:], stdout, args[0])
 	case "serve":

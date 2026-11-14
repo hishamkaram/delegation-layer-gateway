@@ -1,9 +1,11 @@
 # Deploy Gateway and connect Delegate
 
-This extension is an implementation candidate. Its browser, unattended,
-dynamic-project and service flows need their own live acceptance. Earlier MVP
-acceptance does not establish that these additions work on a deployed host.
-See [verification](verification.md) for the recorded checks and open gates.
+This connection flow is included in the source for Gateway 0.1.0 and Delegate
+0.6.0. Compatible builds from the merged source include these commands; changing
+release versions does not publish packages or upgrade installed binaries. See
+[verification](verification.md#november-14-public-native-onboarding-checkpoint)
+for the dated browser, headless, dynamic-project and service evidence and its
+remaining limits. Earlier MVP evidence applies to its recorded revisions.
 
 The normal device experience is `delegate gateway connect HTTPS_URL`. Native
 owns its user service and embeds the Gateway client; a separate connector
@@ -122,6 +124,13 @@ of opening a local browser; approve it on another device:
 delegate gateway connect https://gateway.example.com --headless
 ```
 
+Use `--name mac-home` to choose a display name; omission uses the local hostname.
+In a cloud prompt, a user can refer to that name. The MCP client must first call
+`list_devices`, match one authorized device and retain its `device_id` for the
+operation. Tool calls require the ID; names are not unique identifiers. An
+ambiguous name or unavailable selected device requires clarification, never a
+silent switch to another device.
+
 For a foreground process instead of service installation:
 
 ```sh
@@ -168,12 +177,39 @@ recovery of the lost token. There is no automatic remint or secret recovery.
 ## Approve a workspace once
 
 New profiles expose no workspace. On the device, approve an existing ancestor
-directory and its local provider ceiling:
+directory:
+
+```sh
+delegate gateway workspace allow /absolute/work --alias work
+delegate gateway workspace list
+```
+
+`--provider` is optional. With no policy overrides, a new approval copies the
+saved device profile's provider, permission, model, effort and budget policies
+at approval time. It does not scan installed providers or automatically change
+when a later policy changes. Connection defaults include the eligible provider
+profiles compiled into that Delegate build, read-only permission and a maximum
+task budget of 60 seconds. Profiles requiring an explicit model or effort are
+excluded from those defaults unless that model or effort is supplied with a
+single `--provider`. Allowed
+providers are separate from installed-provider or login readiness.
+
+Use `--provider` to set a provider-specific policy for a new workspace. Saved
+profile policies supply defaults, not a ceiling: an explicit workspace provider
+can be another eligible provider compiled into the build. To create a Claude-only
+approval, use this command **instead** of the first approval:
 
 ```sh
 delegate gateway workspace allow /absolute/work --alias work --provider claude:print
-delegate gateway workspace list
 ```
+
+Choosing the provider for one cloud task is a separate decision: the client
+selects one allowed provider when preparing that task. The Gateway owner's
+current policy and the local workspace ceiling must both allow it. Omitting
+`--provider` does not widen an existing Claude-only profile or approval.
+Repeating an active alias with different policy fails with a conflict; use
+Native's [workspace update command](https://github.com/hishamkaram/delegation-layer/blob/main/docs/gateway-connect.md#approve-an-existing-workspace-once)
+and its actual current revision to deliberately change an existing approval.
 
 The MCP client then selects the explicit device and workspace using
 `list_devices` and `list_workspaces`. It calls `resolve_project` with a saved

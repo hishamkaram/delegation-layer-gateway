@@ -117,6 +117,16 @@ func TestOfficialSDKHTTPSDiscoversTwelveClosedToolsAndOAuthMetadata(t *testing.T
 	if session.InitializeResult().ProtocolVersion != "2026-07-28" {
 		t.Fatal("SDK did not negotiate the configured protocol")
 	}
+	info := session.InitializeResult().ServerInfo
+	if info == nil {
+		t.Fatal("MCP initialize omitted the server software identity")
+	}
+	if info.Name != "delegation-layer-gateway" {
+		t.Fatalf("public MCP software name = %q, want delegation-layer-gateway", info.Name)
+	}
+	if info.Version != "0.1.0" {
+		t.Fatalf("public MCP software version = %q, want 0.1.0", info.Version)
+	}
 	result, err := session.ListTools(t.Context(), nil)
 	listed := checked(t, result, err)
 	want := map[string]toolExpectation{
