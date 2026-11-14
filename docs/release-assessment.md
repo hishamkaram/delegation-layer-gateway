@@ -1,15 +1,19 @@
-# Candidate release assessment — 13 November 2026
+# Candidate release assessment — 14 November 2026
 
 **Current Native-connect extension: not release-ready.** The candidate adds
 owner enrollment and policy, schema-9 project-resolution state, wire-v2
 workspace routing, targeted capabilities and the Native-owned embedded-service
-path. Gateway's complete engineering gate and the final local literal-fixture
-process scenario passed. Native's aggregate Linux gate was interrupted, and
-its remaining gates and extension-specific external acceptance are incomplete.
-Two P2 obligations remain: the directory-identity product decision and Native
-Linux service recovery after an interrupted manager reload. Actual Sol,
-Opus5.5 high and native reviews identified and challenged these boundaries;
-their scoped clearances are not global approval or a release verdict.
+path. Canonical path is the approved project identity; same-path replacement
+is allowed. The directory-incarnation proposal is superseded. Native Linux
+service-recovery and the later launch/error/root-projection corrections are
+implemented and independently reviewed. Final scoped Sol, Opus5.5 high and
+native reviews found no actionable source P0/P1/P2 in the inspected paths.
+The rebuilt final local literal-fixture process scenario passed with exactly
+three tasks and confirmed cleanup. Complete current-revision gates and
+extension-specific external acceptance remain incomplete; Office's earlier
+platform race invocation failed and is being investigated. Historical timeout
+descendant cleanup remains unresolved. Scoped reviews and fixture proof are
+not global approval or a release verdict.
 See [Native connect](native-connect.md) for the intended operator paths and
 [verification](verification.md) for dated evidence.
 

@@ -1,6 +1,74 @@
 # Verification and delivery gates
 
-## November 13 Native connection and dynamic-project candidate
+## November 14 canonical-path candidate
+
+**This extension is not release-ready.** The approved project identity is its
+canonical path. Deleting, recreating or recloning a project at that same path is
+allowed; the earlier directory-incarnation proposal below is superseded. There
+are no project markers or filesystem-specific identity requirements. Native
+state-root identity, current path containment and immutable task equality remain
+strict. See the [connection guide](native-connect.md).
+
+The published Native candidate is
+`bc0e350157ac3a7b6e77a8bc6e616cf67c7d863c`; its SDK pin is
+`v0.0.0-20261114055443-0b3b1e9334c7`, without a module replacement. Gateway
+checkpoint `2afe9b2` pins that Native source for acceptance. This is a source
+checkpoint, not a completed delivery gate.
+
+Actual Sol (`gpt-6.1-sol`, high) and Opus (`claude-opus-5-5`, high) accepted
+the final source corrections in turns `603b35b2c1cbc80e0e06d9a489a5784a` and
+`0e59988485b43679b07db8f5256dab9e`. Root read both complete committed answers
+after validating their payload lengths and SHA-256. Their scoped reviews found
+no remaining actionable source P0/P1/P2; full verification remains open.
+Independent native security/concurrency review also accepted these corrections:
+
+- Actual successful provider Start retains its sole Wait and finish ownership
+  when later project-directory cleanup or lifetime control fails.
+- SDK busy and Native pending projections preserve independent hard errors.
+  Interrupted Linux service removal reconciles only a verifiably absent unit;
+  it does not adopt an unknown cached service.
+- Supervisor status and migrate distinguish a genuinely absent selected root
+  from missing metadata in an existing root. Regression fixtures explicitly
+  set private permissions and cover dangling entries and file ancestors.
+- Canonical directory reads retain directory-only open and lexical alias
+  semantics, sorting only on alias fallback. Read and close faults are surfaced
+  before entries are consumed. Forced read/close fault execution remains
+  unverified. The controlled benchmark has overlapping ranges and supports no
+  stable speedup or suite-time claim.
+
+The rebuilt final local scenario passed using Native `bc0e3501` and SDK
+`0b3b1e9`: actual Gateway and two Native embedded connector processes, exactly
+three literal-provider attempts, dynamic nested selection, same-path ancestor
+and leaf replacement before/during execution, duplicate resolution, Gateway
+restart/reconnection, accepted-result verification and requested cancellation.
+All three scopes had canonical closure; controller cleanup was confirmed with
+no cleanup errors. The initial rerun rejected incorrectly named candidate
+executables before creating a harness; the corrected adjacent Delegate/runner
+pair was then used. This is fixture proof, not installed-provider, desktop
+service, public-login or Cloud-client acceptance.
+
+An offline copy of the deployed schema-7 registry migrated to schema 9 with
+exit 0 and a successful integrity check. All original columns and rows in its
+19 existing tables were preserved. The live registry was not changed by that
+experiment; clone migration does not prove deployment or safe database restore.
+
+Gateway's earlier full gate passed before the final SDK correction; the final
+SDK package race, vet and lint checks passed afterward. The current complete
+[Gateway CI gate](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43568525152)
+and [Native CI gate](https://github.com/hishamkaram/delegation-layer/actions/runs/43568016396)
+are pending at this checkpoint. The fresh Linux Native aggregate is also
+running. Office's earlier full platform invocation against `8d6c7714` joined
+with failure in its race stage; later Python, CLI/TUI and vulnerability stages
+did not execute. That failed invocation is retained and is not current-source
+proof. Its failure diagnosis and final-revision native Mac checks remain open.
+
+Unverified: complete current-revision engineering gates; extension-specific
+public browser/headless/token login, default user-service lifecycle, actual
+installed providers, physical-device/network and Cloud-client acceptance.
+Historical interrupted-test descendant cleanup remains unresolved and retained.
+Existing MVP proof below keeps its original revisions, date and scope.
+
+## November 13 Native connection checkpoint (historical)
 
 **This extension is not release-ready.** The historical MVP checkpoints below
 do not verify the new Native login, embedded connector, user service or dynamic
