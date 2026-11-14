@@ -57,6 +57,17 @@ CONTROL_CLASSES = frozenset(
         "origin_barrier",
         "origin_inventory",
         "origin_reopen",
+        "resolve_project",
+    }
+)
+# Go Event.validControlIdentity uses protocol.Operation.RootRouted for this scope.
+ROOT_ROUTED_CONTROL_CLASSES = frozenset(
+    {
+        "context_inspect",
+        "origin_barrier",
+        "origin_inventory",
+        "origin_reopen",
+        "resolve_project",
     }
 )
 CONNECTION_CODES = frozenset(
@@ -67,6 +78,7 @@ RECORD_FIELDS = frozenset(
     {
         "at",
         "code",
+        "root_only",
         "device",
         "principal",
         "operation",
@@ -175,14 +187,31 @@ def control_record(value):
         value["code"] in CONTROL_CODES
         and "control" in value
         and set(value)
-        <= {"at", "code", "principal", "device", "project", "operation", "control"},
+        <= {
+            "at",
+            "code",
+            "root_only",
+            "principal",
+            "device",
+            "project",
+            "operation",
+            "control",
+        },
         "invalid audit control record",
     )
     metadata = value["control"]
     control_metadata(metadata)
+    if value.get("root_only", False):
+        identity_valid = (
+            "device" in value
+            and "project" not in value
+            and metadata["class"] in ROOT_ROUTED_CONTROL_CLASSES
+        )
+    else:
+        identity_valid = ("device" in value) == ("project" in value)
     require(
         (metadata["actor"] == "principal") == ("principal" in value)
-        and ("device" in value) == ("project" in value)
+        and identity_valid
         and ("operation" not in value or "device" in value),
         "invalid audit control identity",
     )
@@ -230,6 +259,11 @@ def connection_record(value):
 
 
 def record_metadata(value):
+    root_only = value.get("root_only", False)
+    require(
+        type(root_only) is bool and (not root_only or value["code"] in CONTROL_CODES),
+        "invalid audit root scope",
+    )
     if value["code"] == "device_credential_denied":
         require(
             set(value) == {"at", "code", "device", "credential"},
@@ -238,7 +272,7 @@ def record_metadata(value):
         credential_identity(value["credential"], value["device"])
         return
     metadata = {"project", "control", "connection", "connection_duration_ns"}
-    if not metadata.intersection(value) and "credential" not in value:
+    if not metadata.intersection(value) and "credential" not in value and not root_only:
         # Retained pre-metadata generic rows are historical observations only.
         return
     for key in ("device", "principal", "operation", "project"):

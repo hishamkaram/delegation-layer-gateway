@@ -202,6 +202,28 @@ new resolution, admission and resume while preserving authorized saved task
 status, cancellation and result retrieval. Device/principal revocation still
 denies access. A workspace approval is routing authority, not an OS sandbox.
 
+### Refresh ChatGPT actions after an upgrade
+
+An existing ChatGPT connection can still expose its earlier action set after
+Gateway adds tools. Refresh requires a valid connection and permission to manage
+it. For a directly connected custom MCP server, open its connection in
+**ChatGPT Plugins → Refresh**, then confirm that `list_workspaces` and
+`resolve_project` appear. See [OpenAI's direct-connection refresh procedure](https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata).
+
+For a workspace-published app, an admin/owner must review and publish the update.
+Use **Workspace settings → Apps → ⋯ → Action control → Refresh**, or the
+publish-time **Configure Actions** control where available. New actions can be
+disabled by default; enable the required actions before publishing. The retained
+app settings are also reachable from **Admin Console → Plugins → Manage Legacy
+Apps**. Ordinary members must ask their app manager. See [OpenAI's workspace
+action-control guidance](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt).
+Start a new chat and select the updated connection before testing again.
+
+If `list_devices` works but `resolve_project` is absent, stop before preparing a
+task. Compare the authenticated server `tools/list` response with ChatGPT's
+enabled actions. Refreshing action metadata does not enroll a device, alter
+workspace permission/budget ceilings or dispatch a task.
+
 ## Operate and recover
 
 Native exposes explicit `gateway service install|start|stop|status|uninstall`

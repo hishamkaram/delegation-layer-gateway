@@ -63,14 +63,64 @@ Actual new-flow evidence now includes:
   the private metrics response. No provider content was printed by that check.
 
 These are distinct process, service, authentication, authorization and installed
-provider results. Office provider execution, further two-device task acceptance,
-network-change recovery and an actual Cloud MCP client remain separate gates.
-The operator is testing the Office Cloud path; no result is assumed in advance.
+provider results. Successful Office provider execution, further two-device task
+acceptance and network-change recovery remain separate gates.
+
+The subsequent Office Cloud attempt found the exact device online and
+Delegate-ready, but its exposed actions lacked `resolve_project`. It stopped
+before preparation or dispatch and created no task identity. A separate
+authenticated public `tools/list` check negotiated protocol `2025-11-25` and
+returned all fourteen server tools, including `list_workspaces` and
+`resolve_project`. That confirms the server advertisement; it does not establish
+which ChatGPT action metadata or workspace controls hid the tool. After the
+operator refreshed the connection, both tools became available.
+
+The subsequent actual Cloud attempt resolved the selected project and prepared
+and dispatched exactly once. Operation `c6208072f3ebaa122c9f57f934b041d3`, task
+`571b65d8a1023353ae34aa31d456d077`, reached resolved delivery and canonical
+`registered-native` execution closure with no reservation. The client reported
+three retryable pending result responses. Independent public Native status and
+collection of that same task instead established rejected publication:
+`provider_authentication_failed`, with collection exit 4 and
+`provider_output_rejected`. No accepted result was produced. Closure proves the
+execution ended; it does not prove the requested PONG was produced. The cause of
+the difference between the working Terminal and service authentication contexts
+is unverified. No second dispatch, replacement task, recovery or login was run.
+
+Source review found that the embedded adapter maps clean rejected collection
+to pending, and Gateway's dated cache does not retain the fresh verdict needed
+to return a final collection error. That correction is in progress and remains
+a release blocker. The exact failed guarded envelope from the Cloud invocation
+was not captured; the Native rejection and the source defect are separate
+verified observations.
+
+Linux cleanup subsequently revoked the exact temporary credential once. Typed
+audit events recorded its disconnect and denial of that same credential;
+Native disconnect uninstalled its exact user service, and the identity lease
+was free. Seven original control processes joined. State, profile and task
+history remain retained; Native daemon closure and removal of the spent private
+token are unverified. No further provider task was launched.
+
+That cleanup exposed a proof-reader compatibility defect before any mutation:
+the shared Python audit reader rejected valid Go-produced `root_only` control
+rows. The corrected reader validates the closed root-control classes, exact
+boolean type and root/project correlation. Its 23 tests and pinned Ruff checks
+passed; a preimage counterexample failed for the intended defect. A separate
+live read validated 2,084 unfiltered records, including all five root-control
+classes. Actual Sol and Opus accepted this two-file correction in turns
+`dec01c03df80862c4ffbde05e4c52107` and `2ef4c554450c0df2fcafd16d623e45fc`,
+and an independent native security/concurrency review found no P0/P1/P2 in that
+scope. These reader checks do not prove the pending result correction.
 
 [Native CI on the service correction](https://github.com/hishamkaram/delegation-layer/actions/runs/43572730269)
 passed on Linux and macOS, including the capacity scenario that failed in the
 earlier run. That does not establish the cause of the earlier reported
 CPU-pressure refusals or close its missing historical cleanup evidence.
+The subsequent complete Native CI at `02e0a225` also passed on Linux and macOS:
+[final cleanup revision](https://github.com/hishamkaram/delegation-layer/actions/runs/43577632129).
+Gateway CI at `21fbc15` passed both platforms:
+[Gateway checkpoint](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/43577754779).
+Neither run includes the later audit-reader or rejected-result corrections.
 
 Native test-only commit `02e0a2250472c8796708d9e7040f56b110f3069a`
 repairs the original recovery fixture and six older early-assertion cleanup

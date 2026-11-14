@@ -69,6 +69,14 @@ def connected(code="device_connected"):
     }
 
 
+def root_control(control_class="resolve_project"):
+    value = completed_control()
+    value["root_only"] = True
+    del value["project"]
+    value["control"]["class"] = control_class
+    return value
+
+
 class MetadataRecordTests(unittest.TestCase):
     def test_current_go_completed_control_row_is_accepted(self):
         # Go Event/ControlMetadata JSON shape and completedAuditFixture values.
@@ -86,6 +94,65 @@ class MetadataRecordTests(unittest.TestCase):
             b'"response_known":true}}\n'
         )
         self.assertEqual(list(audit.records(encoded)), [(0, json.loads(encoded))])
+
+    def test_current_go_root_routed_control_rows_are_accepted(self):
+        # Event.validControlIdentity and Operation.RootRouted define this branch.
+        for control_class in (
+            "context_inspect",
+            "origin_barrier",
+            "origin_inventory",
+            "origin_reopen",
+            "resolve_project",
+        ):
+            with self.subTest(control_class=control_class):
+                value = root_control(control_class)
+                self.assertEqual(list(audit.records(line(value))), [(0, value)])
+        ordinary = {**completed_control(), "root_only": False}
+        self.assertEqual(list(audit.records(line(ordinary))), [(0, ordinary)])
+        generic = {
+            "at": "2026-11-12T21:00:00Z",
+            "code": "enrollment_issued",
+            "root_only": False,
+        }
+        self.assertEqual(list(audit.records(line(generic))), [(0, generic)])
+
+    def test_root_scope_refuses_invalid_types_and_identity_combinations(self):
+        for invalid in (None, 0, 1, "true", [], {}):
+            with self.subTest(root_only=invalid):
+                self.assert_rejected({**root_control(), "root_only": invalid})
+                # Type validation must also precede the legacy metadata return.
+                self.assert_rejected(
+                    {
+                        "at": "2026-11-12T21:00:00Z",
+                        "code": "control_completed",
+                        "root_only": invalid,
+                    }
+                )
+        for fields in (
+            {"project": "project-one"},
+            {"root_only": False},
+            {"code": "operation_prepared"},
+            {"code": "device_connected"},
+            {"credential": dict(IDENTITY)},
+            {"connection": {"BootEpoch": "boot", "Counter": 1}},
+            {"connection_duration_ns": 1},
+            {"extra": "private-canary"},
+        ):
+            with self.subTest(fields=fields):
+                self.assert_rejected({**root_control(), **fields})
+        for control_class in ("admit", "status", "prepare", "unknown"):
+            with self.subTest(control_class=control_class):
+                self.assert_rejected(root_control(control_class))
+        missing = root_control()
+        del missing["device"]
+        self.assert_rejected(missing)
+        missing = root_control()
+        del missing["principal"]
+        self.assert_rejected(missing)
+        for code in ("control_completed", "enrollment_issued"):
+            self.assert_rejected(
+                {"at": "2026-11-12T21:00:00Z", "code": code, "root_only": True}
+            )
 
     def assert_rejected(self, value):
         with self.assertRaises(ProofFailure):
@@ -283,7 +350,7 @@ class AuditTests(unittest.TestCase):
             stream.write(data)
 
     def test_current_metadata_rows_do_not_break_matching_denial_cursor(self):
-        self.write(line(completed_control()) + line(connected()))
+        self.write(line(completed_control()) + line(root_control()) + line(connected()))
         cursor = audit.AuditCursor.capture(self.directory)
         self.append(line(connected("device_disconnected")) + line(denial()))
         match = cursor.find_denial(self.credential)
