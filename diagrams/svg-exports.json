@@ -12,25 +12,25 @@
   "exports": [
     {
       "artifact": "components.svg",
-      "sha256": "d16b314814424c0af4594f8f1aaec569dc47708f70f18fa9aea1456eaad59753",
-      "bytes": 188932,
-      "runtimeReportedBytes": 188931,
+      "sha256": "c041af756fa0a28af0851abc4e552ea588ebcf223a45fe3ea2247de5d81b28df",
+      "bytes": 188983,
+      "runtimeReportedBytes": 188982,
       "runtimeCanonicalStateClean": true,
       "method": "Production canonical SVG Auto export; saved with final newline",
       "format": "svg",
       "xmlParse": "pass",
-      "sourceHtmlSha256": "3a2d44b9d5974573d690f4a18f8af428c34a07545694e7c76a7cf42b7fb7a5e0"
+      "sourceHtmlSha256": "06090d658e7040b9c3b370d52c1c6fec42ec7a20892241c994c5fd03b32788cd"
     },
     {
       "artifact": "operation-safety.svg",
-      "sha256": "8bd9f64a0dc0a3894ff3093f35ad61969366dd787a833bd3ce4dd7db76f87117",
-      "bytes": 241093,
-      "runtimeReportedBytes": 241092,
+      "sha256": "4343c9f0ecdde66b1b83b8ad019114c2ae7a4cab023bddb0e58531d24a7e4cbe",
+      "bytes": 241010,
+      "runtimeReportedBytes": 241009,
       "runtimeCanonicalStateClean": true,
       "method": "Production canonical SVG Auto export; saved with final newline",
       "format": "svg",
       "xmlParse": "pass",
-      "sourceHtmlSha256": "2a2aae864abf6cdc89495c61131253ce3a306dd495cf795aee3e59d44486b776"
+      "sourceHtmlSha256": "c9316bcc2873efbacfd50b3cf19f78237b80a4608496bf993806815fcb9e3855"
     }
   ]
 }
