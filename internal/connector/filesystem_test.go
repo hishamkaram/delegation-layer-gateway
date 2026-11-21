@@ -63,9 +63,13 @@ func filesystemCommand(t *testing.T, f *fixture, selection protocol.FileSelectio
 }
 
 func TestFilesystemReadPreservesExactBytesAndCreatesNoPins(t *testing.T) {
+	testFilesystemReadPreservesExactBytesAndCreatesNoPins(t, "f-雪.txt")
+}
+
+func testFilesystemReadPreservesExactBytesAndCreatesNoPins(t *testing.T, name string) {
+	t.Helper()
 	f, store, _ := newRoutedFixture(t)
 	bytes := []byte{0, 1, 255, 'p', 'r', 'i', 'v', 'a', 't', 'e'}
-	name := string([]byte{'f', 255})
 	if err := os.WriteFile(filepath.Join(f.config.Projects[0].Directory, name), bytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
