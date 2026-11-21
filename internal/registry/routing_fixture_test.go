@@ -23,7 +23,16 @@ func (f *fixture) reconcileRouting(t *testing.T, active []protocol.ControlCall) 
 }
 
 func fixtureAdmission(c domain.Correlation, r domain.FrozenRequest) protocol.Admission {
-	return protocol.Admission{Task: protocol.TaskBinding{TaskID: string(c.Task), Context: protocol.ContextBinding{Root: string(c.Context.Root), Project: string(c.Context.Project)}, Origin: protocol.Origin{GatewayID: string(c.Gateway), AdmissionGeneration: string(c.AdmissionGeneration), OperationID: string(c.Operation), PrincipalRef: string(c.Owner.Principal), RequestSHA256: hex.EncodeToString(c.RequestDigest[:])}}, Provider: string(r.Provider), Model: protocol.Selection{Kind: string(r.Model.Kind), Value: r.Model.Value}, Effort: protocol.Selection{Kind: string(r.Effort.Kind), Value: r.Effort.Value}, Permission: string(r.Permission), BudgetSeconds: r.BudgetSeconds, Brief: r.Brief}
+	admission := protocol.Admission{Task: protocol.TaskBinding{TaskID: string(c.Task), Context: protocol.ContextBinding{Root: string(c.Context.Root), Project: string(c.Context.Project)}, Origin: protocol.Origin{GatewayID: string(c.Gateway), AdmissionGeneration: string(c.AdmissionGeneration), OperationID: string(c.Operation), PrincipalRef: string(c.Owner.Principal), RequestSHA256: hex.EncodeToString(c.RequestDigest[:])}}, Provider: string(r.Provider), Model: protocol.Selection{Kind: string(r.Model.Kind), Value: r.Model.Value}, Effort: protocol.Selection{Kind: string(r.Effort.Kind), Value: r.Effort.Value}, Permission: string(r.Permission), BudgetSeconds: r.BudgetSeconds, Brief: r.Brief}
+	if c.Route.Version == 1 {
+		admission.Task.Route = protocol.TaskRoute{Version: 1, Selection: protocol.FileSelection{ScopeID: c.Route.ScopeID, RelativePath: c.Route.RelativePath}, WorkspaceGuard: c.Route.WorkspaceGuard, GuardFormat: protocol.FeatureProjectHashGuard}
+	}
+	if r.Native.Version == 1 {
+		native := r.Native
+		admission.Native = protocol.NativeOptions{Version: 1, Provider: string(native.Provider), Model: protocol.Selection{Kind: string(native.Model.Kind), Value: native.Model.Value}, Effort: protocol.Selection{Kind: string(native.Effort.Kind), Value: native.Effort.Value}, Permission: native.Permission, Budget: native.Budget, ReviewTarget: native.ReviewTarget, NativeTimeout: native.NativeTimeout, OutputSilenceTimeout: native.OutputSilenceTimeout}
+		admission.Model, admission.Effort = protocol.Selection{}, protocol.Selection{}
+	}
+	return admission
 }
 
 func (f *fixture) admissionRoute(ctx context.Context, input domain.Transmission) (routing.Request, error) {
@@ -53,7 +62,11 @@ func (f *fixture) admissionRoute(ctx context.Context, input domain.Transmission)
 		number = 1
 	}
 	digest := domain.Hash(payload)
-	return routing.Request{Credential: input.Credential, ProcessBoot: fixtureProcessBoot, Call: protocol.ControlCall{Generation: protocol.Generation{BootEpoch: string(input.Connection.BootEpoch), Counter: input.Connection.Counter}, RequestID: "g:" + strconv.FormatUint(number, 10), OperationID: string(input.Operation), Operation: protocol.Admit, RequestSHA256: hex.EncodeToString(digest[:])}, Payload: payload, Now: input.Now}, nil
+	wireVersion := 0
+	if c.Route.Version == 1 {
+		wireVersion = protocol.WireVersion2
+	}
+	return routing.Request{WireVersion: wireVersion, Credential: input.Credential, ProcessBoot: fixtureProcessBoot, Call: protocol.ControlCall{Generation: protocol.Generation{BootEpoch: string(input.Connection.BootEpoch), Counter: input.Connection.Counter}, RequestID: "g:" + strconv.FormatUint(number, 10), OperationID: string(input.Operation), Operation: protocol.Admit, RequestSHA256: hex.EncodeToString(digest[:])}, Payload: payload, Now: input.Now}, nil
 }
 
 // Legacy task-state tests model a CLI control that settles immediately after

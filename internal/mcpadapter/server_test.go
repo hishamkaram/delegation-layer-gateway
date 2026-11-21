@@ -111,7 +111,7 @@ func assertToolOAuth(t *testing.T, tool toolWire, want []string) {
 	}
 }
 
-func TestOfficialSDKHTTPSDiscoversTwelveClosedToolsAndOAuthMetadata(t *testing.T) {
+func TestOfficialSDKHTTPSDiscoversThirteenClosedToolsAndOAuthMetadata(t *testing.T) {
 	f := newFixture(t, 0)
 	session := f.session(t, "alice")
 	if session.InitializeResult().ProtocolVersion != "2026-07-28" {
@@ -124,27 +124,28 @@ func TestOfficialSDKHTTPSDiscoversTwelveClosedToolsAndOAuthMetadata(t *testing.T
 	if info.Name != "delegation-layer-gateway" {
 		t.Fatalf("public MCP software name = %q, want delegation-layer-gateway", info.Name)
 	}
-	if info.Version != "0.1.0" {
-		t.Fatalf("public MCP software version = %q, want 0.1.0", info.Version)
+	if info.Version != "0.2.0" {
+		t.Fatalf("public MCP software version = %q, want 0.2.0", info.Version)
 	}
 	result, err := session.ListTools(t.Context(), nil)
 	listed := checked(t, result, err)
 	want := map[string]toolExpectation{
-		"list_devices":      {true, false, true, []string{"inventory:read"}},
-		"list_projects":     {true, false, true, []string{"inventory:read"}},
-		"get_capabilities":  {true, false, true, []string{"inventory:read"}},
-		"prepare_dispatch":  {false, false, false, []string{"task:dispatch"}},
-		"dispatch_task":     {false, true, true, []string{"task:dispatch"}},
-		"list_operations":   {true, false, true, []string{"task:read", "task:dispatch"}},
-		"resolve_operation": {true, false, true, []string{"task:read"}},
-		"get_task_status":   {true, false, true, []string{"task:read"}},
-		"recover_admission": {false, true, true, []string{"task:dispatch"}},
-		"collect_result":    {true, false, true, []string{"task:read"}},
-		"read_result_chunk": {true, false, true, []string{"task:read"}},
-		"cancel_task":       {false, true, true, []string{"task:cancel"}},
+		"list_devices":         {true, false, true, []string{"inventory:read"}},
+		"list_projects":        {true, false, true, []string{"inventory:read"}},
+		"get_capabilities":     {true, false, true, []string{"inventory:read"}},
+		"prepare_dispatch":     {false, false, false, []string{"task:dispatch"}},
+		"prepare_continuation": {false, false, true, []string{"task:dispatch"}},
+		"dispatch_task":        {false, true, true, []string{"task:dispatch"}},
+		"list_operations":      {true, false, true, []string{"task:read", "task:dispatch"}},
+		"resolve_operation":    {true, false, true, []string{"task:read"}},
+		"get_task_status":      {true, false, true, []string{"task:read"}},
+		"recover_admission":    {false, true, true, []string{"task:dispatch"}},
+		"collect_result":       {true, false, true, []string{"task:read"}},
+		"read_result_chunk":    {true, false, true, []string{"task:read"}},
+		"cancel_task":          {false, true, true, []string{"task:cancel"}},
 	}
 	if len(listed.Tools) != len(want) {
-		t.Fatalf("got %d registered tools, want12", len(listed.Tools))
+		t.Fatalf("got %d registered tools, want13", len(listed.Tools))
 	}
 	for _, tool := range listed.Tools {
 		wire := sdkValue[toolWire](t, tool)
@@ -180,7 +181,7 @@ func TestPublicMetadataAndHTTPBearerChallengesExposeNoInventoryOrSecrets(t *test
 	}
 	var metadata resourceMetadata
 	check(t, json.Unmarshal(data, &metadata))
-	if metadata.Resource != f.server.URL+"/mcp" || len(metadata.AuthorizationServers) != 1 || len(metadata.ScopesSupported) != 4 {
+	if metadata.Resource != f.server.URL+"/mcp" || len(metadata.AuthorizationServers) != 1 || len(metadata.ScopesSupported) != 5 {
 		t.Fatal("protected resource metadata does not match configured OAuth boundary")
 	}
 	for _, token := range []string{"", privateCanary, "expired", "management"} {

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connector"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -126,15 +125,7 @@ func projectSnapshot(p profile) (connector.WorkspaceSnapshot, error) {
 }
 
 func workspacePolicy(w workspaceRecord) connector.WorkspacePolicy {
-	providers := make([]connector.ProviderPolicy, 0, len(w.Providers))
-	for _, p := range w.Providers {
-		permissions := make([]domain.Permission, len(p.Permissions))
-		for i, value := range p.Permissions {
-			permissions[i] = domain.Permission(value)
-		}
-		providers = append(providers, connector.ProviderPolicy{Provider: p.Provider, Models: slices.Clone(p.Models), Efforts: slices.Clone(p.Efforts), Permissions: permissions, MaxBudgetSeconds: p.MaxBudgetSeconds, NativeModel: p.NativeModel, NativeEffort: p.NativeEffort})
-	}
-	return connector.WorkspacePolicy{ID: w.ID, Alias: w.Alias, Directory: w.Directory, NativeContext: w.NativeContext, Revision: w.Revision, Enabled: w.Enabled, Providers: providers}
+	return connector.WorkspacePolicy{ID: w.ID, Alias: w.Alias, Directory: w.Directory, NativeContext: w.NativeContext, Revision: w.Revision, Enabled: w.Enabled}
 }
 
 func (p *profileProjects) LookupPin(ctx context.Context, id string) (pin connector.ProjectPin, result error) {

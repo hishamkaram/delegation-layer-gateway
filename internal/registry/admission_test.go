@@ -8,7 +8,7 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 )
 
-func TestDispatchOnlyRecoveryRequiresKnownSpecAndCurrentExecutionCeiling(t *testing.T) {
+func TestDispatchOnlyRecoveryRequiresKnownSpecAndCurrentDispatchScope(t *testing.T) {
 	f := newFixture(t)
 	c := f.prepare(t, "recover")
 	dispatcher := domain.Actor{Principal: f.actor.Principal, Scopes: domain.ScopeSet{domain.TaskDispatch}}
@@ -35,12 +35,12 @@ func TestDispatchOnlyRecoveryRequiresKnownSpecAndCurrentExecutionCeiling(t *test
 	}
 	_, err = f.store.GetOperation(t.Context(), dispatcher, c.Operation)
 	requireCode(t, err, domain.Forbidden)
-	grant := domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: destination()}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 30}}
+	grant := domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: destination()}, Scopes: domain.ScopeSet{domain.TaskRead}}
 	requireOK(t, f.store.PutGrant(t.Context(), grant))
 	_, err = f.store.GetForRecovery(t.Context(), dispatcher, c.Operation)
-	requireCode(t, err, domain.Forbidden)
+	requireCode(t, err, domain.NotFound)
 	f.putGrant(t, f.actor.Principal, f.actor.Scopes)
-	// Structurally valid, grant-allowed options with a changed budget must still
+	// Structurally valid options with a changed budget must still
 	// fail their retained integrity binding after the sensitive brief is gone.
 	_, err = f.store.db.ExecContext(t.Context(), "UPDATE operations SET execution_options=? WHERE id=?", []byte(`{"Provider":"provider","Model":{"Kind":"native_default","Value":""},"Effort":{"Kind":"native_default","Value":""},"Permission":"read-only","BudgetSeconds":1}`), c.Operation)
 	requireOK(t, err)
@@ -104,9 +104,9 @@ func TestQueuedAdmissionRechecksCancellationAndCurrentAuthority(t *testing.T) {
 			_, err := f.store.NextConnectionGeneration(t.Context(), f.credential, "replacement", f.now)
 			requireOK(t, err)
 		}, domain.Conflict},
-		{"ceiling", func(t *testing.T, f *fixture, _ domain.Correlation) {
-			requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: destination()}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.WorkspaceWrite}, MaxBudgetSeconds: 300}}))
-		}, domain.Forbidden},
+		{"dispatch scope", func(t *testing.T, f *fixture, _ domain.Correlation) {
+			requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: destination()}, Scopes: domain.ScopeSet{domain.TaskRead}}))
+		}, domain.NotFound},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

@@ -64,12 +64,8 @@ func inventoryEntry(entry protocol.OriginInventoryEntry, now time.Time) (domain.
 }
 
 func inventoryOrigin(origin protocol.Origin) (domain.TaskOrigin, error) {
-	digest, err := parseDigest(origin.RequestSHA256)
+	result, err := origin.DomainOrigin()
 	if err != nil {
-		return domain.TaskOrigin{}, err
-	}
-	result := domain.TaskOrigin{Gateway: domain.GatewayID(origin.GatewayID), AdmissionGeneration: domain.AdmissionGeneration(origin.AdmissionGeneration), Operation: domain.OperationID(origin.OperationID), Principal: domain.PrincipalID(origin.PrincipalRef), RequestDigest: digest}
-	if result.Validate() != nil {
 		return domain.TaskOrigin{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	return result, nil

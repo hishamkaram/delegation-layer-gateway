@@ -38,9 +38,6 @@ func metadataGrant(t *testing.T, store *Store, principal domain.PrincipalID, des
 	grant := domain.Grant{
 		Key:    domain.GrantKey{Principal: principal, Destination: destination},
 		Scopes: scopes,
-		Ceiling: domain.DispatchCeiling{
-			Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60,
-		},
 	}
 	requireOK(t, store.PutGrant(t.Context(), grant))
 	return grant

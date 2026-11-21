@@ -4,13 +4,15 @@ A trusted, self-hosted gateway connecting remote MCP clients to explicitly selec
 devices running [Delegation Layer](https://github.com/hishamkaram/delegation-layer).
 Clients use MCP over HTTPS; device connectors initiate outbound WSS connections.
 
-**Native connection flow: Gateway 0.1.0 and Delegate 0.6.0.** The implemented
-`delegate gateway connect` flow supports browser, headless and token enrollment
-with explicit workspace approval and dynamic project selection. Use a compatible
-Delegate build; merging source does not update an installed binary or publish a
-release. Start with the [deployment and Native connection guide](docs/native-connect.md)
-and its [dated verification evidence](docs/verification.md). The MVP evidence
-below describes the earlier implementation.
+**Remote Delegate candidate in progress.** The next release removes duplicate
+Gateway execution ceilings and adds workspace browsing, requested file reads,
+automatic OS temporary scopes and Native-owned provider discovery. Connect once
+with `delegate gateway connect`, then approve a workspace once; project aliases
+are not part of the new task flow. Integrated recovery/continuation, final review,
+new live acceptance and the seven-day cloud-login proof are still incomplete.
+Start with the [Native connection guide](docs/native-connect.md) and
+[cloud refresh setup](docs/cloud-login.md). Installed releases and the historical
+MVP evidence below have their own recorded scope.
 
 **MVP implementation and live acceptance passed within the recorded scopes.** Real process flows, installed-Claude
 execution and persistent connectors passed on both Macs. Auth0-backed SDK,

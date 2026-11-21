@@ -45,8 +45,11 @@ from e2e_contracts import (
 )
 
 
+# Audited Native 8ca43c1366fe274950871cc0903a803d6203781c fixture source.
+# Since f493e204, only the nonce-bound Team-write branch and its lazy import
+# were added; Gateway's controlled ordinary/wait prompts keep the same behavior.
 AUDITED_PI_FIXTURE_SHA256 = (
-    "1dfa264d1719282a8c69db2fd318fbfd9ac5b90a480a919ebe70ff1379c5e365"
+    "5eabf0fd60672bf50c3d03dba9b2c02c07c87105a9b0e22d6275b20a1ce9698b"
 )
 
 
@@ -1046,7 +1049,7 @@ class Harness:
             identity = root.base / "identity"
             identity.mkdir(mode=0o700)
             config = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "gateway_id": self.gateway_id,
                 "expected_device_id": device,
                 "enrollment_url": self.public + "/v1/enroll",
@@ -1065,17 +1068,6 @@ class Harness:
                         "directory": str(root.workspace),
                         "root_token": root.context["root_token"],
                         "project_token": root.context["project_token"],
-                        "providers": [
-                            {
-                                "provider": "pi:json",
-                                "models": ["openai/gpt-4.1"],
-                                "efforts": [],
-                                "permissions": ["read-only"],
-                                "max_budget_seconds": 30,
-                                "native_model": True,
-                                "native_effort": True,
-                            }
-                        ],
                     }
                 ],
             }
@@ -1146,9 +1138,6 @@ class Harness:
                     "task:read",
                     "task:cancel",
                 ],
-                "providers": ["pi:json"],
-                "permissions": ["read-only"],
-                "max_budget_seconds": 30,
             },
         )
 
@@ -1578,7 +1567,7 @@ class Harness:
         )
 
 
-def arguments(argv=None):
+def arguments(argv=None, *, configure_parser=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in (
         "gateway",
@@ -1601,6 +1590,8 @@ def arguments(argv=None):
         action="store_true",
         help="explicitly opt into the approved finite zero-cost fixture run",
     )
+    if configure_parser is not None:
+        configure_parser(parser)
     args = parser.parse_args(argv)
     args.delegate_repository = args.delegate_repository.resolve(strict=True)
     args.work_parent = args.work_parent.resolve(strict=True)

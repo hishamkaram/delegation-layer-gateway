@@ -40,7 +40,7 @@ func (p *OwnedRootPort) checkCommand(ctx context.Context, tx *sql.Tx, command pr
 		return p.checkRootInventory(ctx, tx, command.Body)
 	case protocol.OriginReopen:
 		return p.checkRootReopen(ctx, tx, command.Body)
-	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.ResolveProject:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.ResolveProject:
 		return domain.Reject(domain.Forbidden)
 	default:
 		return domain.Reject(domain.Forbidden)

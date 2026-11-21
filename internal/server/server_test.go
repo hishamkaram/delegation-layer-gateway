@@ -60,9 +60,7 @@ func TestRuntimeRealJWKSJWTOfficialMCPAndPrivateAdmin(t *testing.T) {
 	}
 	session := f.session(t)
 	tools, err := session.ListTools(t.Context(), nil)
-	if len(checked(t, tools, err).Tools) != 12 {
-		t.Fatal("actual composed SDK did not expose 12 tools")
-	}
+	assertRuntimeToolCatalog(t, checked(t, tools, err).Tools)
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "list_devices", Arguments: json.RawMessage(`{}`)})
 	listed := checked(t, result, err)
 	if listed.IsError || listed.StructuredContent == nil {
@@ -85,6 +83,19 @@ func TestRuntimeRealJWKSJWTOfficialMCPAndPrivateAdmin(t *testing.T) {
 	if !f.runtime.Health().AuditHealthy {
 		t.Fatal("normal metadata recording failed")
 	}
+}
+
+func assertRuntimeToolCatalog(t *testing.T, tools []*mcp.Tool) {
+	t.Helper()
+	if len(tools) != 13 {
+		t.Fatalf("actual composed SDK exposed %d tools; want 13", len(tools))
+	}
+	for _, tool := range tools {
+		if tool.Name == "prepare_continuation" {
+			return
+		}
+	}
+	t.Fatal("actual composed SDK omitted continuation preparation")
 }
 
 func TestAuditFailureIsProtectedHealthAndDoesNotRewriteMCPResult(t *testing.T) {

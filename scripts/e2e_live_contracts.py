@@ -273,28 +273,15 @@ def require_capability(value, config, target, *, dispatch):
         "cleanup_authority_missing",
     )
     providers = value.get("providers")
-    require(type(providers) is list and len(providers) <= 64, "invalid_providers")
-    selected = [
-        row
-        for row in providers
-        if type(row) is dict and row.get("provider") == config.provider
-    ]
-    require(len(selected) == 1, "selected_provider_unavailable")
-    provider = selected[0]
-    require(
-        provider.get("dispatch_allowed") is True
-        and type(provider.get("permissions")) is list
-        and "read-only" in provider["permissions"]
-        and type(provider.get("max_budget_seconds")) is int
-        and config.budget_seconds <= provider["max_budget_seconds"],
-        "dispatch_ceiling_denied",
-    )
-    for key, requested in (("models", config.model), ("efforts", config.effort)):
-        if requested is not None:
-            require(
-                type(provider.get(key)) is list and requested in provider[key],
-                "selection_unavailable",
-            )
+    require(type(providers) is list and len(providers) <= 100, "invalid_providers")
+    # Discovery is dated Native advice. Preparation owns the current dispatch
+    # authorization; provider options and defaults remain Native's decision.
+    seen = set()
+    for row in providers:
+        require(type(row) is dict, "invalid_provider")
+        provider = identifier(row.get("provider"))
+        require(provider not in seen, "duplicate_provider")
+        seen.add(provider)
 
 
 def prepared_binding(value, config, cancellation, intent_digest, *, fresh, now=None):

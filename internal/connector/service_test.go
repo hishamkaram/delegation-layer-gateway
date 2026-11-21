@@ -107,6 +107,10 @@ func (p *fakePeer) report(_ context.Context, r protocol.CapabilityReport) error 
 	return nil
 }
 
+func (p *fakePeer) reportV2(_ context.Context, report protocol.CapabilityReportV2) error {
+	return report.Validate()
+}
+
 func (p *fakePeer) control(t *testing.T, command protocol.Command, id int) *fakeControl {
 	t.Helper()
 	frame := protocol.Frame{Version: protocol.Version, Type: protocol.Request, RequestID: fmt.Sprintf("g:%d", id), Generation: protocol.Generation{BootEpoch: string(p.generation().BootEpoch), Counter: p.generation().Counter}, OperationID: "operation-one", TTLMillis: 30000, Payload: encoded(t, command)}

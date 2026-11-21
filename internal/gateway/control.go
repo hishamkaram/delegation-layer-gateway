@@ -37,7 +37,11 @@ func (s *Service) observe(ctx context.Context, actor domain.Actor, id domain.Ope
 	if view.Observation != nil {
 		spec = view.Observation.SpecDigest
 	}
-	body, err := protocol.Encode(protocol.TaskControl{Task: binding(view.Correlation, spec)}, protocol.MaxFrameBytes)
+	task, err := binding(view.Correlation, spec)
+	if err != nil {
+		return view, err
+	}
+	body, err := protocol.Encode(protocol.TaskControl{Task: task}, protocol.MaxFrameBytes)
 	if err != nil {
 		return view, err
 	}
@@ -68,7 +72,11 @@ func (s *Service) Recover(ctx context.Context, actor domain.Actor, id domain.Ope
 		return domain.OperationView{}, err
 	}
 	attempt.bind(view.Correlation)
-	body, err := protocol.Encode(protocol.TaskControl{Task: binding(view.Correlation, view.SpecDigest)}, protocol.MaxFrameBytes)
+	task, err := binding(view.Correlation, view.SpecDigest)
+	if err != nil {
+		return domain.OperationView{}, err
+	}
+	body, err := protocol.Encode(protocol.TaskControl{Task: task}, protocol.MaxFrameBytes)
 	if err != nil {
 		return domain.OperationView{}, err
 	}
@@ -113,7 +121,11 @@ func (s *Service) Cancel(ctx context.Context, actor domain.Actor, id domain.Oper
 	}
 	// Resolve with an absent fence first. This closes a delayed first admission
 	// without treating a missing reply as proof that the task never existed.
-	fence, err := protocol.Encode(protocol.TaskControl{Task: binding(bound.Correlation, bound.SpecDigest)}, protocol.MaxFrameBytes)
+	task, err := binding(bound.Correlation, bound.SpecDigest)
+	if err != nil {
+		return result, err
+	}
+	fence, err := protocol.Encode(protocol.TaskControl{Task: task}, protocol.MaxFrameBytes)
 	if err != nil {
 		return result, err
 	}
@@ -147,7 +159,11 @@ func (s *Service) cancelExisting(ctx context.Context, actor domain.Actor, bound 
 	defer func() { attempt.finish(err) }()
 	attempt.bind(bound.Correlation)
 	result = previous
-	request := protocol.Cancellation{Task: binding(bound.Correlation, spec), CancellationID: string(bound.Cancellation)}
+	task, err := binding(bound.Correlation, spec)
+	if err != nil {
+		return result, err
+	}
+	request := protocol.Cancellation{Task: task, CancellationID: string(bound.Cancellation)}
 	if validationErr := request.Validate(); validationErr != nil {
 		return result, validationErr
 	}
@@ -170,7 +186,7 @@ func (s *Service) cancelExisting(ctx context.Context, actor domain.Actor, bound 
 // control retains its original reservation/release ownership. The caller owns
 // final observation because body, binding and Registry acceptance happen later.
 func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Correlation, scope domain.Scope, command protocol.Command, attempt *routingAttempt, guard func(context.Context) error) (reply protocol.Reply, transmission domain.Transmission, err error) {
-	_, err = s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope})
+	err = s.authorizeCorrelation(ctx, actor, c, scope)
 	attempt.authorize(err)
 	if err != nil {
 		return protocol.Reply{}, domain.Transmission{}, err
@@ -193,7 +209,7 @@ func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Corr
 	}
 	err = reservation.Publish(ctx, func(guardCtx context.Context) error {
 		authorizeErr := attempt.guard(func() error {
-			_, checkErr := s.store.Authorize(guardCtx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope})
+			checkErr := s.authorizeCorrelation(guardCtx, actor, c, scope)
 			return checkErr
 		})
 		if authorizeErr != nil {
@@ -218,10 +234,18 @@ func (s *Service) control(ctx context.Context, actor domain.Actor, c domain.Corr
 	return reply, transmission, nil
 }
 
-func binding(c domain.Correlation, spec domain.Digest) protocol.TaskBinding {
-	result := protocol.TaskBinding{TaskID: string(c.Task), Context: protocol.ContextBinding{Root: string(c.Context.Root), Project: string(c.Context.Project)}, Origin: protocol.Origin{GatewayID: string(c.Gateway), AdmissionGeneration: string(c.AdmissionGeneration), OperationID: string(c.Operation), PrincipalRef: string(c.Owner.Principal), RequestSHA256: hex.EncodeToString(c.RequestDigest[:])}}
+func binding(c domain.Correlation, spec domain.Digest) (protocol.TaskBinding, error) {
+	origin, err := protocol.OriginFromCorrelation(c)
+	if err != nil {
+		return protocol.TaskBinding{}, domain.Reject(domain.EvidenceInvalid)
+	}
+	route, err := protocol.TaskRouteFromDomain(c.Route)
+	if err != nil {
+		return protocol.TaskBinding{}, domain.Reject(domain.EvidenceInvalid)
+	}
+	result := protocol.TaskBinding{Route: route, TaskID: string(c.Task), Context: protocol.ContextBinding{Root: string(c.Context.Root), Project: string(c.Context.Project)}, Origin: origin}
 	if spec != (domain.Digest{}) {
 		result.SpecSHA256 = hex.EncodeToString(spec[:])
 	}
-	return result
+	return result, nil
 }

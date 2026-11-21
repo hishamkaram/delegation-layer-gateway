@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"time"
+	"unicode/utf8"
+)
 
 // NativeTaskKey identifies Delegate authority without inventing a Gateway owner.
 type NativeTaskKey struct {
@@ -22,9 +25,13 @@ type TaskOrigin struct {
 	Operation           OperationID
 	Principal           PrincipalID
 	RequestDigest       Digest
+	Binding             string `json:",omitempty"`
 }
 
 func (o TaskOrigin) Validate() error {
+	if len(o.Binding) > MaxFrameBytes || !utf8.ValidString(o.Binding) {
+		return ErrInvalid
+	}
 	for _, value := range []string{string(o.Gateway), string(o.AdmissionGeneration), string(o.Operation), string(o.Principal)} {
 		if RoutingToken(value) != nil {
 			return ErrInvalid
@@ -66,12 +73,21 @@ func (o HistoricalExecutionOptions) Validate() error {
 
 type NativeTaskReceipt struct {
 	Binding     NativeTaskBinding
-	Options     HistoricalExecutionOptions
+	Options     HistoricalExecutionOptions `json:",omitzero"`
 	BriefDigest Digest
 }
 
 func (r NativeTaskReceipt) Validate() error {
-	if r.Binding.Validate() != nil || r.Options.Validate() != nil || r.BriefDigest.Validate() != nil {
+	if r.Binding.Validate() != nil || r.BriefDigest.Validate() != nil {
+		return ErrInvalid
+	}
+	if r.Binding.Origin.Binding != "" {
+		if r.Options != (HistoricalExecutionOptions{}) {
+			return ErrInvalid
+		}
+		return nil
+	}
+	if r.Options.Validate() != nil {
 		return ErrInvalid
 	}
 	return nil

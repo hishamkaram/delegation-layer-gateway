@@ -330,12 +330,6 @@ func checkTerminalInventoryPresence(previous, presence domain.DelegateObservatio
 
 func insertRecoveredOperation(ctx context.Context, tx *sql.Tx, page domain.ValidatedInventoryPage, entry domain.InventoryEntry) error {
 	var count int
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM operations").Scan(&count); err != nil {
-		return err
-	}
-	if count >= domain.MaxCorrelations {
-		return domain.Reject(domain.ResourceLimit)
-	}
 	owner := domain.PrincipalID("")
 	if entry.Correlation.Owner.Kind == domain.Owned {
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM principals WHERE id=?", entry.Correlation.Owner.Principal).Scan(&count); err != nil {
@@ -359,7 +353,14 @@ func insertRecoveredOperation(ctx context.Context, tx *sql.Tx, page domain.Valid
 		state = domain.Resolved
 		reserved = false
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,origin_operation,kind,root_guard,project_guard,task,owner,device,project,correlation,state,created,expires,reserved,observation) VALUES(?,?,'attributed',?,?,?,?,?,?,?,?,?,?,?,?)", entry.Correlation.Operation, entry.Correlation.Operation, entry.Correlation.Context.Root, entry.Correlation.Context.Project, entry.Correlation.Task, nullablePrincipal(owner), entry.Correlation.Destination.Device, entry.Correlation.Destination.Project, correlation, state, page.Now.UTC().Format(timestampLayout), page.Now.UTC().Format(timestampLayout), reserved, observation)
+	if entry.Correlation.RequestVersion == domain.CompactRequestVersion {
+		if err = checkBoundImportOwner(ctx, tx, entry.Correlation); err != nil {
+			return err
+		}
+		importPage := domain.ImportedInventoryPage{Destination: page.Destination, Now: page.Now}
+		return insertBoundOperation(ctx, tx, importPage, entry.Correlation, nil, observation, state, reserved)
+	}
+	_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,origin_operation,kind,root_guard,project_guard,task,owner,device,project,correlation,preparation_key,state,created,expires,reserved,observation) VALUES(?,?,'attributed',?,?,?,?,?,?,?,?,?,?,?,?,?)", entry.Correlation.Operation, entry.Correlation.Operation, entry.Correlation.Context.Root, entry.Correlation.Context.Project, entry.Correlation.Task, nullablePrincipal(owner), entry.Correlation.Destination.Device, entry.Correlation.Destination.Project, correlation, preparationKey(entry.Correlation), state, page.Now.UTC().Format(timestampLayout), page.Now.UTC().Format(timestampLayout), reserved, observation)
 	return err
 }
 

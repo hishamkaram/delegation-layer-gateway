@@ -1,11 +1,9 @@
 # Deploy Gateway and connect Delegate
 
-This connection flow is included in the source for Gateway 0.1.0 and Delegate
-0.6.0. Compatible builds from the merged source include these commands; changing
-release versions does not publish packages or upgrade installed binaries. See
-[verification](verification.md#november-14-public-native-onboarding-checkpoint)
-for the dated browser, headless, dynamic-project and service evidence and its
-remaining limits. Earlier MVP evidence applies to its recorded revisions.
+This branch implements the remote Delegate experience for the next Gateway and
+Delegate releases. Engineering gates, independent integrated review and the new
+live acceptance remain incomplete. The [dated earlier evidence](verification.md)
+belongs to its recorded revisions and does not prove this candidate.
 
 The normal device experience is `delegate gateway connect HTTPS_URL`. Native
 owns its user service and embeds the Gateway client; a separate connector
@@ -16,15 +14,17 @@ and access. Delegate continues to own tasks, supervision and accepted results.
 
 Use [deployment](deployment.md) for the private database, device CA, HTTPS
 certificate, private configuration, issuer and listeners. A new database uses
-schema 9. For an existing schema 6, 7 or 8 database, stop Gateway and its other
+schema 10. For an older supported database, stop Gateway and its other
 writers, keep a protected backup, then explicitly migrate it:
 
 ```sh
-gateway migrate --database /absolute/private/state/gateway.sqlite
+gateway migrate --database /absolute/private/state/gateway.sqlite --preview
+gateway migrate --database /absolute/private/state/gateway.sqlite --accept-execution-policy-removal
 ```
 
 No startup path silently upgrades storage. Migration keeps the Gateway identity
-and existing grants/history; it does not adopt existing devices as owned devices.
+and existing ownership, scopes, grants and history. The explicit acceptance removes
+saved execution ceilings. It does not adopt legacy devices or dispatch work.
 
 Add this optional object to the existing Gateway JSON configuration:
 
@@ -85,15 +85,16 @@ and private admin socket:
 
 ```sh
 gateway users allow --config /absolute/private/gateway.json \
-  --subject 'EXACT_IDENTITY_PROVIDER_SUBJECT' --provider claude:print \
-  --max-budget-seconds 60 --max-devices 2
+  --subject 'EXACT_IDENTITY_PROVIDER_SUBJECT' --max-devices 2
 gateway users show --config /absolute/private/gateway.json \
   --subject 'EXACT_IDENTITY_PROVIDER_SUBJECT'
 ```
 
-Repeat `--provider` for additional explicitly approved providers. The default
-permission is read-only. Owner policies apply live to every owned device and
-resolved project; Gateway does not generate duplicate per-project grants.
+The default owner access scopes cover inventory, dispatch, task read and task
+cancellation. Use repeated `--scope` flags to deliberately choose access scopes.
+These govern access to the device; they do not choose providers, execution
+permissions or budgets. Delegate validates those options for each task using
+its own supported defaults. Owner access changes apply live to all owned devices.
 
 ## Connect a device
 
@@ -184,74 +185,101 @@ delegate gateway workspace allow /absolute/work --alias work
 delegate gateway workspace list
 ```
 
-`--provider` is optional. With no policy overrides, a new approval copies the
-saved device profile's provider, permission, model, effort and budget policies
-at approval time. It does not scan installed providers or automatically change
-when a later policy changes. Connection defaults include the eligible provider
-profiles compiled into that Delegate build, read-only permission and a maximum
-task budget of 60 seconds. Profiles requiring an explicit model or effort are
-excluded from those defaults unless that model or effort is supplied with a
-single `--provider`. Allowed
-providers are separate from installed-provider or login readiness.
+The approval saves this directory as a routing boundary. It needs no provider,
+model, read/write mode or budget flags. Providers and their options come from
+Delegate; choose them per task. New profiles do not copy execution policies
+into workspace approvals. Existing policy-bearing profiles require the explicit
+upgrade below before the new connector runs.
 
-Use `--provider` to set a provider-specific policy for a new workspace. Saved
-profile policies supply defaults, not a ceiling: an explicit workspace provider
-can be another eligible provider compiled into the build. To create a Claude-only
-approval, use this command **instead** of the first approval:
+The cloud client uses the device's returned scope ID and relative paths:
+
+1. `list_devices`: find the requested name, retain its exact device ID, and stop
+   if the name is ambiguous or that device is offline.
+2. `list_workspaces`: obtain approved workspace and automatic temporary scope IDs.
+3. `list_directory`: browse the selected scope, starting at `.`; follow page
+   cursors. Hidden files and directories are included. `inspect_git` returns
+   structural Git candidates without executing Git or requiring a repository.
+4. `read_file`: request the files/ranges needed to identify the project. Bytes
+   are returned as base64, with text where valid UTF-8. There is no content scan,
+   extension allowlist or content redaction. A file version is an optimistic
+   change check, not an atomic snapshot.
+5. `get_capabilities` with `selection`: inspect dated Native provider support.
+   Use `list_models` explicitly when model discovery is needed. Discovery may
+   launch Native's bounded inspection process; it is not a task or an allowlist.
+6. `prepare_dispatch`: save a random 32-character lowercase hexadecimal
+   `request_id` before calling. Supply the exact device, `selection` (scope ID
+   and relative project path), brief and `native_options`. Select a provider;
+   omit optional fields to use Native defaults, and include required provider
+   options when advertised.
+7. `dispatch_task`: confirm the returned operation exactly once. On uncertainty,
+   resolve that same operation. Never replace it or switch device automatically.
+
+No `resolve_project` or manual project alias is needed for this flow. The legacy
+alias tools remain for old project registrations and saved task handles. New
+preparation does not allocate a permanent project pin or consume a legacy
+1,024-pin lifetime budget. Reusing the same preparation ID and same input returns
+the original operation even after a response is lost, the device goes offline,
+or its request body expires. Changing input under that ID conflicts.
+
+Filesystem access requires both `task:dispatch` and `task:read` in the verified
+client token and current owner access policy. Inventory alone does not expose
+files. Revocation is rechecked before sending and returning data. OS permissions
+still apply. Workspace approval is routing authority, not an OS sandbox for a
+provider process.
+
+Linux exposes the whole `/tmp` automatically. macOS exposes both the current
+user's OS temporary directory and shared `/tmp` (canonical `/private/tmp`),
+deduplicating the same canonical directory. This does not expose all of
+`/var/folders` or `/var/tmp`. No manual temporary-workspace registration is needed.
+
+If live temporary-scope discovery fails, `list_workspaces` can still return dated
+approved workspaces with `scope_discovery_error`. Do not treat that partial
+inventory as an empty temporary directory or proof of execution readiness.
+Directory and file requests still require current access and a live device.
+
+Approvals use canonical path semantics: replacing or recloning the ancestor or
+project at the same path is allowed. A new command selects the current directory;
+a running command retains its working directory. Missing directories or symlinks
+escaping the selected scope refuse a new launch. Removing an approval prevents
+new work but preserves authorized historical status, cancellation and results.
+Device or principal revocation still denies those controls.
+
+### Upgrade an existing connection
+
+Keep the original Native root and profile; do not re-register, copy task state or
+edit private profile JSON. Run the new installed Delegate binary:
 
 ```sh
-delegate gateway workspace allow /absolute/work --alias work --provider claude:print
+delegate gateway upgrade --preview --json
+delegate gateway upgrade --accept-execution-policy-removal --json
 ```
 
-Choosing the provider for one cloud task is a separate decision: the client
-selects one allowed provider when preparing that task. The Gateway owner's
-current policy and the local workspace ceiling must both allow it. Omitting
-`--provider` does not widen an existing Claude-only profile or approval.
-Repeating an active alias with different policy fails with a conflict; use
-Native's [workspace update command](https://github.com/hishamkaram/delegation-layer/blob/main/docs/gateway-connect.md#approve-an-existing-workspace-once)
-and its actual current revision to deliberately change an existing approval.
+The preview is read-only. The apply command coordinates the existing service and
+Native installation owners, removes saved duplicate execution policy, and changes
+only the selected executable under the same-source compare-and-swap guard. Device
+identity, credential, Native root, disabled workspace revisions, old pins and task
+history remain. An interrupted handoff resumes through those same owners; it does
+not mint another registration. A pending Native upgrade is resumed by its exact
+operation identity. Failed prerequisites are reported; do not delete state to make
+the command pass.
 
-The MCP client then selects the explicit device and workspace using
-`list_devices` and `list_workspaces`. It calls `resolve_project` with a saved
-random 32-character lowercase hexadecimal `request_id`, that workspace ID and
-an existing relative directory such as `team/services/api` or `.`. Gateway does
-not scan, clone, create directories or switch devices. Save the returned project
-handle and reuse it for tasks; do not resolve a new handle for every dispatch.
+For a standalone legacy connector configuration, stop that connector first:
 
-The same request ID returns its original binding after retries or directory
-replacement. An approval binds the canonical path: replacing or recloning the
-ancestor or project at that same path is allowed. Each new command selects the
-current directory; an already running command keeps its original working
-directory. Replacement or removal alone does not invalidate its accepted result.
-Missing directories, traversal and symlinks escaping the approved ancestor
-refuse a new launch. Project handles never select another device or path.
+```sh
+gateway connector migrate --config /absolute/private/connector.json --preview
+gateway connector migrate --config /absolute/private/connector.json --accept-execution-policy-removal
+```
 
-Changing a request's selector conflicts. There are at most 1,024 retained
-pins, including tombstones, with a separate four-MiB encoded pin budget; either
-limit can stop new resolutions. Existing identities are not evicted.
-
-Gateway separately retains at most 1,024 resolution request IDs per device,
-including attempts that failed or remain unfinished. Retry the original ID;
-changing to a new ID uses another slot. The advertised `project_budget` describes
-Native's committed local pins, not Gateway's retained request count. There is no
-automatic reset or compaction command. Reaching this limit blocks new
-resolutions while preserving existing task controls and evidence.
-
-`prepare_dispatch` and `dispatch_task` use the resolved handle and stable
-operation identity. Fresh targeted capabilities are checked before preparation
-and sending; the connector checks the current local ceiling through CLI Start.
-Policy edits do not rewrite frozen task identity. Removing a workspace blocks
-new resolution, admission and resume while preserving authorized saved task
-status, cancellation and result retrieval. Device/principal revocation still
-denies access. A workspace approval is routing authority, not an OS sandbox.
+The static migration preserves its credential directory and project guard bytes.
+It does not start the connector. Old configurations are refused until migrated.
 
 ### Refresh ChatGPT actions after an upgrade
 
 An existing ChatGPT connection can still expose its earlier action set after
 Gateway adds tools. Refresh requires a valid connection and permission to manage
 it. For a directly connected custom MCP server, open its connection in
-**ChatGPT Plugins → Refresh**, then confirm that `list_workspaces` and
-`resolve_project` appear. See [OpenAI's direct-connection refresh procedure](https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata).
+**ChatGPT Plugins → Refresh**, then confirm that `list_workspaces`, `list_directory`, `read_file`, `inspect_git` and
+`list_models` appear. See [OpenAI's direct-connection refresh procedure](https://developers.openai.com/plugins/deploy/connect-chatgpt#refresh-metadata).
 
 For a workspace-published app, an admin/owner must review and publish the update.
 Use **Workspace settings → Apps → ⋯ → Action control → Refresh**, or the
@@ -262,10 +290,12 @@ Apps**. Ordinary members must ask their app manager. See [OpenAI's workspace
 action-control guidance](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt).
 Start a new chat and select the updated connection before testing again.
 
-If `list_devices` works but `resolve_project` is absent, stop before preparing a
+If inventory works but the required browsing tools are absent, stop before preparing a
 task. Compare the authenticated server `tools/list` response with ChatGPT's
 enabled actions. Refreshing action metadata does not enroll a device, alter
-workspace permission/budget ceilings or dispatch a task.
+workspace approvals or dispatch a task.
+
+For cloud login and refresh configuration, use the [week-long connection guide](cloud-login.md).
 
 ## Operate and recover
 
@@ -317,20 +347,31 @@ are not substitutes for that proof. Do not delete state to clear uncertainty.
 
 ## Verify a candidate locally
 
-Use the repository-pinned Go compiler with `GOTOOLCHAIN=local` and
-`GOWORK=off`. Build Gateway and the acceptance helper from the Gateway checkout:
+Use the repository-pinned Go compiler with `GOTOOLCHAIN=local`. Build Gateway
+and the acceptance helper from the Gateway checkout with `GOWORK=off`:
 
 ```sh
-go build -o /absolute/private/bin/gateway ./cmd/gateway
-go build -tags=e2e -o /absolute/private/bin/gateway-e2e-fixture ./internal/e2e
+GOWORK=off go build -o /absolute/private/bin/gateway ./cmd/gateway
+GOWORK=off go build -tags=e2e -o /absolute/private/bin/gateway-e2e-fixture ./internal/e2e
+```
+
+An unpublished Native candidate may still pin the previous released SDK. Test
+that candidate against the actual Gateway checkout using a new workspace file
+outside both repositories; its private parent directory must already exist:
+
+```sh
+GOWORK=/absolute/private/candidate.work go work init /absolute/gateway-checkout /absolute/native-candidate-checkout
 ```
 
 In the matching Native candidate checkout, build the Native pair together:
 
 ```sh
-go build -o /absolute/private/native/bin/delegate ./cmd/delegate
-go build -o /absolute/private/native/bin/delegate-run ./cmd/delegate-run
+GOWORK=/absolute/private/candidate.work go build -o /absolute/private/native/bin/delegate ./cmd/delegate
+GOWORK=/absolute/private/candidate.work go build -o /absolute/private/native/bin/delegate-run ./cmd/delegate-run
 ```
+
+Never commit that workspace file or a local module replacement. Once Native pins
+the reviewed published SDK revision, normal builds use `GOWORK=off` again.
 
 From the Gateway checkout, select those candidates, the installed Pueue pair
 and an existing private work parent explicitly:
@@ -344,13 +385,29 @@ python3 scripts/e2e_native_connect.py \
   --pueue /absolute/installed/pueue \
   --pueued /absolute/installed/pueued \
   --delegate-repository /absolute/native-candidate-checkout \
-  --work-parent /absolute/private/acceptance --run-native
+  --work-parent /absolute/private/acceptance --run-native --compact-routes
 ```
 
-This scenario runs two local embedded connectors and three literal fixture
-tasks, with a four-attempt safety cap and one active task at a time. It uses
-no paid provider. A passing result reports `native_connect_passed` and
+This scenario first browses descendants created after approval, paginates hidden
+and non-UTF-8 names, reads exact byte ranges, inspects structural Git markers,
+rejects scope escapes and, on Linux, reads an owned child of the automatic whole
+`/tmp` scope. Fresh public Native profile previews and canonical observations
+check that browsing created no project pins, operations or tasks. Requested-byte
+sentinels, including their range and base64 forms, must stay out of product
+diagnostics, audit and metrics; authorized response captures remain separate.
+
+`--compact-routes` exercises scope-relative selection and compact request bindings
+without project pins. Omitting it retains the legacy project-alias scenario.
+
+It then runs two local embedded connectors and three literal fixture tasks,
+with a four-attempt safety cap and one active task at a time. It uses no paid
+provider. A passing result reports `native_connect_passed` and
 `cleanup_confirmed: true`; evidence stays in the reported private directory.
+Linux temporary-fixture removal additionally reports
+`filesystem_temp_cleanup_confirmed: true` after the process joins.
 Unknown original process ownership blocks descendant cleanup and retains
 resources. This does not verify browser login, desktop services, installed
 providers, physical networks or Cloud clients; those need separate live checks.
+The literal provider fixture does not save a usable session checkpoint, so this
+scenario does not prove successful continuation. Test `prepare_continuation`
+separately against an installed provider's accepted predecessor and checkpoint.

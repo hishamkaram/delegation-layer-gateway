@@ -4,12 +4,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
 func origin(raw string) (string, error) {
@@ -42,31 +40,11 @@ func checkedOptions(input ConnectOptions) (ConnectOptions, error) {
 	if !validEnrollmentOptions(input) {
 		return ConnectOptions{}, ErrConfiguration
 	}
-	if !validWorkspaces(input.Workspaces, true) || !validProviders(input.Providers) {
+	if !validWorkspaces(input.Workspaces, true) {
 		return ConnectOptions{}, ErrConfiguration
 	}
 	input.Workspaces = cloneApprovals(input.Workspaces)
-	input.Providers = slices.Clone(input.Providers)
-	for i := range input.Providers {
-		input.Providers[i].Models = slices.Clone(input.Providers[i].Models)
-		input.Providers[i].Efforts = slices.Clone(input.Providers[i].Efforts)
-		input.Providers[i].Permissions = slices.Clone(input.Providers[i].Permissions)
-	}
 	return input, nil
-}
-
-func validProvider(p ProviderPolicy) bool {
-	permissions := make([]domain.Permission, len(p.Permissions))
-	for i, v := range p.Permissions {
-		permissions[i] = domain.Permission(v)
-	}
-	ceiling := domain.DispatchCeiling{Providers: []domain.ProviderID{domain.ProviderID(p.Provider)}, Permissions: permissions, MaxBudgetSeconds: p.MaxBudgetSeconds}
-	capability := protocol.ProviderCapability{Provider: p.Provider, Models: p.Models, Efforts: p.Efforts, Permissions: p.Permissions, MaxBudgetSeconds: p.MaxBudgetSeconds, Authentication: "unknown"}
-	if ceiling.Validate() != nil || capability.Validate() != nil || !uniqueSelections(p.Models) || !uniqueSelections(p.Efforts) || !uniqueSelections(p.Permissions) {
-		return false
-	}
-
-	return true
 }
 
 func validWorkspaces(workspaces []WorkspaceApproval, checkDisk bool) bool {
@@ -89,20 +67,6 @@ func validWorkspaces(workspaces []WorkspaceApproval, checkDisk bool) bool {
 	return true
 }
 
-func validProviders(providers []ProviderPolicy) bool {
-	if len(providers) > 100 {
-		return false
-	}
-	seen := make(map[string]bool)
-	for _, provider := range providers {
-		if seen[provider.Provider] || !validProvider(provider) {
-			return false
-		}
-		seen[provider.Provider] = true
-	}
-	return true
-}
-
 func validEnrollmentOptions(input ConnectOptions) bool {
 	if input.PrivateCAFile != "" && !localPath(input.PrivateCAFile) {
 		return false
@@ -115,15 +79,4 @@ func validEnrollmentOptions(input ConnectOptions) bool {
 
 func validName(name string) bool {
 	return domain.ValidateDeviceName(name) == nil && strings.TrimSpace(name) == name
-}
-
-func uniqueSelections(values []string) bool {
-	seen := make(map[string]bool, len(values))
-	for _, value := range values {
-		if seen[value] {
-			return false
-		}
-		seen[value] = true
-	}
-	return true
 }

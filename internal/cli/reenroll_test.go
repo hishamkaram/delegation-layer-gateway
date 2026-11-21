@@ -42,19 +42,11 @@ type enrollmentConfig struct {
 }
 type (
 	enrollmentProject struct {
-		Alias        string             `json:"alias"`
-		Root         string             `json:"root"`
-		Directory    string             `json:"directory"`
-		RootToken    string             `json:"root_token"`
-		ProjectToken string             `json:"project_token"`
-		Providers    []enrollmentPolicy `json:"providers"`
-	}
-	enrollmentPolicy struct {
-		Provider     string              `json:"provider"`
-		Permissions  []domain.Permission `json:"permissions"`
-		MaxBudget    uint32              `json:"max_budget_seconds"`
-		NativeModel  bool                `json:"native_model"`
-		NativeEffort bool                `json:"native_effort"`
+		Alias        string `json:"alias"`
+		Root         string `json:"root"`
+		Directory    string `json:"directory"`
+		RootToken    string `json:"root_token"`
+		ProjectToken string `json:"project_token"`
 	}
 )
 
@@ -123,7 +115,7 @@ func TestCLIExplicitReplaceExistingUsesRealTLSAndDurableIdentity(t *testing.T) {
 	t.Cleanup(server.Close)
 	executable, err := os.Executable()
 	require(t, err)
-	cfg := enrollmentConfig{Version: 1, Gateway: "gateway", Device: "device", Enrollment: server.URL + "/enroll", WSS: strings.Replace(server.URL, "https://", "wss://", 1) + "/device", CA: caFiles.Certificate, Identity: directory, Executable: executable, Temporary: parent, Projects: []enrollmentProject{{Alias: "project", Root: parent, Directory: parent, RootToken: strings.Repeat("a", 64), ProjectToken: "private-local-canary", Providers: []enrollmentPolicy{{Provider: "fixture", Permissions: []domain.Permission{domain.ReadOnly}, MaxBudget: 60, NativeModel: true, NativeEffort: true}}}}}
+	cfg := enrollmentConfig{Version: 2, Gateway: "gateway", Device: "device", Enrollment: server.URL + "/enroll", WSS: strings.Replace(server.URL, "https://", "wss://", 1) + "/device", CA: caFiles.Certificate, Identity: directory, Executable: executable, Temporary: parent, Projects: []enrollmentProject{{Alias: "project", Root: parent, Directory: parent, RootToken: strings.Repeat("a", 64), ProjectToken: "private-local-canary"}}}
 	path := writePrivate(t, filepath.Join(parent, "config.json"), cfg)
 	tokenFile := writePrivate(t, filepath.Join(parent, "token.json"), adminapi.Enrollment{Token: token, DeviceID: "device", ExpiresAt: time.Now().Add(time.Minute)})
 	code, out, diagnostic := command(t, "connector", "enroll", "--config", path, "--token-file", tokenFile)

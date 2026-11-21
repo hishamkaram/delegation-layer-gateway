@@ -105,7 +105,7 @@ func (p ProviderCapability) Validate() error {
 		}
 	}
 	for _, permission := range p.Permissions {
-		if permission != "read-only" && permission != "workspace-write" && permission != "danger-full-access" {
+		if !selectionToken(permission) {
 			return ErrInvalid
 		}
 	}
@@ -126,13 +126,17 @@ type Reply struct {
 	Body      json.RawMessage `json:"body,omitempty"`
 }
 type Failure struct {
+	Stage     string `json:"stage,omitempty"`
 	Code      string `json:"code"`
 	Retryable bool   `json:"retryable"`
 }
 
 func (f Failure) Validate() error {
+	if f.Stage != "" && !identifier(f.Stage) {
+		return ErrInvalid
+	}
 	switch f.Code {
-	case "unauthenticated", "forbidden", "not_found", "device_offline", "device_not_ready", "conflict", "expired", "pending", "admission_unknown", "permanently_refused", "context_mismatch", "incompatible_delegate", "resource_limit", "result_unavailable", "evidence_invalid", "timeout", "result_verification_timeout", "protocol_error":
+	case "invalid_request", "unauthenticated", "forbidden", "not_found", "device_offline", "device_not_ready", "conflict", "expired", "pending", "admission_unknown", "permanently_refused", "context_mismatch", "incompatible_delegate", "resource_limit", "result_unavailable", "evidence_invalid", "timeout", "result_verification_timeout", "protocol_error", "not_directory", "not_regular_file", "outside_scope", "os_permission_denied", "changed", "catalog_changed", "unsupported_option", "unsupported_feature", "connector_upgrade_required", "delegate_upgrade_required", "authorization_denied", "migration_required", "temp_unavailable":
 		return nil
 	default:
 		return ErrInvalid

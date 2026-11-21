@@ -26,35 +26,42 @@ func TestMain(m *testing.M) {
 
 type (
 	helperState struct {
-		Block               string
-		Mode                string
-		Provider            string
-		Permission          string
-		Budget              int64
-		NativeModel         bool
-		Closure             bool
-		Closed              bool
-		Disabled            bool
-		Features            []string
-		Brief               string
-		OriginGeneration    string
-		LiveProjectMismatch bool
-		ReceiptFault        string
-		Absent              bool
-		Partial             bool
-		LiveOwner           bool
-		ProbeFault          string
-		ContextFault        string
-		Refused             bool
-		CancelTaskFault     string
-		CancelRootFault     string
-		ProjectToken        string
-		Publication         string
-		OutcomeFault        string
-		CollectExit         int
-		CollectFailure      string
-		CollectMode         string
-		AfterCollect        *helperState
+		Block                string
+		Mode                 string
+		Provider             string
+		Permission           string
+		Budget               int64
+		NativeModel          bool
+		Closure              bool
+		Closed               bool
+		Disabled             bool
+		Features             []string
+		Brief                string
+		OriginGeneration     string
+		LiveProjectMismatch  bool
+		ReceiptFault         string
+		Absent               bool
+		Partial              bool
+		LiveOwner            bool
+		ProbeFault           string
+		ContextFault         string
+		Refused              bool
+		CancelTaskFault      string
+		CancelRootFault      string
+		ProjectToken         string
+		FrozenWorkspaceToken string
+		FrozenRelativePath   string
+		AutomaticDirectory   string
+		FilesystemFailure    string
+		ModelCatalog         json.RawMessage
+		ModelsFailure        string
+		ModelsExit           int
+		Publication          string
+		OutcomeFault         string
+		CollectExit          int
+		CollectFailure       string
+		CollectMode          string
+		AfterCollect         *helperState
 	}
 	helperCall struct {
 		Command                 string
@@ -63,13 +70,20 @@ type (
 		DelegateRootEnvironment string
 		PWDEnvironment          string
 		BriefMode               uint32
+		BriefSHA256             string
 		OriginMode              uint32
+		WorkspaceMode           uint32
+		ExpectedWorkspaceToken  string
 		ExpectedOrigin          protocol.Origin
+		SuccessorOrigin         protocol.Origin
 	}
 )
 
 func helper(args []string) int {
 	flags, command, task, action := helperArguments(args)
+	if command == "providers" {
+		return helperProviders(flags, args)
+	}
 	root := flags["root"]
 	state, stateCode := readHelperState(root)
 	if stateCode != 0 {
@@ -81,10 +95,11 @@ func helper(args []string) int {
 	if code := recordHelperCall(root, flags, command, args); code != 0 {
 		return code
 	}
-	if command == state.Block {
-		if code := waitHelper(root, task); code != 0 {
-			return code
-		}
+	if code, handled := helperBeforeResponse(root, task, command, state); handled {
+		return code
+	}
+	if code, handled := helperScopedCommand(flags, command, action, state); handled {
+		return code
 	}
 	response := helperResponse(flags, command, task, action, state)
 	mode := state.Mode
@@ -102,6 +117,29 @@ func helper(args []string) int {
 		return advanceCode
 	}
 	return exitCode
+}
+
+func helperBeforeResponse(root, task, command string, state helperState) (int, bool) {
+	if code, handled := helperArgumentExit(command, state.Mode); handled {
+		return code, true
+	}
+	if command == state.Block {
+		if code := waitHelperControl(root, task, command); code != 0 {
+			return code, true
+		}
+	}
+	return 0, false
+}
+
+func helperScopedCommand(flags map[string]string, command, action string, state helperState) (int, bool) {
+	switch command {
+	case "filesystem":
+		return helperFilesystem(flags, action, state), true
+	case "models":
+		return helperModels(flags, state), true
+	default:
+		return 0, false
+	}
 }
 
 func advanceHelperCollection(root, command string, next *helperState) int {
@@ -220,25 +258,53 @@ func recordHelperCall(root string, flags map[string]string, command string, args
 	call.Directory = directory
 	call.DelegateRootEnvironment = os.Getenv("DELEGATE_ROOT")
 	call.PWDEnvironment = os.Getenv("PWD")
-	for flag, target := range map[string]*uint32{"brief": &call.BriefMode, "origin": &call.OriginMode, "expected-origin": &call.OriginMode} {
-		if path := flags[flag]; path != "" {
-			info, statErr := os.Stat(path)
-			if statErr != nil {
-				return 94
-			}
-			*target = uint32(info.Mode().Perm())
-			if flag != "brief" {
-				data, readErr := os.ReadFile(path)
-				if readErr != nil || json.Unmarshal(data, &call.ExpectedOrigin) != nil {
-					return 94
-				}
-			}
+	if path := flags["expected-workspace-file"]; path != "" {
+		info, statErr := os.Stat(path)
+		data, readErr := os.ReadFile(path)
+		if statErr != nil || readErr != nil {
+			return 94
 		}
+		call.WorkspaceMode, call.ExpectedWorkspaceToken = uint32(info.Mode().Perm()), string(data)
+	}
+	if err := recordHelperInputs(flags, command, &call); err != nil {
+		return 94
 	}
 	if appendErr := appendHelperCall(root, call); appendErr != nil {
 		return 95
 	}
 	return 0
+}
+
+func recordHelperInputs(flags map[string]string, command string, call *helperCall) error {
+	for _, flag := range []string{"brief", "origin", "expected-origin"} {
+		if path := flags[flag]; path != "" {
+			if err := recordHelperInput(path, flag, command, call); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func recordHelperInput(path, flag, command string, call *helperCall) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if flag == "brief" {
+		call.BriefMode, call.BriefSHA256 = uint32(info.Mode().Perm()), helperHash(string(data))
+		return nil
+	}
+	call.OriginMode = uint32(info.Mode().Perm())
+	origin := &call.ExpectedOrigin
+	if flag == "origin" && command == "continue" {
+		origin = &call.SuccessorOrigin
+	}
+	return json.Unmarshal(data, origin)
 }
 
 func waitHelper(root, task string) int {
@@ -306,7 +372,7 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 	command := args[0]
 	task, action := "", ""
 	index := 1
-	if command == "context" || command == "origin" || command == "result" {
+	if helperHasAction(command) {
 		if index < len(args) {
 			action = args[index]
 			index++
@@ -328,7 +394,7 @@ func helperArguments(args []string) (map[string]string, string, string, string) 
 			index++
 		}
 	}
-	if command == "dispatch" {
+	if command == "dispatch" || command == "continue" {
 		task = flags["id"]
 	}
 	return flags, command, task, action
@@ -358,7 +424,7 @@ func helperResponse(flags map[string]string, command, task, action string, state
 	}
 	helperOutcome(task, state, response)
 
-	if command == "dispatch" {
+	if command == "dispatch" || command == "continue" {
 		response["task_record"] = "created"
 		delete(connector, "resolution")
 	}
@@ -453,9 +519,9 @@ func helperTaskPresence(flags map[string]string, state helperState, response, co
 }
 
 func helperReceipt(flags map[string]string, task string, state helperState, response, connector map[string]any) bool {
-	originFile := flags["expected-origin"]
+	originFile := flags["origin"]
 	if originFile == "" {
-		originFile = flags["origin"]
+		originFile = flags["expected-origin"]
 	}
 	originData, err := os.ReadFile(originFile)
 	if err != nil {
@@ -478,7 +544,22 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 		return false
 	}
 	helperAttachWorkspace(flags, receipt)
-	switch state.ReceiptFault {
+	helperAttachFrozenWorkspace(flags, state, receipt)
+	helperReceiptFault(state.ReceiptFault, origin, response, connector, receipt)
+	if state.Closure {
+		connector["execution_closure"] = map[string]string{"kind": "registered-native", "reference_sha256": strings.Repeat("d", 64)}
+	} else {
+		connector["execution_closure_pending"] = "closure_unproven"
+		if state.LiveOwner {
+			connector["execution_closure_pending"] = "owner_busy"
+			response["liveness"] = "running"
+		}
+	}
+	return true
+}
+
+func helperReceiptFault(fault string, origin, response, connector, receipt map[string]any) {
+	switch fault {
 	case "root":
 		receipt["root_token"] = strings.Repeat("f", 64)
 	case "project":
@@ -493,17 +574,9 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 		response["liveness"] = "invalid-observation"
 	case "workspace":
 		receipt["workspace_constraint"] = map[string]string{"token": "unexpected-workspace", "relative_project": "."}
+	case "failure":
+		response["failure"] = map[string]string{"code": "io_error", "stage": "inspect"}
 	}
-	if state.Closure {
-		connector["execution_closure"] = map[string]string{"kind": "registered-native", "reference_sha256": strings.Repeat("d", 64)}
-	} else {
-		connector["execution_closure_pending"] = "closure_unproven"
-		if state.LiveOwner {
-			connector["execution_closure_pending"] = "owner_busy"
-			response["liveness"] = "running"
-		}
-	}
-	return true
 }
 
 func helperOutcome(task string, state helperState, response map[string]any) {
@@ -577,10 +650,14 @@ func helperConnectorHeader(flags map[string]string, state helperState) map[strin
 	if state.ProjectToken != "" {
 		connector["project_token"] = state.ProjectToken
 	}
+	if flags["expected-project-sha256"] != "" && flags["origin"] == "" {
+		delete(connector, "project_token")
+	}
 	if state.ReceiptFault == "root-header" {
 		connector["root_token"] = strings.Repeat("f", 64)
 	}
 	helperAttachWorkspace(flags, connector)
+	helperAttachFrozenWorkspace(flags, state, connector)
 	return connector
 }
 
@@ -588,4 +665,42 @@ func helperAttachWorkspace(flags map[string]string, target map[string]any) {
 	if flags["expected-workspace"] != "" {
 		target["workspace_constraint"] = map[string]string{"token": flags["expected-workspace"], "relative_project": flags["relative-project"]}
 	}
+}
+
+func helperAttachFrozenWorkspace(flags map[string]string, state helperState, target map[string]any) {
+	if flags["include-workspace-constraint"] != "true" && flags["expected-workspace"] == "" {
+		return
+	}
+	if state.FrozenWorkspaceToken != "" && flags["expected-workspace"] == "" && (flags["expected-origin"] != "" || flags["origin"] != "") {
+		target["workspace_constraint"] = map[string]string{"token": state.FrozenWorkspaceToken, "relative_project": state.FrozenRelativePath}
+	}
+}
+
+func helperProviders(flags map[string]string, args []string) int {
+	if root := os.Getenv("GATEWAY_CONNECTOR_HELPER_ROOT"); root != "" {
+		if code := recordHelperCall(root, flags, "providers", args); code != 0 {
+			return code
+		}
+		state, code := readHelperState(root)
+		if code != 0 {
+			return code
+		}
+		if state.Block == "providers" {
+			if code = waitHelperControl(root, "", "providers"); code != 0 {
+				return code
+			}
+		}
+	}
+	return emitHelperResponse(map[string]any{"schema_version": 1, "providers": []any{map[string]any{"id": "compiled-provider", "supported_modes": []string{"print"}, "supported_options": []string{"model"}, "continuation": "native", "interaction": map[string]any{"clarification": false, "steering": false}, "read_only": map[string]any{"supported": false}, "runtime": map[string]any{"required_flags": []string{}}}}}, "")
+}
+
+func waitHelperControl(root, task, command string) int {
+	if command == "filesystem" || command == "models" || command == "providers" {
+		task = command
+	}
+	return waitHelper(root, task)
+}
+
+func helperHasAction(command string) bool {
+	return command == "context" || command == "origin" || command == "result" || command == "filesystem"
 }

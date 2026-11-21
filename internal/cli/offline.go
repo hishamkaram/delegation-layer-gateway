@@ -12,7 +12,26 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/registry"
 )
 
-func migrateDatabase(ctx context.Context, path string, stdout io.Writer) error {
+type migrationOptions struct {
+	preview                      bool
+	acceptExecutionPolicyRemoval bool
+}
+
+func migrateDatabase(ctx context.Context, path string, options migrationOptions, stdout io.Writer) error {
+	preview, err := registry.PreviewMigration(ctx, path)
+	if err != nil {
+		return problem(exitRuntime, "database_migration_failed", err)
+	}
+	requiresAcceptance := preview.ObsoleteExecutionPolicyCount != 0 && !options.acceptExecutionPolicyRemoval
+	if options.preview || requiresAcceptance {
+		if err = writeJSON(stdout, preview); err != nil {
+			return err
+		}
+		if options.preview {
+			return nil
+		}
+		return problem(exitUsage, "execution_policy_removal_requires_acceptance", nil)
+	}
 	result, err := registry.Migrate(ctx, path)
 	if err != nil {
 		return problem(exitRuntime, "database_migration_failed", err)

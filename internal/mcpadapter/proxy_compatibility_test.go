@@ -122,8 +122,8 @@ func assertCompatibilityTools(t *testing.T, response responseMetadata, data []by
 		Error json.RawMessage `json:"error"`
 	}
 	check(t, json.Unmarshal(data, &message))
-	if message.JSONRPC != "2.0" || message.ID != 1 || len(message.Error) != 0 || len(message.Result.Tools) != 12 {
-		t.Fatalf("tools/list omitted the12-tool catalog or returned an RPC error: %s", message.Error)
+	if message.JSONRPC != "2.0" || message.ID != 1 || len(message.Error) != 0 || len(message.Result.Tools) != 13 {
+		t.Fatalf("tools/list omitted the13-tool catalog or returned an RPC error: %s", message.Error)
 	}
 	seen := make(map[string]bool)
 	for _, tool := range message.Result.Tools {

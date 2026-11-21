@@ -43,29 +43,7 @@ type (
 		Principal   PrincipalID
 		Destination Destination
 	}
-	DispatchCeiling struct {
-		Providers        []ProviderID
-		Permissions      []Permission
-		MaxBudgetSeconds uint32
-	}
 )
-
-func (c DispatchCeiling) Validate() error {
-	if len(c.Providers) == 0 || len(c.Providers) > 100 || len(c.Permissions) == 0 || len(c.Permissions) > 3 || c.MaxBudgetSeconds == 0 {
-		return ErrInvalid
-	}
-	for _, provider := range c.Providers {
-		if err := Token(string(provider)); err != nil {
-			return err
-		}
-	}
-	for _, permission := range c.Permissions {
-		if err := permission.Validate(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func (p ProjectRegistration) Validate() error {
 	if err := p.Destination.Validate(); err != nil {
@@ -77,37 +55,10 @@ func (p ProjectRegistration) Validate() error {
 	return nil
 }
 
-func (c DispatchCeiling) Allows(r FrozenRequest) bool {
-	return c.AllowsOptions(r.Options())
-}
-
-// AllowsOptions is the sole grant-ceiling decision for both admission and resume.
-func (c DispatchCeiling) AllowsOptions(r ExecutionOptions) bool {
-	if c.Validate() != nil || r.Validate() != nil {
-		return false
-	}
-	if r.BudgetSeconds > c.MaxBudgetSeconds {
-		return false
-	}
-	providerOK, permissionOK := false, false
-	for _, provider := range c.Providers {
-		if provider == r.Provider {
-			providerOK = true
-		}
-	}
-	for _, permission := range c.Permissions {
-		if permission == r.Permission {
-			permissionOK = true
-		}
-	}
-	return providerOK && permissionOK
-}
-
 type (
 	Grant struct {
-		Key     GrantKey
-		Scopes  ScopeSet
-		Ceiling DispatchCeiling
+		Key    GrantKey
+		Scopes ScopeSet
 	}
 	AuthorizationRequest struct {
 		Actor       Actor
@@ -154,9 +105,6 @@ func (g Grant) Validate() error {
 		if !scope.IsTask() {
 			return ErrInvalid
 		}
-	}
-	if g.Scopes.Has(TaskDispatch) {
-		return g.Ceiling.Validate()
 	}
 	return nil
 }

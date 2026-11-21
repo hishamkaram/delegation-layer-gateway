@@ -37,9 +37,7 @@ func TestWorkspaceCRUDRetainsIdentityAndIndependentPolicyRevisions(t *testing.T)
 	if err != nil || retry.ID != second.ID || retry.Revision != 1 {
 		t.Fatal("approval retry changed identity", err)
 	}
-	policy := clonePolicies(second.Providers)
-	policy[0].MaxBudgetSeconds = 30
-	updated, err := UpdateWorkspace(t.Context(), directory, second.ID, 1, WorkspaceUpdate{Providers: policy})
+	updated, err := UpdateWorkspace(t.Context(), directory, second.ID, 1, WorkspaceUpdate{Alias: "second-renamed"})
 	if err != nil || updated.ID != second.ID || updated.Revision != 2 {
 		t.Fatal("target policy revision failed", err)
 	}
@@ -84,9 +82,9 @@ func TestWorkspaceValuesAreCopiedAndContextCannotRetarget(t *testing.T) {
 	if encodeErr != nil || strings.Contains(string(encoded), f.options.Workspaces[0].NativeContext) {
 		t.Fatal("local workspace UI exposed raw Native token", encodeErr)
 	}
-	listed[0].Providers[0].Permissions[0] = "danger-full-access"
+	listed[0].Alias = "changed-copy"
 	fresh, err := ListWorkspaces(t.Context(), directory)
-	if err != nil || fresh[0].Providers[0].Permissions[0] != "read-only" {
+	if err != nil || fresh[0].Alias != f.options.Workspaces[0].Alias {
 		t.Fatal("UI mutated durable policy", err)
 	}
 	approval := f.options.Workspaces[0]
@@ -95,9 +93,9 @@ func TestWorkspaceValuesAreCopiedAndContextCannotRetarget(t *testing.T) {
 		t.Fatal("alias silently retargeted", err)
 	}
 	approval = f.options.Workspaces[0]
-	approval.Providers = []ProviderPolicy{}
+	approval.Directory = t.TempDir()
 	if _, err = AllowWorkspace(t.Context(), directory, approval); !errors.Is(err, ErrConflict) {
-		t.Fatal("allow silently changed current provider policy", err)
+		t.Fatal("allow silently retargeted current directory", err)
 	}
 }
 
@@ -188,22 +186,14 @@ func fmtWorkspaceID(value int) string {
 	return string(id)
 }
 
-func TestProfileBudgetCountsEachCopiedWorkspacePolicy(t *testing.T) {
-	// Five approvals sharing these immutable in-memory strings would encode more
-	// than eight MiB. Refuse before allocating that JSON, despite shared backing.
-	models := make([]string, 100)
-	for i := range models {
-		models[i] = fmtWorkspaceID(i) + strings.Repeat("m", 160)
-	}
-	providers := make([]ProviderPolicy, 100)
-	for i := range providers {
-		providers[i] = ProviderPolicy{Provider: fmtWorkspaceID(i), Models: models, Permissions: []string{"read-only"}, MaxBudgetSeconds: 60}
-	}
+func TestProfileBudgetCountsEachCopiedWorkspaceContext(t *testing.T) {
+	// Five aliases sharing one immutable Native token still encode five copies.
+	context := strings.Repeat("x", 1<<20)
 	p := profile{Workspaces: make([]workspaceRecord, 5)}
 	for i := range p.Workspaces {
-		p.Workspaces[i].Providers = providers
+		p.Workspaces[i].NativeContext = context
 	}
 	if !p.payloadBytesExceedBudget() {
-		t.Fatal("copied policy encoding evaded the total byte bound")
+		t.Fatal("copied context encoding evaded the total byte bound")
 	}
 }

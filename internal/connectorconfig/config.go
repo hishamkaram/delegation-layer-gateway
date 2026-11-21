@@ -1,11 +1,12 @@
-// Package connectorconfig loads immutable, connector-local routing pins and
-// ceilings. Actual CLI context tokens and filesystem paths stay in this module's
+// Package connectorconfig loads immutable connector-local routing configuration.
+// Actual CLI context tokens and filesystem paths stay in this module's
 // local Config/connector.Config boundary and never become wire metadata.
 package connectorconfig
 
 import (
 	"bytes"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"io"
@@ -61,22 +62,11 @@ type document struct {
 }
 
 type projectDocument struct {
-	Alias        string           `json:"alias"`
-	Root         string           `json:"root"`
-	Directory    string           `json:"directory"`
-	RootToken    string           `json:"root_token"`
-	ProjectToken string           `json:"project_token"`
-	Providers    []policyDocument `json:"providers"`
-}
-
-type policyDocument struct {
-	Provider         string              `json:"provider"`
-	Models           []string            `json:"models"`
-	Efforts          []string            `json:"efforts"`
-	Permissions      []domain.Permission `json:"permissions"`
-	MaxBudgetSeconds uint32              `json:"max_budget_seconds"`
-	NativeModel      bool                `json:"native_model"`
-	NativeEffort     bool                `json:"native_effort"`
+	Alias        string `json:"alias"`
+	Root         string `json:"root"`
+	Directory    string `json:"directory"`
+	RootToken    string `json:"root_token"`
+	ProjectToken string `json:"project_token"`
 }
 
 func privateRead(path string, limit int) ([]byte, error) {
@@ -112,8 +102,21 @@ func Load(path string) (*Config, error) {
 	if readErr != nil {
 		return nil, ErrInvalid
 	}
+	var header struct {
+		Version int `json:"schema_version"`
+	}
+	if json.Unmarshal(data, &header) != nil {
+		return nil, ErrInvalid
+	}
+	if header.Version == 1 {
+		var legacy legacyDocument
+		if protocol.DecodeStrict(data, &legacy, MaxConfigBytes) != nil {
+			return nil, ErrInvalid
+		}
+		return nil, ErrMigrationRequired
+	}
 	var doc document
-	if protocol.DecodeStrict(data, &doc, MaxConfigBytes) != nil || doc.Version != 1 {
+	if protocol.DecodeStrict(data, &doc, MaxConfigBytes) != nil || doc.Version != 2 {
 		return nil, ErrInvalid
 	}
 	return validated(doc)
@@ -176,9 +179,6 @@ func timeouts(doc document) (time.Duration, time.Duration, error) {
 
 func (p projectDocument) value() connector.Project {
 	result := connector.Project{Alias: p.Alias, Root: p.Root, Directory: p.Directory, RootToken: p.RootToken, ProjectToken: p.ProjectToken}
-	for _, policy := range p.Providers {
-		result.Providers = append(result.Providers, connector.ProviderPolicy{Provider: policy.Provider, Models: append([]string(nil), policy.Models...), Efforts: append([]string(nil), policy.Efforts...), Permissions: append([]domain.Permission(nil), policy.Permissions...), MaxBudgetSeconds: policy.MaxBudgetSeconds, NativeModel: policy.NativeModel, NativeEffort: policy.NativeEffort})
-	}
 	return result
 }
 
@@ -335,16 +335,6 @@ func (c *Config) NetworkTimeout() time.Duration { return c.networkTimeout }
 
 func (c *Config) Adapter() connector.Config {
 	result := c.adapter
-	result.Projects = make([]connector.Project, len(c.adapter.Projects))
-	for index, p := range c.adapter.Projects {
-		result.Projects[index] = p
-		result.Projects[index].Providers = make([]connector.ProviderPolicy, len(p.Providers))
-		for i, policy := range p.Providers {
-			policy.Models = append([]string(nil), policy.Models...)
-			policy.Efforts = append([]string(nil), policy.Efforts...)
-			policy.Permissions = append([]domain.Permission(nil), policy.Permissions...)
-			result.Projects[index].Providers[i] = policy
-		}
-	}
+	result.Projects = append([]connector.Project(nil), c.adapter.Projects...)
 	return result
 }

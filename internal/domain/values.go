@@ -5,13 +5,11 @@ package domain
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -36,18 +34,18 @@ type (
 )
 
 const (
-	MaxBriefBytes         = 256 << 10
-	MaxFrameBytes         = 1 << 20
-	MaxRetainedBytes      = 64 << 20
-	MaxCorrelations       = 100000
-	MaxDeviceReservations = 2
-	MaxGlobalReservations = 32
-	DefaultPageLimit      = 50
-	MaxPageLimit          = 100
-	DraftTTL              = 15 * time.Minute
-	EnrollmentTTL         = 10 * time.Minute
-	CertificateLifetime   = 30 * 24 * time.Hour
-	RenewalAfter          = 20 * 24 * time.Hour
+	MaxBriefBytes              = 256 << 10
+	MaxFrameBytes              = 1 << 20
+	MaxRetainedBytes           = 64 << 20
+	MaxOutstandingPreparations = 32
+	MaxDeviceReservations      = 2
+	MaxGlobalReservations      = 32
+	DefaultPageLimit           = 50
+	MaxPageLimit               = 100
+	DraftTTL                   = 15 * time.Minute
+	EnrollmentTTL              = 10 * time.Minute
+	CertificateLifetime        = 30 * 24 * time.Hour
+	RenewalAfter               = 20 * 24 * time.Hour
 )
 
 var ErrInvalid = errors.New("invalid domain value")
@@ -68,14 +66,11 @@ func RoutingToken(value string) error {
 // Token is the common routing-identifier validator.
 func Token(value string) error { return RoutingToken(value) }
 
+// optionValue checks literal transport encoding, not Native execution policy.
+// The complete request/frame byte bound remains enforced at the I/O boundary.
 func optionValue(value string) error {
-	if len(value) == 0 || len(value) > 256 || !utf8.ValidString(value) {
+	if value == "" || len(value) > MaxFrameBytes || !utf8.ValidString(value) || strings.ContainsRune(value, 0) {
 		return ErrInvalid
-	}
-	for _, c := range value {
-		if unicode.IsControl(c) || unicode.IsSpace(c) {
-			return ErrInvalid
-		}
 	}
 	return nil
 }
@@ -293,16 +288,12 @@ const (
 	FullAccess     Permission = "danger-full-access"
 )
 
-func (p Permission) Validate() error {
-	switch p {
-	case ReadOnly, WorkspaceWrite, FullAccess:
-		return nil
-	default:
-		return ErrInvalid
-	}
-}
+// Validate checks transport shape only. Delegate decides supported permission
+// modes; these named constants preserve historical record vocabulary.
+func (p Permission) Validate() error { return optionValue(string(p)) }
 
 type ExecutionOptions struct {
+	Native        NativeOptions `json:",omitzero"`
 	Provider      ProviderID
 	Model         Selection
 	Effort        Selection
@@ -311,6 +302,12 @@ type ExecutionOptions struct {
 }
 
 func (r ExecutionOptions) Validate() error {
+	if r.Native != (NativeOptions{}) {
+		if r.Provider != "" || r.Model != (Selection{}) || r.Effort != (Selection{}) || r.Permission != "" || r.BudgetSeconds != 0 {
+			return ErrInvalid
+		}
+		return r.Native.Validate()
+	}
 	if err := Token(string(r.Provider)); err != nil {
 		return err
 	}
@@ -330,20 +327,36 @@ func (r ExecutionOptions) Validate() error {
 }
 
 type FrozenRequest struct {
-	Provider      ProviderID
-	Model         Selection
-	Effort        Selection
-	Permission    Permission
-	BudgetSeconds uint32
-	Brief         string
+	Native            NativeOptions `json:",omitzero"`
+	Provider          ProviderID
+	Model             Selection
+	Effort            Selection
+	Permission        Permission
+	BudgetSeconds     uint32
+	Brief             string
+	BriefPresent      bool                  `json:",omitzero"`
+	Continuation      ContinuationOverrides `json:",omitzero"`
+	SelectionExplicit bool                  `json:",omitzero"`
 }
 
 func (r FrozenRequest) Options() ExecutionOptions {
-	return ExecutionOptions{Provider: r.Provider, Model: r.Model, Effort: r.Effort, Permission: r.Permission, BudgetSeconds: r.BudgetSeconds}
+	return ExecutionOptions{Native: r.Native, Provider: r.Provider, Model: r.Model, Effort: r.Effort, Permission: r.Permission, BudgetSeconds: r.BudgetSeconds}
 }
 
 func (r FrozenRequest) Validate() error {
-	if err := r.Options().Validate(); err != nil {
+	if r.Continuation != (ContinuationOverrides{}) {
+		if r.Options() != (ExecutionOptions{}) || r.Continuation.Validate() != nil {
+			return ErrInvalid
+		}
+		if !r.BriefPresent {
+			if r.Brief != "" {
+				return ErrInvalid
+			}
+			return nil
+		}
+	} else if r.SelectionExplicit {
+		return ErrInvalid
+	} else if err := r.Options().Validate(); err != nil {
 		return err
 	}
 	if len(r.Brief) == 0 || len(r.Brief) > MaxBriefBytes || !utf8.ValidString(r.Brief) {
@@ -379,6 +392,7 @@ func (o OperationOwner) Validate() error {
 }
 
 type Correlation struct {
+	Route               OperationRoute `json:",omitzero"`
 	Operation           OperationID
 	Task                TaskID
 	Gateway             GatewayID
@@ -388,9 +402,16 @@ type Correlation struct {
 	Context             ContextBinding
 	RequestDigest       Digest
 	BriefDigest         Digest
+	RequestVersion      int                     `json:",omitzero"`
+	Kind                RequestKind             `json:",omitzero"`
+	BriefPresent        bool                    `json:",omitzero"`
+	Predecessor         ContinuationPredecessor `json:",omitzero"`
 }
 
 func (c Correlation) validateBinding() error {
+	if c.Route != (OperationRoute{}) && c.Route.Validate() != nil {
+		return ErrInvalid
+	}
 	if c.Owner.Kind != Owned {
 		return ErrInvalid
 	}
@@ -404,7 +425,7 @@ func (c Correlation) validateBinding() error {
 			return err
 		}
 	}
-	return nil
+	return validateRequestVersion(c)
 }
 
 func (c Correlation) Validate() error {
@@ -414,21 +435,37 @@ func (c Correlation) Validate() error {
 	if err := c.RequestDigest.Validate(); err != nil {
 		return err
 	}
+	if c.RequestVersion == CompactRequestVersion {
+		binding, err := BuildOriginBinding(c)
+		if err != nil || Hash([]byte(binding)) != c.RequestDigest {
+			return ErrInvalid
+		}
+		return nil
+	}
 	return c.BriefDigest.Validate()
 }
 
-// RequestDigest binds the validated brief through its digest. Plaintext is not
-// needed to reconstruct the exact immutable request after a registry restore.
+// RequestDigest validates a retained body. Compact requests must reproduce their
+// input commitment; bodyless recovery verifies correlation through its binding.
 func RequestDigest(c Correlation, r FrozenRequest) (Digest, error) {
 	if err := r.Validate(); err != nil {
 		return Digest{}, err
 	}
+	if c.RequestVersion == CompactRequestVersion {
+		return compactRequestDigest(c, r)
+	}
+	if r.BriefPresent || r.SelectionExplicit || r.Continuation != (ContinuationOverrides{}) {
+		return Digest{}, ErrInvalid
+	}
 	return RequestBindingDigest(c, r.Options(), Hash([]byte(r.Brief)))
 }
 
-// RequestBindingDigest is canonical version 2. The registry's schema version
-// excludes older digest formats; recovery never guesses a v1 interpretation.
+// RequestBindingDigest preserves the historical v2/v3 encodings. Compact intent
+// must use RequestDigest with its retained body, never an options-column copy.
 func RequestBindingDigest(c Correlation, options ExecutionOptions, brief Digest) (Digest, error) {
+	if c.RequestVersion != 0 {
+		return Digest{}, ErrInvalid
+	}
 	if err := c.validateBinding(); err != nil {
 		return Digest{}, err
 	}
@@ -441,23 +478,7 @@ func RequestBindingDigest(c Correlation, options ExecutionOptions, brief Digest)
 	if c.BriefDigest != brief {
 		return Digest{}, ErrInvalid
 	}
-	type binding struct {
-		Version     int
-		Operation   OperationID
-		Task        TaskID
-		Gateway     GatewayID
-		Generation  AdmissionGeneration
-		Owner       OperationOwner
-		Destination Destination
-		Context     ContextBinding
-		Options     ExecutionOptions
-		BriefSHA256 string
-	}
-	encoded, err := json.Marshal(binding{2, c.Operation, c.Task, c.Gateway, c.AdmissionGeneration, c.Owner, c.Destination, c.Context, options, hex.EncodeToString(brief[:])})
-	if err != nil {
-		return Digest{}, fmt.Errorf("encode request: %w", err)
-	}
-	return Hash(encoded), nil
+	return legacyRequestBindingDigest(c, options, brief)
 }
 
 type ErrorCode string

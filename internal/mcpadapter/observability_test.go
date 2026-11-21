@@ -29,7 +29,7 @@ func TestToolEncodingFallbackIsRecordedAsErrorWithoutContent(t *testing.T) {
 	events := &toolEvents{}
 	adapter := &Adapter{options: Options{Recorder: events}}
 	value := DevicePage{Devices: []Device{{Name: strings.Repeat(privateCanary, (1<<20)/len(privateCanary)+1)}}}
-	result := recordedToolResult(adapter, domain.Actor{Principal: "principal"}, validator, Envelope[DevicePage]{Data: &value}, "")
+	result := recordedToolResult(adapter, domain.Actor{Principal: "principal"}, validator, Envelope[DevicePage]{Data: &value}, "", nil)
 	expectError[DevicePage](t, result, "evidence_invalid")
 	if len(events.values) != 1 || events.values[0] != (observability.Event{Code: observability.MCPToolErrorReady, Principal: "principal"}) {
 		t.Fatal("encoding fallback was recorded as successful data or leaked a caller value")

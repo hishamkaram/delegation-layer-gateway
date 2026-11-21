@@ -27,7 +27,11 @@ func readOperation(ctx context.Context, tx *sql.Tx, id domain.OperationID) (stor
 	var project domain.ProjectGuard
 	var kind string
 	var originOperation domain.OperationID
-	err := tx.QueryRowContext(ctx, "SELECT correlation,request,state,created,expires,reserved,cancellation,observation,coalesce(owner,''),execution_options,options_sha256,root_guard,project_guard,kind,origin_operation FROM operations WHERE id=?", id).Scan(&correlation, &op.request, &op.view.Delivery, &created, &expires, &op.view.Reserved, &op.view.Cancellation, &observation, &owner, &op.options, &op.optionsDigest, &root, &project, &kind, &originOperation)
+	var destination domain.Destination
+	var task domain.TaskID
+	var preparation sql.NullString
+	var preparationExpiry sql.NullInt64
+	err := tx.QueryRowContext(ctx, "SELECT correlation,request,state,created,expires,reserved,cancellation,observation,coalesce(owner,''),execution_options,options_sha256,root_guard,project_guard,kind,origin_operation,preparation_key,preparation_expires_ns,device,project,task FROM operations WHERE id=?", id).Scan(&correlation, &op.request, &op.view.Delivery, &created, &expires, &op.view.Reserved, &op.view.Cancellation, &observation, &owner, &op.options, &op.optionsDigest, &root, &project, &kind, &originOperation, &preparation, &preparationExpiry, &destination.Device, &destination.Project, &task)
 	if err != nil {
 		return op, notFound(err)
 	}
@@ -38,7 +42,10 @@ func readOperation(ctx context.Context, tx *sql.Tx, id domain.OperationID) (stor
 	if err = op.view.Correlation.Validate(); err != nil {
 		return op, fmt.Errorf("stored correlation: %w", err)
 	}
-	if !storedOperationIdentityMatches(op.view.Correlation, id, originOperation, kind, domain.ContextBinding{Root: root, Project: project}) {
+	if !storedOperationIdentityMatches(op.view.Correlation, id, originOperation, kind, domain.ContextBinding{Root: root, Project: project}, destination, task) {
+		return op, domain.Reject(domain.EvidenceInvalid)
+	}
+	if !preparationIdentityMatches(op.view.Correlation.Route, preparation) {
 		return op, domain.Reject(domain.EvidenceInvalid)
 	}
 	if err = op.view.Delivery.Validate(); err != nil {
@@ -59,28 +66,35 @@ func readOperation(ctx context.Context, tx *sql.Tx, id domain.OperationID) (stor
 	if err != nil {
 		return op, err
 	}
-	if len(observation) > 0 {
-		value, decodeErr := decode[domain.DelegateObservation](observation)
-		if decodeErr != nil {
-			return op, decodeErr
-		}
-		if validateErr := value.Validate(value.ObservedAt); validateErr != nil {
-			return op, validateErr
-		}
-		op.view.Observation = &value
+	if err = validatePreparationExpiry(op.view, preparationExpiry); err != nil {
+		return op, err
 	}
-	return op, nil
+	return readOperationEvidence(op, observation)
 }
 
-func storedOperationIdentityMatches(c domain.Correlation, id, origin domain.OperationID, kind string, binding domain.ContextBinding) bool {
-	return c.Operation == id && origin == id && kind == "attributed" && c.Context == binding
+func decodeOperationObservation(data []byte) (*domain.DelegateObservation, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+	value, err := decode[domain.DelegateObservation](data)
+	if err != nil {
+		return nil, err
+	}
+	if err = value.Validate(value.ObservedAt); err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
+func storedOperationIdentityMatches(c domain.Correlation, id, origin domain.OperationID, kind string, binding domain.ContextBinding, destination domain.Destination, task domain.TaskID) bool {
+	return c.Operation == id && origin == id && kind == "attributed" && c.Context == binding && c.Destination == destination && c.Task == task
 }
 
 func authorizeOperation(ctx context.Context, tx *sql.Tx, actor domain.Actor, op storedOperation, scope domain.Scope) (domain.Authorization, error) {
 	if op.view.EffectiveOwner.Kind != domain.Owned || op.view.EffectiveOwner.Principal != actor.Principal {
 		return domain.Authorization{}, domain.Reject(domain.NotFound)
 	}
-	return authorize(ctx, tx, domain.AuthorizationRequest{Actor: actor, Destination: op.view.Correlation.Destination, Scope: scope})
+	return authorizeCorrelation(ctx, tx, actor, op.view.Correlation, scope)
 }
 
 func checkActiveBinding(ctx context.Context, tx *sql.Tx, c domain.Correlation) error {
@@ -102,6 +116,12 @@ func checkOpenContext(ctx context.Context, tx *sql.Tx, c domain.Correlation) (do
 	if gateway != c.Gateway {
 		return "", domain.Reject(domain.Conflict)
 	}
+	if c.Route.Version == 1 {
+		if err := admissionsOpen(ctx, tx); err != nil {
+			return "", err
+		}
+		return readOpenRootGeneration(ctx, tx, c.Destination.Device, c.Context.Root)
+	}
 	return checkProjectAdmission(ctx, tx, c.Destination, c.Context)
 }
 
@@ -116,8 +136,12 @@ func checkProjectAdmission(ctx context.Context, tx *sql.Tx, destination domain.D
 	if binding != expectedContext {
 		return "", domain.Reject(domain.Conflict)
 	}
+	return readOpenRootGeneration(ctx, tx, destination.Device, binding.Root)
+}
+
+func readOpenRootGeneration(ctx context.Context, tx *sql.Tx, device domain.DeviceID, root domain.RootGuard) (domain.AdmissionGeneration, error) {
 	var generation domain.AdmissionGeneration
-	if err = tx.QueryRowContext(ctx, "SELECT generation FROM root_admissions WHERE device=? AND root_guard=? AND state='open'", destination.Device, binding.Root).Scan(&generation); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT generation FROM root_admissions WHERE device=? AND root_guard=? AND state='open'", device, root).Scan(&generation); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", domain.Reject(domain.Pending)
 		}
@@ -139,6 +163,9 @@ func validatePreparation(actor domain.Actor, input domain.Preparation) error {
 	if err := input.Request.Validate(); err != nil {
 		return err
 	}
+	if input.Correlation.RequestVersion == 0 && (input.Correlation.Route.Version == 1) != (input.Request.Native.Version == 1) {
+		return domain.ErrInvalid
+	}
 	if input.Now.IsZero() || input.Correlation.Owner.Kind != domain.Owned || input.Correlation.Owner.Principal != actor.Principal {
 		return domain.ErrInvalid
 	}
@@ -146,7 +173,7 @@ func validatePreparation(actor domain.Actor, input domain.Preparation) error {
 	if err != nil {
 		return err
 	}
-	if input.Correlation.RequestDigest != digest || input.Correlation.BriefDigest != domain.Hash([]byte(input.Request.Brief)) {
+	if input.Correlation.RequestDigest != digest {
 		return domain.Reject(domain.Conflict)
 	}
 	return nil
@@ -164,20 +191,27 @@ func (s *Store) Prepare(ctx context.Context, actor domain.Actor, input domain.Pr
 	if err != nil {
 		return domain.PreparedOperation{}, err
 	}
-	options, err := encode(input.Request.Options())
-	if err != nil {
-		return domain.PreparedOperation{}, err
-	}
-	return transaction(ctx, s, func(tx *sql.Tx) (domain.PreparedOperation, error) {
-		if err := checkActiveBinding(ctx, tx, input.Correlation); err != nil {
-			return domain.PreparedOperation{}, err
-		}
-		auth, err := authorize(ctx, tx, domain.AuthorizationRequest{Actor: actor, Destination: input.Correlation.Destination, Scope: domain.TaskDispatch})
+	var options []byte
+	if input.Correlation.RequestVersion != domain.CompactRequestVersion {
+		options, err = encode(input.Request.Options())
 		if err != nil {
 			return domain.PreparedOperation{}, err
 		}
-		if !auth.Grant.Ceiling.Allows(input.Request) {
-			return domain.PreparedOperation{}, domain.Reject(domain.Forbidden)
+	}
+	return transaction(ctx, s, func(tx *sql.Tx) (domain.PreparedOperation, error) {
+		_, err := authorizeCorrelation(ctx, tx, actor, input.Correlation, domain.TaskDispatch)
+		if err != nil {
+			return domain.PreparedOperation{}, err
+		}
+		if input.Correlation.Route.Version == 1 {
+			c := input.Correlation
+			existing, found, lookupErr := lookupPreparation(ctx, tx, actor.Principal, c.Destination.Device, c.Route.RequestID, c.Route.InputDigest)
+			if lookupErr != nil || found {
+				return existing, lookupErr
+			}
+		}
+		if err = checkActiveBinding(ctx, tx, input.Correlation); err != nil {
+			return domain.PreparedOperation{}, err
 		}
 		return insertPreparation(ctx, tx, input, request, correlation, options)
 	})
@@ -189,7 +223,7 @@ func insertPreparation(ctx context.Context, tx *sql.Tx, input domain.Preparation
 		if existing.view.Correlation != input.Correlation {
 			return domain.PreparedOperation{}, domain.Reject(domain.Conflict)
 		}
-		if _, err = storedExecutionOptions(existing); err != nil {
+		if err = validateStoredIntent(existing); err != nil {
 			return domain.PreparedOperation{}, err
 		}
 		return domain.PreparedOperation{Correlation: existing.view.Correlation, ExpiresAt: existing.view.ExpiresAt}, nil
@@ -198,12 +232,13 @@ func insertPreparation(ctx context.Context, tx *sql.Tx, input domain.Preparation
 	if !errors.As(err, &classified) || classified.Code != domain.NotFound {
 		return domain.PreparedOperation{}, err
 	}
-	var count, retained int64
-	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*),COALESCE(SUM(length(request)),0) FROM operations").Scan(&count, &retained); err != nil {
+	expires := input.Now.Add(domain.DraftTTL)
+	expiresNS, err := expirationNanoseconds(expires)
+	if err != nil {
 		return domain.PreparedOperation{}, err
 	}
-	if count >= domain.MaxCorrelations || retained+int64(len(request)) > domain.MaxRetainedBytes {
-		return domain.PreparedOperation{}, domain.Reject(domain.ResourceLimit)
+	if err = checkPreparationCapacity(ctx, tx, input.Correlation.Owner.Principal, input.Now, len(request)); err != nil {
+		return domain.PreparedOperation{}, err
 	}
 	var taskCount int
 	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM operations WHERE (device=? AND root_guard=? AND task=?) OR origin_operation=?", input.Correlation.Destination.Device, input.Correlation.Context.Root, input.Correlation.Task, input.Correlation.Operation).Scan(&taskCount); err != nil {
@@ -212,9 +247,12 @@ func insertPreparation(ctx context.Context, tx *sql.Tx, input domain.Preparation
 	if taskCount != 0 {
 		return domain.PreparedOperation{}, domain.Reject(domain.Conflict)
 	}
-	expires := input.Now.Add(domain.DraftTTL)
-	optionsDigest := domain.Hash(options)
-	_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,origin_operation,kind,root_guard,project_guard,task,owner,device,project,correlation,request,execution_options,options_sha256,state,created,expires) VALUES(?,?,'attributed',?,?,?,?,?,?,?,?,?,?,?,?,?)", input.Correlation.Operation, input.Correlation.Operation, input.Correlation.Context.Root, input.Correlation.Context.Project, input.Correlation.Task, input.Correlation.Owner.Principal, input.Correlation.Destination.Device, input.Correlation.Destination.Project, correlation, request, options, optionsDigest[:], domain.Prepared, input.Now.UTC().Format(timestampLayout), expires.UTC().Format(timestampLayout))
+	var optionsDigest []byte
+	if input.Correlation.RequestVersion != domain.CompactRequestVersion {
+		digest := domain.Hash(options)
+		optionsDigest = digest[:]
+	}
+	_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,origin_operation,kind,root_guard,project_guard,task,owner,device,project,correlation,request,execution_options,options_sha256,preparation_key,preparation_expires_ns,state,created,expires) VALUES(?,?,'attributed',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", input.Correlation.Operation, input.Correlation.Operation, input.Correlation.Context.Root, input.Correlation.Context.Project, input.Correlation.Task, input.Correlation.Owner.Principal, input.Correlation.Destination.Device, input.Correlation.Destination.Project, correlation, request, options, optionsDigest, preparationKey(input.Correlation), expiresNS, domain.Prepared, input.Now.UTC().Format(timestampLayout), expires.UTC().Format(timestampLayout))
 	return domain.PreparedOperation{Correlation: input.Correlation, ExpiresAt: expires}, err
 }
 
@@ -303,7 +341,7 @@ func (s *Store) markPossibleSend(ctx context.Context, actor domain.Actor, input 
 		if err != nil {
 			return domain.SendDecision{}, err
 		}
-		auth, err := authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch)
+		_, err = authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch)
 		if err != nil {
 			return domain.SendDecision{}, err
 		}
@@ -315,11 +353,11 @@ func (s *Store) markPossibleSend(ctx context.Context, actor domain.Actor, input 
 		if route == nil {
 			return domain.SendDecision{}, domain.Reject(domain.Forbidden)
 		}
-		decision, err := reserveTransmission(ctx, tx, input, op, auth)
+		decision, err := reserveTransmission(ctx, tx, input, op)
 		if err != nil {
 			return decision, err
 		}
-		if err = validateRoutingAdmission(*route, decision.Operation.Correlation, decision.Request); err != nil {
+		if err = validateRoutingAdmission(ctx, tx, actor, *route, decision.Operation.Correlation, decision.Request); err != nil {
 			return domain.SendDecision{}, err
 		}
 		if err = s.acquireRouting(ctx, tx, *route); err != nil {
@@ -329,7 +367,7 @@ func (s *Store) markPossibleSend(ctx context.Context, actor domain.Actor, input 
 	})
 }
 
-func reserveTransmission(ctx context.Context, tx *sql.Tx, input domain.Transmission, op storedOperation, auth domain.Authorization) (domain.SendDecision, error) {
+func reserveTransmission(ctx context.Context, tx *sql.Tx, input domain.Transmission, op storedOperation) (domain.SendDecision, error) {
 	if op.view.Cancellation != "" {
 		return domain.SendDecision{}, domain.Reject(domain.Conflict)
 	}
@@ -349,15 +387,10 @@ func reserveTransmission(ctx context.Context, tx *sql.Tx, input domain.Transmiss
 	if err = validateOptionsAgainstRequest(op, request); err != nil {
 		return domain.SendDecision{}, err
 	}
-	if !auth.Grant.Ceiling.Allows(request) {
-		return domain.SendDecision{}, domain.Reject(domain.Forbidden)
-	}
-	var global, device int
-	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*),COALESCE(SUM(CASE WHEN device=? THEN 1 ELSE 0 END),0) FROM operations WHERE reserved=1", input.Credential.Device).Scan(&global, &device); err != nil {
-		return domain.SendDecision{}, err
-	}
-	if global >= domain.MaxGlobalReservations || device >= domain.MaxDeviceReservations {
-		return domain.SendDecision{}, domain.Reject(domain.ResourceLimit)
+	if op.view.Correlation.Route.Version == 0 {
+		if err = checkLegacyReservationCapacity(ctx, tx, input.Credential.Device); err != nil {
+			return domain.SendDecision{}, err
+		}
 	}
 	if _, err = tx.ExecContext(ctx, "UPDATE operations SET state=?,reserved=1 WHERE id=?", domain.PossibleSend, input.Operation); err != nil {
 		return domain.SendDecision{}, err
@@ -373,8 +406,19 @@ func validateFrozenRequest(c domain.Correlation, r domain.FrozenRequest) error {
 		// These values came from persisted prepared evidence, not caller input.
 		return domain.Reject(domain.EvidenceInvalid)
 	}
-	if digest != c.RequestDigest || domain.Hash([]byte(r.Brief)) != c.BriefDigest {
+	if digest != c.RequestDigest {
 		return domain.Reject(domain.EvidenceInvalid)
+	}
+	return nil
+}
+
+func checkLegacyReservationCapacity(ctx context.Context, tx *sql.Tx, deviceID domain.DeviceID) error {
+	var global, device int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*),COALESCE(SUM(CASE WHEN device=? THEN 1 ELSE 0 END),0) FROM operations WHERE reserved=1", deviceID).Scan(&global, &device); err != nil {
+		return err
+	}
+	if global >= domain.MaxGlobalReservations || device >= domain.MaxDeviceReservations {
+		return domain.Reject(domain.ResourceLimit)
 	}
 	return nil
 }
@@ -402,15 +446,16 @@ func (s *Store) ExpireUnsent(ctx context.Context, now time.Time) (domain.ExpiryS
 	if err := s.requireAdmin(ctx); err != nil {
 		return domain.ExpirySummary{}, err
 	}
-	if now.IsZero() {
-		return domain.ExpirySummary{}, domain.ErrInvalid
+	nowNS, err := expirationNanoseconds(now)
+	if err != nil {
+		return domain.ExpirySummary{}, err
 	}
 	return transaction(ctx, s, func(tx *sql.Tx) (domain.ExpirySummary, error) {
 		var summary domain.ExpirySummary
-		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*),COALESCE(SUM(length(request)),0) FROM operations WHERE state=? AND expires<=?", domain.Prepared, now.UTC().Format(timestampLayout)).Scan(&summary.Count, &summary.RemovedBytes); err != nil {
+		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*),COALESCE(SUM(length(request)),0) FROM operations WHERE state=? AND preparation_expires_ns<=?", domain.Prepared, nowNS).Scan(&summary.Count, &summary.RemovedBytes); err != nil {
 			return summary, err
 		}
-		_, err := tx.ExecContext(ctx, "UPDATE operations SET state=?,request=NULL WHERE state=? AND expires<=?", domain.ExpiredUnsent, domain.Prepared, now.UTC().Format(timestampLayout))
+		_, err := tx.ExecContext(ctx, "UPDATE operations SET state=?,request=NULL WHERE state=? AND preparation_expires_ns<=?", domain.ExpiredUnsent, domain.Prepared, nowNS)
 		return summary, err
 	})
 }

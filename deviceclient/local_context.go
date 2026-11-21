@@ -30,8 +30,15 @@ func LocalContext(ctx context.Context, directory string) (value LocalContextInfo
 	if store.value == nil {
 		return value, ErrProfile
 	}
-	p := store.value
-	return LocalContextInfo{DelegateExecutable: p.DelegateExecutable, DelegateRoot: p.DelegateRoot, DelegateRootContext: p.DelegateRootContext, Providers: clonePolicies(p.Providers)}, nil
+	return profileLocalContext(*store.value), nil
+}
+
+func profileLocalContext(p profile) LocalContextInfo {
+	source := LocalContextInfo{DelegateExecutable: p.DelegateExecutable, DelegateRoot: p.DelegateRoot, DelegateRootContext: p.DelegateRootContext}
+	for _, workspace := range p.Workspaces {
+		source.WorkspaceIDs = append(source.WorkspaceIDs, workspace.ID)
+	}
+	return source
 }
 
 // RuntimeInactive briefly owns the identity file lease. True proves only that
@@ -45,7 +52,7 @@ func RuntimeInactive(ctx context.Context, directory string) (inactive bool, resu
 	if err := ctx.Err(); err != nil {
 		return false, failed(ErrProfile, err)
 	}
-	profile, err := openProfile(directory, false, false)
+	profile, err := openProfileMode(directory, false, false, true)
 	if err != nil {
 		return false, err
 	}

@@ -21,7 +21,11 @@ func (s *Service) ReadResult(ctx context.Context, actor domain.Actor, id domain.
 	if !acceptedDescriptor(view, descriptor) {
 		return protocol.ResultRange{}, &RemoteError{Failure: protocol.Failure{Code: "result_unavailable", Retryable: false}}
 	}
-	request := protocol.RangeRequest{Task: binding(view.Correlation, view.Observation.SpecDigest), Descriptor: descriptor, Offset: offset, Limit: limit}
+	task, err := binding(view.Correlation, view.Observation.SpecDigest)
+	if err != nil {
+		return protocol.ResultRange{}, err
+	}
+	request := protocol.RangeRequest{Task: task, Descriptor: descriptor, Offset: offset, Limit: limit}
 	if err = request.Validate(); err != nil {
 		return protocol.ResultRange{}, err
 	}

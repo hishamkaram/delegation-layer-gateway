@@ -72,7 +72,7 @@ func newGatewayFixture(t *testing.T) *gatewayFixture {
 	if err := os.Chmod(executable, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	f.options = ConnectOptions{GatewayURL: base, ProfileDirectory: filepath.Join(directory, "profile"), DelegateExecutable: executable, DelegateRoot: directory, DelegateRootContext: strings.Repeat("a", 64), DeviceName: "Office", PrivateCAFile: certPath, Workspaces: []WorkspaceApproval{{Alias: "acceptance", Directory: directory, NativeContext: "opaque-approved-workspace"}}, Providers: []ProviderPolicy{{Provider: "claude", Permissions: []string{"read-only"}, MaxBudgetSeconds: 60}}, PresentChallenge: func(_ context.Context, c Challenge) error {
+	f.options = ConnectOptions{GatewayURL: base, ProfileDirectory: filepath.Join(directory, "profile"), DelegateExecutable: executable, DelegateRoot: directory, DelegateRootContext: strings.Repeat("a", 64), DeviceName: "Office", PrivateCAFile: certPath, Workspaces: []WorkspaceApproval{{Alias: "acceptance", Directory: directory, NativeContext: "opaque-approved-workspace"}}, PresentChallenge: func(_ context.Context, c Challenge) error {
 		if c.UserCode != "ABCD" || c.VerificationURI != base+"/activate" {
 			return errors.New("bad challenge")
 		}

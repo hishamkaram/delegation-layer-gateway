@@ -52,9 +52,9 @@ func TestReloadOwnsImmutableConfiguration(t *testing.T) {
 	if err := f.adapter.Reload(t.Context(), f.config); err != nil {
 		t.Fatal(err)
 	}
-	f.config.Projects[0].Providers[0].Models[0] = "changed"
+	f.config.Projects[0].Alias = "changed"
 	snapshot := f.adapter.snapshot()
-	if snapshot.Projects[0].Providers[0].Models[0] != "model-safe" {
+	if snapshot.Projects[0].Alias != "project-one" {
 		t.Fatal("caller mutated installed configuration")
 	}
 }

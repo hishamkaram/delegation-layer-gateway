@@ -227,7 +227,7 @@ func (s *Store) AcquireRouting(ctx context.Context, input routing.Request) error
 	if _, err := validateRoutingRequest(input); err != nil {
 		return err
 	}
-	if input.Call.Operation == protocol.Admit {
+	if input.Call.Operation == protocol.Admit || input.Call.Operation == protocol.Continue {
 		return domain.ErrInvalid
 	}
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) { return struct{}{}, s.acquireRouting(ctx, tx, input) })

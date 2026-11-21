@@ -47,7 +47,7 @@ func TestKnownOldGenerationResumeRequiresCurrentRootButRetainsOriginalBinding(t 
 		t.Fatal("resume rewrote original task identity or failed to rotate the root")
 	}
 	requireCode(t, f.store.CheckQueuedAdmission(t.Context(), f.actor, f.transmission(c)), domain.Conflict)
-	requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: c.Destination}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 59}}))
+	requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: c.Destination}, Scopes: domain.ScopeSet{domain.TaskRead}}))
 	_, err = f.store.GetForRecovery(t.Context(), f.actor, c.Operation)
-	requireCode(t, err, domain.Forbidden)
+	requireCode(t, err, domain.NotFound)
 }

@@ -239,7 +239,7 @@ func TestBridgeRejectsMismatchedRevokedAndStaleReplyEvidence(t *testing.T) {
 				mustOK(t, f.store.SetDeviceRevoked(ctx, f.ref.Device, false))
 			}
 			if mode == "revoked-grant" {
-				mustOK(t, f.store.PutGrant(ctx, domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: c.Destination}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 300}}))
+				mustOK(t, f.store.PutGrant(ctx, domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: c.Destination}, Scopes: f.actor.Scopes}))
 			}
 			if after := f.view(t, c.Operation); !reflect.DeepEqual(before, after) || !after.Reserved {
 				t.Fatal("invalid reply updated observation or released task quota")

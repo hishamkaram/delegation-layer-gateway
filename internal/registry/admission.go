@@ -27,6 +27,9 @@ func storedExecutionOptions(op storedOperation) (domain.ExecutionOptions, error)
 }
 
 func validateOptionsAgainstRequest(op storedOperation, request domain.FrozenRequest) error {
+	if op.view.Correlation.RequestVersion == domain.CompactRequestVersion {
+		return validateCompactOperation(op)
+	}
 	options, err := storedExecutionOptions(op)
 	if err != nil {
 		return err
@@ -56,7 +59,7 @@ func admissionsOpen(ctx context.Context, tx *sql.Tx) error {
 }
 
 // GetForRecovery exposes only immutable correlation/spec identity. A known
-// canonical existing request and retained validated options are mandatory;
+// canonical existing request and validated intent provenance are mandatory;
 // neither task-read privileges nor a brief can substitute for dispatch rights.
 func (s *Store) GetForRecovery(ctx context.Context, actor domain.Actor, id domain.OperationID) (domain.RecoveryView, error) {
 	if err := actor.Validate(); err != nil {
@@ -70,7 +73,7 @@ func (s *Store) GetForRecovery(ctx context.Context, actor domain.Actor, id domai
 		if err != nil {
 			return domain.RecoveryView{}, err
 		}
-		auth, err := authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch)
+		_, err = authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch)
 		if err != nil {
 			return domain.RecoveryView{}, err
 		}
@@ -84,15 +87,58 @@ func (s *Store) GetForRecovery(ctx context.Context, actor domain.Actor, id domai
 		if spec == (domain.Digest{}) {
 			return domain.RecoveryView{}, domain.Reject(domain.Pending)
 		}
-		options, err := storedExecutionOptions(op)
-		if err != nil {
+		if err = validateStoredIntent(op); err != nil {
 			return domain.RecoveryView{}, err
 		}
-		if !auth.Grant.Ceiling.AllowsOptions(options) {
-			return domain.RecoveryView{}, domain.Reject(domain.Forbidden)
+		if err = checkCompactRecoveryReceipt(ctx, tx, op, spec); err != nil {
+			return domain.RecoveryView{}, err
 		}
 		return domain.RecoveryView{Correlation: op.view.Correlation, SpecDigest: spec}, nil
 	})
+}
+
+// GetForContinuation exposes path-bound predecessor identity and a known Native
+// spec under current dispatch authority. Native alone decides session eligibility.
+func (s *Store) GetForContinuation(ctx context.Context, actor domain.Actor, id domain.OperationID) (domain.RecoveryView, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.RecoveryView{}, err
+	}
+	if err := domain.RoutingToken(string(id)); err != nil {
+		return domain.RecoveryView{}, err
+	}
+	return transaction(ctx, s, func(tx *sql.Tx) (domain.RecoveryView, error) {
+		return getContinuationIdentity(ctx, tx, actor, id)
+	})
+}
+
+func getContinuationIdentity(ctx context.Context, tx *sql.Tx, actor domain.Actor, id domain.OperationID) (domain.RecoveryView, error) {
+	op, err := readOperation(ctx, tx, id)
+	if err != nil {
+		return domain.RecoveryView{}, err
+	}
+	if _, err = authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch); err != nil {
+		return domain.RecoveryView{}, err
+	}
+	if op.view.Correlation.Route.Version != 1 || op.view.Delivery != domain.PossibleSend && op.view.Delivery != domain.Resolved {
+		return domain.RecoveryView{}, domain.Reject(domain.Conflict)
+	}
+	if _, err = checkOpenContext(ctx, tx, op.view.Correlation); err != nil {
+		return domain.RecoveryView{}, err
+	}
+	spec := knownSpecDigest(op)
+	if spec == (domain.Digest{}) {
+		if op.view.Delivery == domain.Resolved && op.view.Observation != nil && op.view.Observation.Kind == domain.Refused {
+			return domain.RecoveryView{}, domain.Reject(domain.Conflict)
+		}
+		return domain.RecoveryView{}, domain.Reject(domain.Pending)
+	}
+	if err = validateStoredIntent(op); err != nil {
+		return domain.RecoveryView{}, err
+	}
+	if err = checkCompactRecoveryReceipt(ctx, tx, op, spec); err != nil {
+		return domain.RecoveryView{}, err
+	}
+	return domain.RecoveryView{Correlation: op.view.Correlation, SpecDigest: spec}, nil
 }
 
 func validateTransmission(input domain.Transmission) error {
@@ -126,30 +172,36 @@ func (s *Store) CheckQueuedAdmission(ctx context.Context, actor domain.Actor, in
 		if err != nil {
 			return struct{}{}, err
 		}
-		auth, err := authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch)
+		_, err = authorizeOperation(ctx, tx, actor, op, domain.TaskDispatch)
 		if err != nil {
 			return struct{}{}, err
 		}
-		return struct{}{}, checkQueuedAdmission(ctx, tx, input, op, auth)
+		return struct{}{}, checkQueuedAdmission(ctx, tx, actor, input, op)
 	})
 	return err
 }
 
-func checkQueuedAdmission(ctx context.Context, tx *sql.Tx, input domain.Transmission, op storedOperation, auth domain.Authorization) error {
+func checkQueuedAdmission(ctx context.Context, tx *sql.Tx, actor domain.Actor, input domain.Transmission, op storedOperation) error {
 	if op.view.Delivery != domain.PossibleSend || !op.view.Reserved || op.view.Cancellation != "" {
 		return domain.Reject(domain.Conflict)
 	}
 	if err := validateAdmissionDestination(ctx, tx, input, op.view.Correlation); err != nil {
 		return err
 	}
-	options, err := storedExecutionOptions(op)
-	if err != nil {
-		return err
+	if op.view.Correlation.RequestVersion == domain.CompactRequestVersion {
+		if len(op.request) == 0 {
+			return domain.Reject(domain.EvidenceInvalid)
+		}
+		if err := validateCompactOperation(op); err != nil {
+			return err
+		}
+		if op.view.Correlation.Kind == domain.RequestKindContinuation {
+			_, err := continuationPredecessor(ctx, tx, actor, op.view.Correlation)
+			return err
+		}
+		return nil
 	}
-	if !auth.Grant.Ceiling.AllowsOptions(options) {
-		return domain.Reject(domain.Forbidden)
-	}
-	return nil
+	return validateStoredIntent(op)
 }
 
 func validateAdmissionDestination(ctx context.Context, tx *sql.Tx, input domain.Transmission, c domain.Correlation) error {

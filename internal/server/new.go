@@ -120,6 +120,7 @@ func (r *Runtime) publicHandler(cfg config.Gateway, bundle tlsconfig.Bundle, jwk
 	options := mcpadapter.Options{Registry: r.store, Operations: service, Presence: link, Authenticator: auditedAuthenticator{authenticator, r.recorder}, Recorder: r.recorder, ResourceURL: cfg.PublicURL + "/mcp", Issuer: cfg.Identity.Issuer, Timeout: time.Duration(cfg.ControlTimeoutSeconds) * time.Second, Now: r.now}
 	if workspaceService != nil {
 		options.Workspaces = workspaceService
+		options.Filesystem = workspaceService
 	}
 	adapter, err := mcpadapter.New(options)
 	if err != nil {

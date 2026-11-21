@@ -92,7 +92,7 @@ func newBridgeFixture(t *testing.T) *bridgeFixture {
 	dest := domain.Destination{Device: "device-one", Project: "project-one"}
 	contextBinding := protocol.ContextBinding{Root: protocol.WireContextGuard("root"), Project: protocol.WireContextGuard("project")}
 	mustOK(t, store.RegisterProject(t.Context(), domain.ProjectRegistration{Destination: dest, Context: domain.ContextBinding{Root: domain.RootGuard(contextBinding.Root), Project: domain.ProjectGuard(contextBinding.Project)}}))
-	mustOK(t, store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: actor.Principal, Destination: dest}, Scopes: actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 300}}))
+	mustOK(t, store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: actor.Principal, Destination: dest}, Scopes: actor.Scopes}))
 	initialConnection, connectionErr := store.NextConnectionGeneration(t.Context(), ref, "fixture-root-boot", now)
 	mustOK(t, connectionErr)
 	root := testsupport.OpenRoot(t, t.Context(), store, domain.RootInitializationStart{Route: dest, ExpectedContext: domain.ContextBinding{Root: domain.RootGuard(contextBinding.Root), Project: domain.ProjectGuard(contextBinding.Project)}, Credential: ref, Connection: initialConnection, Now: now})

@@ -311,7 +311,7 @@ func (s *Service) perform(owner context.Context, j *job) {
 		}
 		return err
 	}
-	reply := s.adapter.execute(ctx, j.command, acceptance{generation: j.generation, operationID: j.frame.OperationID, claim: accept, held: &j.held})
+	reply := s.adapter.execute(ctx, j.command, acceptance{generation: j.generation, wireVersion: j.frame.Version, operationID: j.frame.OperationID, claim: accept, held: &j.held})
 	s.mu.Lock()
 	delete(s.active, j)
 	s.mu.Unlock()

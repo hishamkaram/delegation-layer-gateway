@@ -77,18 +77,22 @@ type fixture struct {
 	policyRevision            atomic.Uint64
 	conflictingHistory        atomic.Bool
 	removeDispatchBeforeReply atomic.Bool
+	removeReadBeforeReply     atomic.Bool
+	metadataCalls             atomic.Int32
+	features                  []string
 	origin                    *protocol.OriginStateReport // peer worker owns this and pins
 	pins                      map[string]protocol.ResolvedProject
 }
 
 func ownerPolicy() domain.OwnerPolicy {
-	return domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 4}
+	return domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 4}
 }
 
-func newFixture(t *testing.T) *fixture {
+func newFixture(t *testing.T, extraFeatures ...string) *fixture {
 	t.Helper()
 	f := &fixture{root: domain.RootGuard(protocol.WireContextGuard("fixture native root")), workspace: protocol.WorkspaceBinding{ID: "work", Guard: protocol.WireContextGuard("fixture approved workspace")}, pins: make(map[string]protocol.ResolvedProject)}
 	f.policyRevision.Store(1)
+	f.features = append([]string{protocol.FeatureNamespaceAdmission, protocol.FeatureNamespaceMutationLease, protocol.WorkspaceFeature}, extraFeatures...)
 	var err error
 	f.store, err = registry.Create(t.Context(), filepath.Join(t.TempDir(), "registry.sqlite"), registry.CreateOptions{Admin: fixtureAdmin{}})
 	require(t, err)
@@ -156,7 +160,7 @@ func (f *fixture) connect(t *testing.T, ca *x509.Certificate, certificate tls.Ce
 	owned.TLSClientConfig = base.TLSClientConfig.Clone()
 	owned.TLSClientConfig.Certificates = []tls.Certificate{certificate}
 	t.Cleanup(owned.CloseIdleConnections)
-	report := protocol.CapabilityReportV2{ObservedAt: time.Now(), Root: &protocol.RootCapability{Root: string(f.root), ContractVersion: 1, Features: []string{protocol.FeatureNamespaceAdmission, protocol.FeatureNamespaceMutationLease, protocol.WorkspaceFeature}}, Workspaces: []protocol.WorkspaceCapability{{WorkspaceBinding: f.workspace, Name: "code", PolicyRevision: 1}}, ProjectBudget: &protocol.ProjectBudget{Limit: 1024, ByteLimit: 4 << 20}}
+	report := protocol.CapabilityReportV2{ObservedAt: time.Now(), Root: &protocol.RootCapability{Root: string(f.root), ContractVersion: 1, Features: f.features}, Workspaces: []protocol.WorkspaceCapability{{WorkspaceBinding: f.workspace, Name: "code", PolicyRevision: 1}}, ProjectBudget: &protocol.ProjectBudget{Limit: 1024, ByteLimit: 4 << 20}}
 	f.peer, err = transport.Dial(t.Context(), transport.ClientConfig{WireVersion: 2, URL: "wss" + strings.TrimPrefix(server.URL, "https"), GatewayID: f.gateway, Certificate: certificate.Leaf, CapabilitiesV2: &report, Routing: census{}}, &http.Client{Transport: owned}, time.Now)
 	require(t, err)
 	t.Cleanup(func() { require(t, f.peer.Close()) })
@@ -269,8 +273,14 @@ func (f *fixture) response(ctx context.Context, command protocol.Command) (any, 
 		return f.reopen(command)
 	case protocol.ResolveProject:
 		return f.resolve(ctx, command)
-	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
+	case protocol.SelectProject:
+		return f.selectProject(command)
+	case protocol.ReadFile:
+		return f.readFile(ctx, command)
+	case protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
 		return nil, errors.New("fixture unexpectedly received a task control")
+	case protocol.FilesystemScopes, protocol.ListDirectory, protocol.InspectFile, protocol.InspectGit, protocol.ProviderModels:
+		return nil, errors.New("fixture received an unsupported metadata control")
 	}
 	return nil, errors.New("fixture received an unknown operation")
 }
@@ -284,7 +294,7 @@ func (f *fixture) inspect(command protocol.Command) (any, error) {
 		if command.Root != string(f.root) || command.Project != "" {
 			return nil, errors.New("fixture root inspection used a project")
 		}
-		report := protocol.RootCapability{Root: string(f.root), ContractVersion: 1, Features: []string{protocol.FeatureNamespaceAdmission, protocol.FeatureNamespaceMutationLease, protocol.WorkspaceFeature}}
+		report := protocol.RootCapability{Root: string(f.root), ContractVersion: 1, Features: f.features}
 		if f.origin != nil {
 			value := *f.origin
 			report.OriginRegistered = true

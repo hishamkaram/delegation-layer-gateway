@@ -32,6 +32,7 @@ func legacyMigrationFixture(t *testing.T) *fixture {
 `+legacyRoutingPermits+`;
 INSERT INTO routing_permits SELECT * FROM routing_permits_current;
 DROP TABLE routing_permits_current;
+DROP INDEX operations_retained_bodies; DROP INDEX operations_preparations; DROP INDEX operations_preparation_key; ALTER TABLE operations DROP COLUMN preparation_key; ALTER TABLE operations DROP COLUMN preparation_expires_ns;
 PRAGMA user_version=6;`)
 	requireOK(t, err)
 	return f
@@ -49,7 +50,11 @@ func migrationSnapshot(t *testing.T, db *sql.DB) map[string][][]any {
 func migrationTableRows(t *testing.T, db *sql.DB, table string) (result [][]any) {
 	t.Helper()
 	// Names come only from the fixed authority table list above.
-	rows, err := db.QueryContext(t.Context(), "SELECT * FROM "+table+" ORDER BY rowid")
+	query := "SELECT * FROM " + table + " ORDER BY rowid"
+	if table == "operations" {
+		query = "SELECT row_id,id,origin_operation,kind,task,owner,device,root_guard,project_guard,project,correlation,native_receipt,request,execution_options,options_sha256,state,created,expires,reserved,cancellation,observation FROM operations ORDER BY rowid"
+	}
+	rows, err := db.QueryContext(t.Context(), query)
 	requireOK(t, err)
 	t.Cleanup(func() { requireOK(t, rows.Close()) })
 	columns, err := rows.Columns()
@@ -83,7 +88,7 @@ func TestMigrationPreservesSchemaSixAuthorityAndEveryPermit(t *testing.T) {
 		t.Fatal("Open accepted schema 6 without explicit migration")
 	}
 	result, err := Migrate(t.Context(), f.path)
-	if got := must(t, result, err); got != (MigrationResult{Gateway: f.gateway, FromVersion: 6, ToVersion: 9}) {
+	if got := must(t, result, err); got != (MigrationResult{Gateway: f.gateway, FromVersion: 6, ToVersion: 10}) {
 		t.Fatalf("migration identity or version changed: %+v", got)
 	}
 	store, err := Open(t.Context(), f.path, options(f.gateway))
@@ -103,7 +108,7 @@ func TestMigrationPreservesSchemaSixAuthorityAndEveryPermit(t *testing.T) {
 	}
 	requireOK(t, f.store.Close())
 	result, err = Migrate(t.Context(), f.path)
-	if got := must(t, result, err); got.FromVersion != 9 || got.ToVersion != 9 || got.Gateway != f.gateway {
+	if got := must(t, result, err); got.FromVersion != 10 || got.ToVersion != 10 || got.Gateway != f.gateway {
 		t.Fatal("idempotent migration changed identity or versions")
 	}
 	store, err = Open(t.Context(), f.path, options(f.gateway))
@@ -159,7 +164,7 @@ func TestMigrationRequiresExistingSupportedOwnedDatabase(t *testing.T) {
 		t.Fatalf("migration created a missing database: %v", statErr)
 	}
 	f := legacyMigrationFixture(t)
-	for _, version := range []int{5, 10} {
+	for _, version := range []int{5, 11} {
 		_, err = f.store.db.ExecContext(t.Context(), fmt.Sprintf("PRAGMA user_version=%d", version))
 		requireOK(t, err)
 		_, err = Migrate(t.Context(), f.path)
@@ -169,7 +174,7 @@ func TestMigrationRequiresExistingSupportedOwnedDatabase(t *testing.T) {
 
 func TestSchemaEightMigrationPreservesExistingOwnersWithoutAdoptingLegacyDevices(t *testing.T) {
 	f, _ := ownedRootFixture(t)
-	_, err := f.store.db.ExecContext(t.Context(), "DROP TABLE owned_projects; DROP TABLE project_resolutions; PRAGMA user_version=8;")
+	_, err := f.store.db.ExecContext(t.Context(), "DROP TABLE owned_projects; DROP TABLE project_resolutions; DROP INDEX operations_retained_bodies; DROP INDEX operations_preparations; DROP INDEX operations_preparation_key; ALTER TABLE operations DROP COLUMN preparation_key; ALTER TABLE operations DROP COLUMN preparation_expires_ns; PRAGMA user_version=8;")
 	requireOK(t, err)
 	before := migrationSnapshot(t, f.store.db)
 	requireOK(t, f.store.Close())
@@ -179,7 +184,7 @@ func TestSchemaEightMigrationPreservesExistingOwnersWithoutAdoptingLegacyDevices
 		t.Fatal("Open migrated schema8 implicitly")
 	}
 	result, err := Migrate(t.Context(), f.path)
-	if got := must(t, result, err); got.Gateway != f.gateway || got.FromVersion != 8 || got.ToVersion != 9 {
+	if got := must(t, result, err); got.Gateway != f.gateway || got.FromVersion != 8 || got.ToVersion != 10 {
 		t.Fatal("schema8 migration changed identity")
 	}
 	opened, err = Open(t.Context(), f.path, options(f.gateway))

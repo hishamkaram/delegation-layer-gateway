@@ -88,7 +88,7 @@ func (l *controlledLink) Reserve(_ context.Context, device domain.DeviceID, oper
 		return nil, err
 	}
 	digest := domain.Hash(payload)
-	return &controlledReservation{owner: l, command: command, route: routing.Request{Credential: l.snapshot.Credential, ProcessBoot: l.snapshot.ProcessBoot, Payload: payload, Call: protocol.ControlCall{Generation: protocol.Generation{BootEpoch: string(l.snapshot.Connection.BootEpoch), Counter: l.snapshot.Connection.Counter}, RequestID: requestID, OperationID: string(operation), Operation: command.Operation, RequestSHA256: hex.EncodeToString(digest[:])}}, transmission: domain.Transmission{Operation: operation, Credential: l.snapshot.Credential, Connection: l.snapshot.Connection, EncodedFrameBytes: len(frame)}}, nil
+	return &controlledReservation{owner: l, command: command, route: routing.Request{WireVersion: l.snapshot.WireVersion, Credential: l.snapshot.Credential, ProcessBoot: l.snapshot.ProcessBoot, Payload: payload, Call: protocol.ControlCall{Generation: protocol.Generation{BootEpoch: string(l.snapshot.Connection.BootEpoch), Counter: l.snapshot.Connection.Counter}, RequestID: requestID, OperationID: string(operation), Operation: command.Operation, RequestSHA256: hex.EncodeToString(digest[:])}}, transmission: domain.Transmission{Operation: operation, Credential: l.snapshot.Credential, Connection: l.snapshot.Connection, EncodedFrameBytes: len(frame)}}, nil
 }
 
 type controlledReservation struct {
@@ -215,7 +215,7 @@ func newDispatchFixture(t *testing.T) *dispatchFixture {
 
 func (f *dispatchFixture) grant(t *testing.T) {
 	t.Helper()
-	dispatchOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: f.destination}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 300}}))
+	dispatchOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: f.destination}, Scopes: f.actor.Scopes}))
 }
 
 func issueDispatchCredential(t *testing.T, store *registry.Store, now time.Time) domain.CredentialRef {
@@ -298,7 +298,9 @@ func TestPrepareRejectsOverflowAndWrongRoutingWithoutPersistentEffects(t *testin
 				t.Fatal("invalid preparation accepted")
 			}
 			if test.name == "encoded frame overflow" {
-				dispatchCode(t, err, domain.ResourceLimit)
+				if !errors.Is(err, protocol.ErrTooLarge) {
+					t.Fatalf("encoded overflow lost its permanent size classification: %v", err)
+				}
 			}
 			operations, listErr := f.store.ListOperations(t.Context(), f.actor, domain.OperationPageRequest{})
 			page := dispatchMust(t, operations, listErr)
@@ -321,7 +323,6 @@ func TestConfirmationRejectsChangedCapabilityAndQueueRefusalBeforePossibleSend(t
 		{"admission generation", func(f *dispatchFixture) {
 			f.link.snapshot.Capabilities.Projects[0].AdmissionGeneration = "other-generation"
 		}},
-		{"provider ceiling", func(f *dispatchFixture) { f.link.snapshot.Capabilities.Projects[0].Providers[0].MaxBudgetSeconds = 30 }},
 		{"queue refusal", func(f *dispatchFixture) { f.link.reserveError = domain.Reject(domain.ResourceLimit) }},
 	}
 	for _, test := range cases {

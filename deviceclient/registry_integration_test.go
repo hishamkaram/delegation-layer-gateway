@@ -64,7 +64,7 @@ func realSelfService(t *testing.T, f *gatewayFixture) (*registry.Store, domain.A
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskRead, domain.TaskDispatch, domain.TaskCancel}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 2}
+	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskRead, domain.TaskDispatch, domain.TaskCancel}, MaxDevices: 2}
 	if err = store.PutOwnerPolicy(t.Context(), principal.ID, policy); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestLostEnrollmentResponseCannotBeReplayedByAnotherAuthorizedOwner(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 2}
+	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead}, MaxDevices: 2}
 	if err = store.PutOwnerPolicy(t.Context(), other.ID, policy); err != nil {
 		t.Fatal(err)
 	}

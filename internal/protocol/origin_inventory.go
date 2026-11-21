@@ -21,7 +21,7 @@ type OriginInventoryEntry struct {
 
 type InventoryReceipt struct {
 	Task             TaskBinding               `json:"task"`
-	ExecutionOptions InventoryExecutionOptions `json:"execution_options"`
+	ExecutionOptions InventoryExecutionOptions `json:"execution_options,omitzero"`
 	BriefSHA256      string                    `json:"brief_sha256"`
 }
 
@@ -39,21 +39,27 @@ func (o InventoryExecutionOptions) Validate() error {
 	if !identifier(o.Provider) || o.BudgetNanoseconds <= 0 || o.Model.Validate() != nil || o.Effort.Validate() != nil {
 		return ErrInvalid
 	}
-	if o.Permission != "read-only" && o.Permission != "workspace-write" && o.Permission != "danger-full-access" {
+	if !selectionToken(o.Permission) {
 		return ErrInvalid
 	}
 	return nil
 }
 
 func (r InventoryReceipt) Validate() error {
-	if r.Task.Validate(true) != nil || r.ExecutionOptions.Validate() != nil || !lowerHex(r.BriefSHA256, 64) {
+	if r.Task.Validate(true) != nil || !lowerHex(r.BriefSHA256, 64) {
 		return ErrInvalid
 	}
-	return nil
+	if r.Task.Origin.Binding != "" {
+		if r.ExecutionOptions != (InventoryExecutionOptions{}) {
+			return ErrInvalid
+		}
+		return nil
+	}
+	return r.ExecutionOptions.Validate()
 }
 
 func inventoryOriginValid(origin Origin) bool {
-	return identifier(origin.GatewayID) && identifier(origin.AdmissionGeneration) && identifier(origin.OperationID) && identifier(origin.PrincipalRef) && lowerHex(origin.RequestSHA256, 64)
+	return origin.Validate() == nil
 }
 
 func (e OriginInventoryEntry) Validate() error {

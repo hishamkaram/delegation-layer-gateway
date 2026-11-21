@@ -71,8 +71,7 @@ func cleanupScopesExcept(missing domain.Scope) domain.ScopeSet {
 func setCleanupGrant(t *testing.T, f *fixture, scopes domain.ScopeSet) {
 	t.Helper()
 	check(t, f.store.PutGrant(t.Context(), domain.Grant{
-		Key:     domain.GrantKey{Principal: f.alice.Principal, Destination: domain.Destination{Device: deviceID(0), Project: "public"}},
-		Scopes:  scopes,
-		Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 120},
+		Key:    domain.GrantKey{Principal: f.alice.Principal, Destination: domain.Destination{Device: deviceID(0), Project: "public"}},
+		Scopes: scopes,
 	}))
 }

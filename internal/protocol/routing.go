@@ -111,9 +111,9 @@ func (c ControlCompletion) ValidateVersion(version int) error {
 // metadata, but does not open accepted payloads or sealed raw manifests.
 func (o Operation) ScanConsumer() bool {
 	switch o {
-	case Admit, Resolve, ResumeExisting, FenceAbsent, Status, Collect, ResultChunk, Cancel:
+	case Admit, Continue, Resolve, ResumeExisting, FenceAbsent, Status, Collect, ResultChunk, Cancel, ProviderModels:
 		return true
-	case ContextInspect, OriginBarrier, OriginInventory, OriginReopen, ResolveProject:
+	case ContextInspect, OriginBarrier, OriginInventory, OriginReopen, ResolveProject, SelectProject, FilesystemScopes, ListDirectory, ReadFile, InspectFile, InspectGit:
 		return false
 	}
 	return false

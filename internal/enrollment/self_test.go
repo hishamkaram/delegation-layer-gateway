@@ -22,7 +22,7 @@ func selfOwner(t *testing.T, store *registry.Store) domain.Actor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 2}
+	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 2}
 	if err = store.PutOwnerPolicy(t.Context(), principal.ID, policy); err != nil {
 		t.Fatal(err)
 	}

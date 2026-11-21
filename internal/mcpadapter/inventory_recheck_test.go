@@ -125,7 +125,7 @@ func newV2InventoryRecheckFixture(t *testing.T, withProject bool) (*inventoryObs
 	recorder, err := observability.NewRecorder(audit, metrics)
 	check(t, err)
 	f := &inventoryObservationFixture{fixture: newConfiguredFixture(t, 0, recorder, nil), directory: directory, recorder: recorder, metrics: metrics}
-	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 1}
+	policy := domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead}, MaxDevices: 1}
 	check(t, f.store.PutOwnerPolicy(t.Context(), f.alice.Principal, policy))
 	device, err := f.store.CreateOwnedEnrollment(t.Context(), f.alice.Principal, privateCanary, domain.Hash([]byte("fixture-bootstrap-token")), f.clock.now())
 	check(t, err)

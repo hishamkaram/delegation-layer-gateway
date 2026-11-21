@@ -127,6 +127,9 @@ func checkAdministrativeDrain(ctx context.Context, tx *sql.Tx, input domain.Admi
 	if _, err = checkConnection(ctx, tx, input.Credential, input.Connection, input.Now); err != nil {
 		return row, err
 	}
+	if row.view.Correlation != nil && row.view.Correlation.RequestVersion == domain.CompactRequestVersion {
+		return row, checkCompactAdministrativeDrain(ctx, tx, input, row.view)
+	}
 	binding, err := readContext(ctx, tx, input.Destination)
 	if err != nil {
 		return row, err

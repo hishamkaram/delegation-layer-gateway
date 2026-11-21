@@ -20,7 +20,7 @@ func Status(ctx context.Context, profileDirectory string) (status ConnectionStat
 	if err := ctx.Err(); err != nil {
 		return status, failed(ErrTransport, err)
 	}
-	profile, err := openProfile(profileDirectory, false, false)
+	profile, err := openProfileMode(profileDirectory, false, false, true)
 	if err != nil {
 		return status, err
 	}

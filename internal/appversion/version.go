@@ -2,4 +2,4 @@
 package appversion
 
 // Current is the software version advertised by public Gateway interfaces.
-const Current = "0.1.0"
+const Current = "0.2.0"

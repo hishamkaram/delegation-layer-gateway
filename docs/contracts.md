@@ -19,8 +19,12 @@ remain present. Capability checks do not establish provider or cloud acceptance.
 | Tools | Required behavior |
 | --- | --- |
 | `list_devices`, `list_projects`, `get_capabilities` | Authorized paginated inventory and dated readiness; aliases only, no local paths |
-| `list_workspaces`, `resolve_project` | Owned-device workspace inventory and durable existing-directory pin; explicit device/workspace/request identity, no task start |
-| `prepare_dispatch` | Validate explicit device/project and immutable request; persist random handle; no launch |
+| `list_workspaces` | Owned-device approved scopes plus Native automatic OS temporary scopes; no task or pin allocation |
+| `list_directory`, `read_file`, `inspect_git` | Scope-relative, bounded live directory pages, exact requested byte ranges and structural Git metadata; both task dispatch and read access required |
+| `list_models` | Explicit dated Native model/effort discovery with content-bound pagination; advisory, never an allowlist |
+| `resolve_project` | Legacy durable alias compatibility; not needed for new scope-relative task preparation |
+| `prepare_dispatch` | New flow: stable client request ID, exact device, scope-relative selection and immutable Native option intent; persist operation/task identities before dispatch; no launch |
+| `prepare_continuation` | Prepare one successor from a saved predecessor operation on the explicit device; omitted selection/brief/options inherit; confirmation still uses `dispatch_task` |
 | `dispatch_task` | Confirm the existing handle; no new identity, silent failover or offline work queue |
 | `list_operations`, `resolve_operation`, `get_task_status` | Current-owner/current-grant observation; passive resolution cannot launch or fence |
 | `recover_admission` | Explicit dispatch authorization; only existing matching prepared work |
@@ -31,8 +35,16 @@ Schemas are strict and versioned. Model-supplied identity is not authentication.
 Operation handles are not bearer capabilities. User principal is validated
 `(issuer, subject)`; inventory, dispatch, read and cancellation scopes remain
 separate. Legacy devices require per-device/project grants; self-enrolled devices
-require their immutable owner and current enabled owner policy. The local
-workspace/provider ceiling can only narrow execution authority.
+require their immutable owner and current enabled owner policy. Connector approvals
+authorize local scopes, not providers, models, execution permission or task budget.
+Native alone validates/defaults execution options; no cached catalog veto is allowed.
+
+`list_workspaces` keeps approved workspace inventory available if optional live
+temporary-scope discovery fails. It returns dated workspace-only metadata and a
+closed `scope_discovery_error` code; missing temporary scopes are not evidence
+that the device has none. It returns no failed discovery's data or source. Current
+inventory authorization and the request deadline still apply. A successful live
+temporary-scope response also rechecks file access and its original connection.
 
 `get_capabilities` reports `task_read_allowed` and `task_cancel_allowed` for the
 selected device/project. Each is the intersection of the verified token scopes
@@ -41,6 +53,43 @@ provider report. They are request-time authorization observations, independent
 of provider authentication and execution readiness. Later controls recheck
 authority; these fields cannot promise cleanup after expiry or revocation.
 
+### Scope-relative preparation
+
+The new `prepare_dispatch` shape uses `request_id`, `device_id`, `selection`
+(`scope_id`, `relative_path`), `brief`, and `native_options`. Its provider is
+explicit; model, effort, permission, budget, review target and timeout fields
+remain omitted unless requested. The Gateway validates literal wire shape and
+size; Native decides support and defaults. The legacy `project_alias` shape is
+separate; mixed old/new fields, including explicit zero/null fields, are rejected.
+
+The client retains the request ID before invocation. The Registry resolves that
+key before live selection and ID allocation; identical replay returns the same
+operation, changed input conflicts. Historical task controls use immutable saved
+guards even after the project directory or approval disappears.
+
+Preparation also checks that the captured identity fits both cancellation/fence
+requests and their replies within the protected 16 KiB message budget. Oversize
+returns permanent `resource_limit` before creating work. Earlier unsent drafts
+retain their replay identity but must pass this check before first send. This
+does not resolve already-sent work whose identity exceeds the control budget.
+
+New-route admission requires Native's `origin-binding-v1`, execution-options and
+project-hash capabilities. An absent binding cannot authorize a new path-based
+admission or existing-only recovery. Missing capabilities fail explicitly;
+there is no fallback to a legacy project alias. The candidate's final integrated
+review and live acceptance have not been completed.
+
+For a follow-up, call `prepare_continuation` with `device_id`, the saved
+`predecessor_operation_id`, and a new stable `request_id`. Omit `selection` to
+reuse the predecessor's captured route; an explicitly selected approval must
+still match the same Native root, project and workspace guards. Omit `brief` to
+inherit Native's exact saved bytes. Only budget, model, effort and output-silence
+timeout can be overridden; `output_silence_timeout: "0"` disables that timeout.
+Explicit null selection/brief is invalid. Native alone decides whether its saved
+session is eligible for continuation. Retain the returned successor operation
+and confirm it with `dispatch_task`. After uncertainty, reuse that same request
+or operation; never replace it with an ordinary dispatch.
+
 ## Delegate public boundary
 
 The dedicated Delegate worktree implements these additive interfaces:
@@ -48,7 +97,13 @@ The dedicated Delegate worktree implements these additive interfaces:
 - `context inspect`: opaque root/project guards, contract version and features.
 - `context enable-connector`: explicit per-root offline cutover; preserve sealed
   history and require incompatible legacy writers to reject the upgraded root.
+- `filesystem list|read|inspect|git|scopes --request FILE`: rooted Native filesystem
+  observations, without initializing a task namespace.
+- Scoped `models --expected-root --expected-workspace-file --relative-project`:
+  explicit Native discovery with path custody through provider start and completion.
 - Guarded `dispatch --id`: frozen request and canonical origin/receipt.
+- Guarded `continue --task --id`: immutable predecessor guards, a fresh successor
+  Origin, inherited Native context/options and a stable successor task identity.
 - `resolve`: passive by default; explicit existing-only resume, absent refusal,
   and separate operator-only unattributed-partial recovery.
 - Guarded `cancel --id`: preserve the existing cancellation owner and stop facts.
@@ -57,9 +112,54 @@ The dedicated Delegate worktree implements these additive interfaces:
   generation checks and canonical membership/completeness receipts.
 
 Origin fields are `gateway_id`, `admission_generation`, `operation_id`,
-`principal_ref`, `gateway_request_sha256`. The Gateway request digest and
+`principal_ref`, `gateway_request_sha256`, and optional opaque `binding`.
+The Gateway request digest and
 Delegate `spec_sha256` identify different bytes. Receipts also carry context,
 task and brief identity. Recovery compares canonical persisted state.
+
+### Compact intent and registry-loss recovery
+
+The candidate's version-4 binding commits a closed request kind (`dispatch` or
+`continuation`), immutable owner/device/root/project/operation/task identities,
+the actual selected route, client request key, caller-input digest, and requested
+brief presence/digest. Continuation additionally commits the predecessor's
+operation, task, Native spec and request digest. Native stores this text as
+opaque immutable Origin evidence; Gateway alone interprets its canonical format.
+Historical version-2/version-3 request digests and absent-binding Origin bytes
+remain unchanged. This executable capability does not add a root-wide migration.
+
+The raw requested execution options stay in the retained Gateway request body;
+they are not duplicated in Origin or reconstructed from Native's executed
+options. Version-4 operation rows have no second options column authority.
+After body disposal, the same request key can recover its original identities
+and existing work can be observed, cancelled, fenced or explicitly recovered.
+A bodyless row cannot authorize fresh admission. Native receipt/spec validation
+still applies to existing-only recovery.
+
+Canonical inventory restores both existing-task correlations and permanent
+refusal tombstones. A refusal does not invent a Native spec, receipt, result or
+execution closure. A present invalid/unknown/noncanonical binding, mismatched
+outer identity or wrong immutable device owner rejects the entire import page;
+progress and completeness do not advance. Recovery stays closed. Missing legacy
+bindings retain their historical rules. Current scopes and credentials are
+checked independently; an old binding never restores revoked authority.
+
+Native inventory hashes retain the existing canonical bytes, order, paging and
+completeness rules. Its scanner retains sorted IDs and only a bounded page of
+decoded entries, and hashes each entry incrementally. Every page still scans
+the full membership; there is no constant-I/O claim. An already-open reopen
+retry validates the committed receipt without rescanning newly admitted tasks.
+
+### Native control output
+
+Guarded Native invocations use a 4 MiB JSON response envelope. Binding-present
+controls project the same public response type onto identity, full canonical
+Outcome, receipts, descriptors/ranges, closure, fresh stop and structured failure
+fields. Unused auxiliary fields and the human recovery-command hint are omitted;
+failure codes and exit status keep their meaning. Overflow fails explicitly,
+without partial JSON or unverified result bytes. Ordinary and schedule response
+limits are unchanged. The connector still applies its independent wire bound.
+Native inventory bytes and membership hashes do not use this projection.
 
 Public task controls check the expected root/project/origin as applicable.
 Ordinary existing CLI behavior remains when the new guards are not requested.
@@ -71,9 +171,12 @@ The public projection includes canonical `execution_closure` (kind and exact
 evidence-file SHA-256), or a typed `execution_closure_pending` reason. Failure
 and busy observations carry no release proof. Accepted publication may precede
 native closure; retrieving an accepted result does not release its reservation.
-Receipt `execution_options` exposes requested selections, permission and exact
-`budget_nanoseconds` for current connector-ceiling checks during existing-only
-recovery. No brief, path, environment or raw error belongs in this projection.
+Native receipt `execution_options` exposes requested selections, permission and exact
+`budget_nanoseconds` without rounding historical intent during existing-only
+recovery. Binding-present wire inventory omits these observed options; its
+correlation comes from the binding commitment. Legacy wire receipts retain them.
+These are Native facts, not a connector execution ceiling. No brief, path,
+environment or raw error belongs in this projection.
 
 Actual CLI context tokens stay connector-local. WSS context guards are
 `ctx1_` plus SHA-256 of those tokens. The connector validates local CLI receipts
@@ -91,10 +194,16 @@ Use tagged strict payloads, one reader and bounded writers; compression is off.
 Operations: `context_inspect`, `admit`, `resolve`, `resume_existing`,
 `fence_absent`, `status`, `collect`, `result_chunk`, `cancel`, `origin_barrier`,
 `origin_inventory`, `origin_reopen`, and typed certificate renewal messages.
-Wire v2 adds `resolve_project` and root-addressed controls; v1 rejects those
-additions. V2 capability reports carry root/workspace inventory and dated pin
-budget only. Targeted project inspection carries one immutable pin and a
+Wire v2 adds `resolve_project`, `select_project`, `provider_models`,
+`filesystem_scopes`, `list_directory`, `read_file`, `inspect_file`, `inspect_git`
+and root-addressed controls; v1 rejects those additions. V2 capability reports carry bounded root/workspace inventory and dated legacy pin
+budget. New executable capabilities are individually negotiated; missing filesystem,
+scoped-model, Native-option or historical-hash support fails with an upgrade error. Targeted project inspection carries one immutable pin and a
 current policy revision, never an expanded periodic project list.
+Legacy v1 and alias-based v2 replies retain their original error vocabulary and
+omit newer stage fields. An error unknown to those readers uses their existing
+`pending` response; it never proves that a task was absent or closed. New routed
+and metadata operations retain their supported safe Native error codes/stages.
 Recovery-only credentials cannot admit, resume or reopen. Admin operations are
 never MCP-callable. Superseded generations and stale completeness receipts fail
 closed.
@@ -156,7 +265,7 @@ See [wire validation](../internal/protocol/workspace.go),
 | Workspace inventory / retained local project pins | 100 workspaces; 1,024 pins including tombstones, also bounded to 4 MiB encoded pin data; no eviction |
 | Gateway durable resolution requests | 1,024/device, including pending requests; a capacity observation reserves no slot |
 | Result chunk | 64 KiB, full-payload verification before returning bytes |
-| Outstanding operations | 2/device, 32 global; uncertainty retains reservations |
+| Outstanding legacy alias operations | 2/device, 32 global; uncertainty retains reservations; new scope-relative operations use Native execution admission |
 | Gateway-routed ordinary CLI controls / reserved cancellation-fence controls | Outer ceilings: 32 / 8 globally, held through actual Wait and cleanup |
 | Whole-payload scan consumers | Every task control, including admit, resolve, resume, status, collect, cancel and result reads: 1/device, 4 global; ordinary controls may use 3, one slot is reserved for cancel/fence |
 | Connector acceptance queue TTL / default scan deadline | 30 seconds / 30 seconds |

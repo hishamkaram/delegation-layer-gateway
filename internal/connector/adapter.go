@@ -15,12 +15,16 @@ func failure(op protocol.Operation, code string) protocol.Reply {
 func failed(op protocol.Operation, err error) protocol.Reply {
 	code := "evidence_invalid"
 	switch {
+	case errors.Is(err, errNativeArguments):
+		return protocol.Reply{Operation: op, Error: &protocol.Failure{Code: "invalid_request", Stage: "validate-request"}}
 	case errors.Is(err, ErrCapacity):
 		code = "resource_limit"
 	case errors.Is(err, ErrPending):
 		code = "pending"
 	case errors.Is(err, ErrConflict):
 		code = "context_mismatch"
+	case errors.Is(err, ErrUnsupported):
+		code = "unsupported_feature"
 	case errors.Is(err, ErrConfiguration):
 		code = "device_not_ready"
 	}
@@ -43,12 +47,17 @@ func (a *Adapter) Execute(ctx context.Context, command protocol.Command) protoco
 
 type acceptance struct {
 	generation  uint64
+	wireVersion int // Zero is the local API; Service supplies its negotiated wire.
 	operationID string
 	claim       func(context.Context) error
 	held        *permit
 }
 
 func (a *Adapter) execute(ctx context.Context, command protocol.Command, accepted acceptance) (reply protocol.Reply) {
+	routeVersion := 0
+	defer func() {
+		reply = projectControlReply(reply, accepted.wireVersion, command.Operation, routeVersion)
+	}()
 	held := permit{}
 	if accepted.held != nil {
 		held = *accepted.held
@@ -75,13 +84,10 @@ func (a *Adapter) execute(ctx context.Context, command protocol.Command, accepte
 		held.release()
 		return failed(command.Operation, err)
 	}
+	routeVersion = r.task.Route.Version
 	if accepted.claim != nil && r.task.TaskID != "" && r.task.Origin.OperationID != accepted.operationID {
 		held.release()
 		return failed(command.Operation, ErrConflict)
-	}
-	if r.admission != nil && !r.optionsAllowed(admissionOptions(*r.admission)) {
-		held.release()
-		return failure(command.Operation, "forbidden")
 	}
 	owner, err := a.begin(ctx, cfg)
 	if err != nil {
@@ -97,10 +103,22 @@ func (a *Adapter) execute(ctx context.Context, command protocol.Command, accepte
 }
 
 func (a *Adapter) executeOwned(ctx context.Context, r request, owner *controlOwner) protocol.Reply {
+	if r.models != nil {
+		return a.discoverModels(ctx, r, owner)
+	}
+	if r.selection != nil {
+		return a.selectProject(ctx, r, owner)
+	}
+	if r.task.Route.Version == 1 {
+		return a.executeRouted(ctx, r, owner)
+	}
+	if r.filesystem != nil {
+		return a.executeFilesystem(ctx, r, owner)
+	}
 	if r.resolution != nil {
 		return a.resolveProject(ctx, r, owner)
 	}
-	if (r.command.Operation == protocol.Admit || r.command.Operation == protocol.ResumeExisting) && a.Status().CleanupPending != 0 {
+	if (r.command.Operation == protocol.Admit || r.command.Operation == protocol.Continue || r.command.Operation == protocol.ResumeExisting) && a.Status().CleanupPending != 0 {
 		return failed(r.command.Operation, ErrPending)
 	}
 	if taskControl(r.command.Operation) {
@@ -185,7 +203,9 @@ func (a *Adapter) invoke(ctx context.Context, r request, owner *controlOwner) (c
 		return cliResponse{}, err
 	}
 	call.directory = owner.temporary
-	if r.workspace != nil && (r.command.Operation == protocol.Admit || r.command.Operation == protocol.ResumeExisting) {
+	if r.scoped != nil && !r.rootOnly && (r.command.Operation == protocol.ContextInspect || r.command.Operation == protocol.Admit || r.command.Operation == protocol.Continue) {
+		call.startGuard = r.scopedStartGuard
+	} else if r.workspace != nil && (r.command.Operation == protocol.Admit || r.command.Operation == protocol.ResumeExisting) {
 		call.startGuard = r.startGuard
 	}
 	return a.run(ctx, call)
@@ -201,7 +221,9 @@ func (a *Adapter) invokeReply(ctx context.Context, r request, owner *controlOwne
 	rejectedCollect := r.command.Operation == protocol.Collect && response.exitCode == 4
 	if !rejectedCollect && (response.exitCode != 0 || response.Error != "" || response.Failure != nil) {
 		if response.Failure != nil {
-			candidate := protocol.Failure{Code: response.Failure.Code, Retryable: true}
+			// The task CLI has no retryable field; retain the existing task-control
+			// projection. Filesystem/model failures use their separate boundary.
+			candidate := protocol.Failure{Code: response.Failure.Code, Retryable: true, Stage: safeNativeStage(response.Failure.Stage)}
 			if candidate.Validate() == nil {
 				return protocol.Reply{Operation: r.command.Operation, Error: &candidate}
 			}
@@ -209,6 +231,9 @@ func (a *Adapter) invokeReply(ctx context.Context, r request, owner *controlOwne
 		return failed(r.command.Operation, ErrPending)
 	}
 	if r.command.Operation == protocol.FenceAbsent && !r.rootTaskProof(response) {
+		return failed(r.command.Operation, ErrEvidence)
+	}
+	if r.command.Operation == protocol.Continue && (r.receipt(response) != nil || response.Connector.Receipt == nil) {
 		return failed(r.command.Operation, ErrEvidence)
 	}
 	if needsCanonicalRead(r.command.Operation, response) {
@@ -238,11 +263,11 @@ func (a *Adapter) canonicalReply(ctx context.Context, r request, owner *controlO
 
 func needsCanonicalRead(op protocol.Operation, response cliResponse) bool {
 	switch op {
-	case protocol.Admit, protocol.ResumeExisting, protocol.Status, protocol.Collect, protocol.Cancel:
+	case protocol.Admit, protocol.Continue, protocol.ResumeExisting, protocol.Status, protocol.Collect, protocol.Cancel:
 		return true
 	case protocol.FenceAbsent:
 		return response.Connector != nil && response.Connector.Resolution == "existing"
-	case protocol.ContextInspect, protocol.Resolve, protocol.ResultChunk, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.ContextInspect, protocol.Resolve, protocol.ResultChunk, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
 		return false
 	default:
 		return false
@@ -272,14 +297,19 @@ func (a *Adapter) resume(ctx context.Context, r request, owner *controlOwner) pr
 	if err != nil {
 		return failed(r.command.Operation, err)
 	}
-	if response.Error != "" || response.exitCode != 0 || r.receipt(response) != nil {
+	if response.Error != "" || response.Failure != nil || response.exitCode != 0 || r.receipt(response) != nil {
 		return failed(r.command.Operation, ErrEvidence)
 	}
-	if response.Connector == nil || response.Connector.Receipt == nil || response.Connector.Resolution != "existing" || !r.optionsAllowed(response.Connector.Receipt.ExecutionOptions) {
+	if response.Connector == nil || response.Connector.Receipt == nil || response.Connector.Resolution != "existing" {
 		return failure(r.command.Operation, "forbidden")
 	}
-	options := response.Connector.Receipt.ExecutionOptions
-	r.startOptions = &options
+	if r.task.Route.Version == 1 {
+		receipt := response.Connector.Receipt
+		r.project.ProjectToken = receipt.ProjectToken
+		copy := *r.scoped
+		copy.scope.ExpectedWorkspace = receipt.WorkspaceConstraint.Token
+		r.scoped = &copy
+	}
 	return a.invokeReply(ctx, r, owner)
 }
 
@@ -320,13 +350,6 @@ func (a *Adapter) projectReport(r request, response cliResponse) protocol.Projec
 	}
 	if !registeredOrigin(r, response) {
 		result.Ready = false
-	}
-	for _, policy := range r.project.Providers {
-		permissions := make([]string, len(policy.Permissions))
-		for i, p := range policy.Permissions {
-			permissions[i] = string(p)
-		}
-		result.Providers = append(result.Providers, protocol.ProviderCapability{Provider: policy.Provider, Models: append([]string(nil), policy.Models...), Efforts: append([]string(nil), policy.Efforts...), Permissions: permissions, MaxBudgetSeconds: policy.MaxBudgetSeconds, Authentication: "unknown"})
 	}
 	if result.Validate() != nil || (result.AdmissionGeneration != "" && !wireIdentifier(result.AdmissionGeneration)) {
 		return protocol.ProjectCapability{Alias: r.project.Alias, Context: r.project.wireContext()}
@@ -412,7 +435,7 @@ func taskControl(operation protocol.Operation) bool {
 	switch operation {
 	case protocol.Resolve, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.FenceAbsent:
 		return true
-	case protocol.Admit, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.Admit, protocol.Continue, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
 		return false
 	default:
 		return false
@@ -440,7 +463,7 @@ func (a *Adapter) executeTaskControl(ctx context.Context, r request, owner *cont
 		}
 		r.task.SpecSHA256 = response.Connector.Receipt.SpecSHA256
 		return a.invokeReply(ctx, r, owner)
-	case protocol.Admit, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.Admit, protocol.Continue, protocol.ResumeExisting, protocol.ContextInspect, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen, protocol.ResolveProject:
 		return failed(r.command.Operation, ErrEvidence)
 	default:
 		return failed(r.command.Operation, ErrEvidence)

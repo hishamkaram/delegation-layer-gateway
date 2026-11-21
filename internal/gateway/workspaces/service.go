@@ -14,6 +14,8 @@ import (
 )
 
 type Store interface {
+	AcquireWorkspaceMetadata(context.Context, domain.Actor, domain.ScopeSet, routing.Request) error
+	CheckWorkspaceMetadata(context.Context, domain.Actor, domain.ScopeSet, domain.OwnedRootBinding, time.Time) error
 	AuthorizeOwnedDevice(context.Context, domain.OwnedDeviceRequest) (domain.OwnedDeviceAuthorization, error)
 	LookupProjectResolution(context.Context, domain.Actor, domain.DeviceID, domain.ResolutionID) (domain.ProjectResolution, bool, error)
 	BeginProjectResolution(context.Context, domain.Actor, domain.ProjectResolutionStart) (domain.ProjectResolution, error)
@@ -56,12 +58,14 @@ func New(options Options) (*Service, error) {
 }
 
 type Inventory struct {
-	Device        domain.DeviceID
-	Online        bool
-	DelegateReady bool
-	ObservedAt    time.Time
-	Workspaces    []protocol.WorkspaceCapability
-	ProjectBudget *protocol.ProjectBudget
+	Scopes              []protocol.FilesystemScope
+	ScopeDiscoveryError string
+	Device              domain.DeviceID
+	Online              bool
+	DelegateReady       bool
+	ObservedAt          time.Time
+	Workspaces          []protocol.WorkspaceCapability
+	ProjectBudget       *protocol.ProjectBudget
 }
 
 type (

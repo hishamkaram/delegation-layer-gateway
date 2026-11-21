@@ -67,6 +67,8 @@ Gateway hostname. See [OpenAI's authentication requirements](https://developers.
 Public discovery checks do not prove audience selection, application grants or
 successful interactive authorization; verify those with the actual client.
 
+Configure and verify [cloud refresh grants](cloud-login.md) separately from device login.
+
 The server certificate must cover the public hostname. Both listeners require
 TLS 1.3. The separate device CA signs client credentials and stays under Gateway
 custody. Protect its private key and the database together. The admin socket is
@@ -120,7 +122,7 @@ directory does not authorize replacing its pin.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "gateway_id": "GENERATED_GATEWAY_ID",
   "expected_device_id": "device-1",
   "enrollment_url": "https://gateway.example.com/v1/enroll",
@@ -136,27 +138,17 @@ directory does not authorize replacing its pin.
       "root": "/absolute/delegate/state",
       "directory": "/absolute/project",
       "root_token": "PINNED_RAW_ROOT_TOKEN",
-      "project_token": "PINNED_RAW_PROJECT_TOKEN",
-      "providers": [
-        {
-          "provider": "SELECTED_PROVIDER_ID",
-          "models": ["SELECTED_MODEL_ID"],
-          "efforts": [],
-          "permissions": ["read-only"],
-          "max_budget_seconds": 30,
-          "native_model": true,
-          "native_effort": true
-        }
-      ]
+      "project_token": "PINNED_RAW_PROJECT_TOKEN"
     }
   ]
 }
 ```
 
-Choose provider/model/effort values supported by the installed Delegate and
-authorized account. The connector ceiling and Gateway grant must both permit
-the request. This example grants a bounded read-only ceiling. It does not
-authorize a paid workload.
+This static configuration retains legacy aliases. Device/task access uses
+Gateway scopes. Delegate alone selects and validates execution options/defaults;
+there is no connector provider, permission or budget ceiling. This example does
+not authorize a paid workload. Prefer [Native connect](native-connect.md) for
+workspace browsing and automatic temporary scopes.
 
 The connector configuration and CA bundles require owned regular 0600 files.
 Create its owned 0700 identity directory and existing temporary directory before
@@ -173,8 +165,7 @@ Use `gateway admin --socket ABS --action ACTION --input-file ABS` with private
    `project_guard`.
 3. `resolve-principal` with the authenticated user's exact `issuer` and `subject`.
    Retain the returned `principal_id`.
-4. `put-grant` with that principal, device, alias, allowed `scopes`, `providers`,
-   `permissions` and `max_budget_seconds`. Available scopes are
+4. `put-grant` with that principal, device, alias and allowed `scopes`. Available scopes are
    `inventory:read`, `task:dispatch`, `task:read` and `task:cancel`.
 5. `issue-enrollment-token` with `device_id`, `mode` set to `regular`, and
    `generation` set to `1` for a new device. Use `--output-file ABS` to create

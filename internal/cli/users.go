@@ -30,21 +30,12 @@ func users(ctx context.Context, args []string, stdout io.Writer) error {
 	set.StringVar(&target.issuer, "issuer", "", "exact verified issuer; exclusive with config")
 	set.StringVar(&target.subject, "subject", "", "exact identity-provider subject")
 	input := adminapi.OwnerPolicyInput{}
-	var budget, devices uint
+	var devices uint
 	if args[0] == "allow" {
-		set.Func("provider", "allowed provider; repeat for each provider", func(value string) error {
-			input.Providers = append(input.Providers, domain.ProviderID(value))
-			return nil
-		})
-		set.Func("permission", "allowed permission; repeat as needed; default read-only", func(value string) error {
-			input.Permissions = append(input.Permissions, domain.Permission(value))
-			return nil
-		})
 		set.Func("scope", "task scope; repeat as needed; default all four task scopes", func(value string) error {
 			input.Scopes = append(input.Scopes, domain.Scope(value))
 			return nil
 		})
-		set.UintVar(&budget, "max-budget-seconds", 60, "maximum per-task duration")
 		set.UintVar(&devices, "max-devices", 5, "maximum concurrently enrolled devices")
 	}
 	if err := parse(set, args[1:]); err != nil {
@@ -56,14 +47,11 @@ func users(ctx context.Context, args []string, stdout io.Writer) error {
 	if args[0] != "allow" {
 		return ownerReadOrDisable(ctx, args[0], target, stdout)
 	}
-	if budget > math.MaxUint32 || devices > math.MaxUint32 {
+	if devices > math.MaxUint32 {
 		return problem(exitUsage, "invalid_owner_policy", nil)
 	}
 	input.Issuer, input.Subject = target.issuer, target.subject
-	input.MaxBudgetSeconds, input.MaxDevices = uint32(budget), uint32(devices)
-	if len(input.Permissions) == 0 {
-		input.Permissions = []domain.Permission{domain.ReadOnly}
-	}
+	input.MaxDevices = uint32(devices)
 	if len(input.Scopes) == 0 {
 		input.Scopes = domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}
 	}
@@ -97,7 +85,7 @@ func allowOwner(ctx context.Context, socket string, input adminapi.OwnerPolicyIn
 	}
 	return adminRequest[adminapi.OwnerPolicyInput, adminapi.OwnerPolicyView](ctx, socket, http.MethodPost, "/v1/users/allow", data, "", false, stdout, func(expected adminapi.OwnerPolicyInput, view adminapi.OwnerPolicyView) bool {
 		actual := view.Policy
-		return view.Validate() == nil && view.Enabled && actual.Issuer == expected.Issuer && actual.Subject == expected.Subject && actual.MaxDevices == expected.MaxDevices && actual.MaxBudgetSeconds == expected.MaxBudgetSeconds && slices.Equal(actual.Scopes, expected.Scopes) && slices.Equal(actual.Providers, expected.Providers) && slices.Equal(actual.Permissions, expected.Permissions)
+		return view.Validate() == nil && view.Enabled && actual.Issuer == expected.Issuer && actual.Subject == expected.Subject && actual.MaxDevices == expected.MaxDevices && slices.Equal(actual.Scopes, expected.Scopes)
 	})
 }
 

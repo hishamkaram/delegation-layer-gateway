@@ -10,7 +10,7 @@ import (
 )
 
 // WorkspacePolicy is a copied current approval. Store alone mutates revisions
-// and ceilings; the adapter never caches it as execution authority.
+// and enabled state; Native alone owns execution choices.
 type WorkspacePolicy struct {
 	ID            string
 	Alias         string
@@ -18,7 +18,6 @@ type WorkspacePolicy struct {
 	NativeContext string
 	Revision      uint64
 	Enabled       bool
-	Providers     []ProviderPolicy
 }
 
 type WorkspaceSnapshot struct {
@@ -28,8 +27,7 @@ type WorkspaceSnapshot struct {
 	ProjectBudget protocol.ProjectBudget
 }
 
-// ProjectPin is immutable local context history. Its Project.Providers must be
-// empty: current policy is obtained separately, including for resume. Local
+// ProjectPin is immutable legacy local context history. Local
 // paths and opaque Native tokens never leave this consumer-owned boundary.
 type ProjectPin struct {
 	Request          protocol.ResolveProjectRequest
@@ -38,7 +36,7 @@ type ProjectPin struct {
 }
 
 func (p ProjectPin) Validate() error {
-	if p.Request.Validate() != nil || p.Project.Alias != p.Request.RequestID || len(p.Project.Providers) != 0 {
+	if p.Request.Validate() != nil || p.Project.Alias != p.Request.RequestID {
 		return ErrEvidence
 	}
 	for _, directory := range []string{p.Project.Root, p.Project.Directory} {
@@ -61,7 +59,7 @@ func (p ProjectPin) WireIdentity() protocol.ResolvedProject {
 }
 
 // ProjectStore is implemented by the single durable local profile owner.
-// Reads observe committed rename snapshots without the policy lock. A replay
+// Reads observe committed rename snapshots without the approval lock. A replay
 // success and every retained-pin lookup confirm directory durability before
 // returning identity. No successful Start or targeted evidence uses a merely
 // visible, uncertain rename.

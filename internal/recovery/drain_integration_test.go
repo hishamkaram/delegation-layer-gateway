@@ -21,7 +21,7 @@ func prepareDrainTask(t *testing.T, f *recoveryTLS) domain.NativeTaskKey {
 	principal, err := f.store.ResolvePrincipal(f.ctx, domain.ExternalSubject{Issuer: "https://issuer.example", Subject: "operator"})
 	recoveryOK(t, err)
 	scopes := domain.ScopeSet{domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}
-	recoveryOK(t, f.store.PutGrant(f.ctx, domain.Grant{Key: domain.GrantKey{Principal: principal.ID, Destination: f.lookup.Route}, Scopes: scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"fixture"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 30}}))
+	recoveryOK(t, f.store.PutGrant(f.ctx, domain.Grant{Key: domain.GrantKey{Principal: principal.ID, Destination: f.lookup.Route}, Scopes: scopes}))
 	request := domain.FrozenRequest{Provider: "fixture", Model: domain.Selection{Kind: domain.NativeDefault}, Effort: domain.Selection{Kind: domain.NativeDefault}, Permission: domain.ReadOnly, BudgetSeconds: 30, Brief: "controlled task"}
 	correlation := domain.Correlation{Operation: "drain-operation", Task: domain.TaskID(strings.Repeat("a", 32)), Gateway: f.id, AdmissionGeneration: p.Generation, Owner: domain.OperationOwner{Kind: domain.Owned, Principal: principal.ID}, Destination: f.lookup.Route, Context: f.lookup.ExpectedContext, BriefDigest: domain.Hash([]byte(request.Brief))}
 	correlation.RequestDigest, err = domain.RequestDigest(correlation, request)

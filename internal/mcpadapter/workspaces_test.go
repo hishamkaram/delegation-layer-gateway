@@ -22,6 +22,38 @@ type workspaceBackend struct {
 	inspectScope                          domain.Scope
 	observation                           gateway.TargetedProjectObservation
 	failure                               error
+	metadataCheck                         func(context.Context, domain.Actor, gateway.MetadataSource, domain.ScopeSet) error
+	metadataRegistry                      Registry
+}
+
+func (s *workspaceBackend) ObserveWorkspaces(ctx context.Context, actor domain.Actor, device domain.DeviceID) (workspaces.InventoryObservation, error) {
+	value, err := s.ListWorkspaces(ctx, actor, device)
+	return workspaces.InventoryObservation{Value: value}, err
+}
+
+func (s *workspaceBackend) CheckMetadataObservation(ctx context.Context, actor domain.Actor, source gateway.MetadataSource, additional domain.ScopeSet) error {
+	if source.Validate() != nil {
+		return domain.Reject(domain.EvidenceInvalid)
+	}
+	if s.metadataCheck != nil {
+		return s.metadataCheck(ctx, actor, source, additional)
+	}
+	return checkTestMetadataScopes(ctx, s.metadataRegistry, actor, source, additional)
+}
+
+func checkTestMetadataScopes(ctx context.Context, store Registry, actor domain.Actor, source gateway.MetadataSource, additional domain.ScopeSet) error {
+	if additional.Validate() != nil {
+		return domain.ErrInvalid
+	}
+	for _, scope := range additional {
+		if store == nil {
+			return domain.ErrInvalid
+		}
+		if _, err := store.AuthorizeOwnedDevice(ctx, domain.OwnedDeviceRequest{Actor: actor, Device: source.Binding.Route.Device, Scope: scope}); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
 }
 
 func (s *workspaceBackend) ListWorkspaces(_ context.Context, _ domain.Actor, device domain.DeviceID) (workspaces.Inventory, error) {
@@ -49,10 +81,11 @@ func (s *workspaceBackend) InspectProject(_ context.Context, _ domain.Actor, _ d
 func TestSDKWorkspaceToolsAdvertiseClosedSchemasAndIndependentScopes(t *testing.T) {
 	backend := &workspaceBackend{}
 	f := newConfiguredFixture(t, 0, nil, func(options *Options) { options.Workspaces = backend })
+	device := ownedFilesystemDevice(t, f)
 	listed, err := f.session(t, "alice").ListTools(t.Context(), nil)
 	check(t, err)
-	if len(listed.Tools) != 14 {
-		t.Fatalf("configured workspace catalog has %d tools, want14", len(listed.Tools))
+	if len(listed.Tools) != 15 {
+		t.Fatalf("configured workspace catalog has %d tools, want15", len(listed.Tools))
 	}
 	want := map[string]toolExpectation{"list_workspaces": {true, false, true, []string{"inventory:read"}}, "resolve_project": {false, false, true, []string{"task:dispatch"}}}
 	for _, tool := range listed.Tools {
@@ -70,7 +103,7 @@ func TestSDKWorkspaceToolsAdvertiseClosedSchemasAndIndependentScopes(t *testing.
 	if len(want) != 0 {
 		t.Fatal("workspace tool missing")
 	}
-	request := ResolveProjectInput{DeviceID: "device-one", RequestID: strings.Repeat("e", 32), WorkspaceID: "code", RelativePath: privateCanary}
+	request := ResolveProjectInput{DeviceID: string(device), RequestID: strings.Repeat("e", 32), WorkspaceID: "code", RelativePath: privateCanary}
 	inventory := f.session(t, "inventory")
 	dispatch := f.session(t, "dispatch")
 	expectError[ResolvedProject](t, f.call(t, inventory, "resolve_project", args(t, request)), "forbidden")
@@ -162,7 +195,7 @@ func TestSDKWorkspaceCapabilityQueriesTargetSavedHandleWithoutResolve(t *testing
 	pin := protocol.ResolvedProject{Handle: handle, Workspace: protocol.WorkspaceBinding{ID: "code", Guard: protocol.WireContextGuard("workspace")}, Context: source.Context}
 	destination := domain.Destination{Device: deviceID(0), Project: domain.ProjectAlias(handle)}
 	check(t, f.store.RegisterProject(t.Context(), domain.ProjectRegistration{Destination: destination, Context: domain.ContextBinding{Root: domain.RootGuard(source.Context.Root), Project: domain.ProjectGuard(source.Context.Project)}}))
-	check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: destination}, Scopes: f.alice.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}}))
+	check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: destination}, Scopes: f.alice.Scopes}))
 	backend.observation = gateway.TargetedProjectObservation{Capability: protocol.ProjectCapabilityV2{Project: pin, CurrentPolicyRevision: 3, Capability: source}, Credential: f.link.snapshot.Credential, Connection: f.link.snapshot.Connection, ObservedAt: f.clock.now()}
 	f.link.snapshot.WireVersion = protocol.WireVersion2
 	f.link.snapshot.CapabilitiesV2 = &protocol.CapabilityReportV2{ObservedAt: f.clock.now(), Root: &protocol.RootCapability{Root: source.Context.Root, ContractVersion: 1, Features: source.Features}, Workspaces: []protocol.WorkspaceCapability{}}

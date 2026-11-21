@@ -1,6 +1,7 @@
 package deviceclient
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/connector"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/instance"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/selfservice/contract"
 )
 
@@ -30,10 +30,7 @@ type profile struct {
 	DeviceName          string              `json:"device_name"`
 	PrivateCAFile       string              `json:"private_ca_file,omitempty"`
 	Workspaces          []workspaceRecord   `json:"workspaces"`
-	// Providers are defaults copied only when a workspace is approved.
-	// Each workspace record owns its current execution ceiling.
-	Providers []ProviderPolicy `json:"providers"`
-	Pins      []projectRecord  `json:"pins,omitempty"`
+	Pins                []projectRecord     `json:"pins,omitempty"`
 }
 
 // profileStore owns descriptor/local-configuration mutation, independently of
@@ -44,9 +41,14 @@ type profileStore struct {
 	lease     *instance.Lease
 	value     *profile
 	uncertain bool
+	migration *ProfileMigrationPreview
 }
 
 func openProfile(directory string, create, exclusive bool) (*profileStore, error) {
+	return openProfileMode(directory, create, exclusive, false)
+}
+
+func openProfileMode(directory string, create, exclusive, migration bool) (*profileStore, error) {
 	if !localPath(directory) {
 		return nil, ErrProfile
 	}
@@ -77,7 +79,7 @@ func openProfile(directory string, create, exclusive bool) (*profileStore, error
 			return nil, failed(kind, errors.Join(err, s.Close()))
 		}
 	}
-	if err = s.load(); err != nil {
+	if err = s.loadMode(migration); err != nil {
 		return nil, failed(ErrProfile, errors.Join(err, s.Close()))
 	}
 	if s.value == nil && create {
@@ -127,13 +129,13 @@ func (s *profileStore) checkEmpty() error {
 
 func (p profile) valid() bool { return p.validBase() && validProjectRecords(p) }
 func (p profile) validBase() bool {
-	if p.Version != 2 || !localPath(p.DelegateExecutable) || !localPath(p.DelegateRoot) || !opaqueContext(p.DelegateRootContext) || !validName(p.DeviceName) {
+	if p.Version != 3 || !localPath(p.DelegateExecutable) || !localPath(p.DelegateRoot) || !opaqueContext(p.DelegateRootContext) || !validName(p.DeviceName) {
 		return false
 	}
 	if p.PrivateCAFile != "" && !localPath(p.PrivateCAFile) {
 		return false
 	}
-	if !validWorkspaceRecords(p.Workspaces) || !validProviders(p.Providers) || validDescriptor(p.Descriptor, p.Descriptor.PublicURL) != nil {
+	if !validWorkspaceRecords(p.Workspaces) || validDescriptor(p.Descriptor, p.Descriptor.PublicURL) != nil {
 		return false
 	}
 	return p.Issuer.validFor(p.Descriptor)
@@ -154,35 +156,54 @@ func private(info os.FileInfo, directory bool) bool {
 	return ok && stat.Uid == uint32(os.Geteuid()) && (directory || stat.Nlink == 1)
 }
 
-func (s *profileStore) load() error {
+func (s *profileStore) readDocument() ([]byte, error) {
 	file, err := s.root.OpenFile(profileName, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	info, err := file.Stat()
 	if err != nil || !private(info, false) || info.Size() > maxProfileBytes {
-		return errors.Join(ErrProfile, err, file.Close())
+		return nil, errors.Join(ErrProfile, err, file.Close())
 	}
 	data, readErr := io.ReadAll(io.LimitReader(file, maxProfileBytes+1))
 	closeErr := file.Close()
 	if joined := errors.Join(readErr, closeErr); joined != nil {
-		return joined
+		return nil, joined
 	}
-	var current profile
-	if protocol.DecodeStrict(data, &current, maxProfileBytes) != nil || !current.validBase() {
+	return data, nil
+}
+
+func (s *profileStore) loadMode(migration bool) error {
+	data, err := s.readDocument()
+	if err != nil || data == nil {
+		return err
+	}
+	var header struct {
+		Version int `json:"schema_version"`
+	}
+	if json.Unmarshal(data, &header) != nil {
 		return ErrProfile
 	}
-
+	if header.Version == 2 && !migration {
+		return ErrMigrationRequired
+	}
+	current, preview, err := decodeProfileDocument(data, header.Version)
+	if err != nil {
+		return err
+	}
+	if !current.validBase() {
+		return ErrProfile
+	}
 	if !validProjectRecords(current) {
 		return failed(ErrProfile, connector.ErrEvidence)
 	}
-	if _, err := encodeProfile(current, true); err != nil {
+	if _, err = encodeProfile(current, true); err != nil {
 		return err
 	}
-	s.value = &current
+	s.value, s.migration = &current, &preview
 	return nil
 }
 
@@ -236,12 +257,12 @@ func (s *profileStore) Close() error {
 }
 
 func pinnedProfile(options ConnectOptions, descriptor contract.Descriptor, issuer issuerEndpoints, existing *profile, random io.Reader) (profile, error) {
-	next := profile{Version: 2, Descriptor: descriptor, Issuer: issuer, DelegateExecutable: options.DelegateExecutable, DelegateRoot: options.DelegateRoot, DelegateRootContext: options.DelegateRootContext, DeviceName: options.DeviceName, PrivateCAFile: options.PrivateCAFile, Providers: options.Providers}
+	next := profile{Version: 3, Descriptor: descriptor, Issuer: issuer, DelegateExecutable: options.DelegateExecutable, DelegateRoot: options.DelegateRoot, DelegateRootContext: options.DelegateRootContext, DeviceName: options.DeviceName, PrivateCAFile: options.PrivateCAFile}
 	if existing == nil {
 		if next.DeviceName == "" {
 			return profile{}, ErrConfiguration
 		}
-		workspaces, err := initialWorkspaces(options.Workspaces, options.Providers, random)
+		workspaces, err := initialWorkspaces(options.Workspaces, random)
 		if err != nil {
 			return profile{}, err
 		}
@@ -263,10 +284,7 @@ func pinnedProfile(options ConnectOptions, descriptor contract.Descriptor, issue
 	next.Workspaces = existing.Workspaces
 	next.Pins = existing.Pins
 	next.Issuer = existing.Issuer
-	if next.Providers == nil {
-		next.Providers = existing.Providers
-	}
-	if (options.Workspaces != nil && !sameApprovals(options.Workspaces, existing.Workspaces, existing.Providers)) || !reflect.DeepEqual(next.Providers, existing.Providers) {
+	if options.Workspaces != nil && !sameApprovals(options.Workspaces, existing.Workspaces) {
 		return profile{}, ErrConflict
 	}
 	return next, nil

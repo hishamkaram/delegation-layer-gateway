@@ -18,11 +18,14 @@ func validateKnownReceipt(ctx context.Context, tx *sql.Tx, row administrativeRow
 		return nil
 	}
 	c := *row.view.Correlation
+	if c.RequestVersion == domain.CompactRequestVersion {
+		return validateKnownBoundReceipt(ctx, tx, c, r)
+	}
 	_, options, matched, err := domain.AttributeNativeReceipt(c.Gateway, c.Destination.Device, domain.ProjectRegistration{Destination: c.Destination, Context: c.Context}, r)
 	if err != nil {
 		return err
 	}
-	if !matched || c.BriefDigest != r.BriefDigest {
+	if !matched || !domain.RequestedBriefMatches(c, r.BriefDigest) {
 		return domain.Reject(domain.EvidenceInvalid)
 	}
 	op, err := readOperation(ctx, tx, c.Operation)
@@ -54,7 +57,7 @@ func hydrateKnownReceipt(ctx context.Context, tx *sql.Tx, row administrativeRow,
 	if err != nil {
 		return err
 	}
-	if row.view.Correlation == nil {
+	if row.view.Correlation == nil || row.view.Correlation.RequestVersion == domain.CompactRequestVersion {
 		_, err = tx.ExecContext(ctx, "UPDATE operations SET native_receipt=? WHERE row_id=?", receipt, row.rowID)
 		return err
 	}
@@ -116,6 +119,9 @@ func insertCanonicalTask(ctx context.Context, tx *sql.Tx, p domain.ImportedInven
 
 func insertAttributedCanonicalTask(ctx context.Context, tx *sql.Tx, p domain.ImportedInventoryPage, e domain.CanonicalInventoryExisting, slot importSlot, receipt, observation []byte) error {
 	c := *slot.correlation
+	if c.RequestVersion == domain.CompactRequestVersion {
+		return insertBoundOperation(ctx, tx, p, c, receipt, observation, domain.PossibleSend, true)
+	}
 	correlation, err := encode(c)
 	if err != nil {
 		return err
@@ -137,7 +143,10 @@ func insertAttributedCanonicalTask(ctx context.Context, tx *sql.Tx, p domain.Imp
 	return err
 }
 
-func applyNamespaceRefusal(ctx context.Context, tx *sql.Tx, p domain.ImportedInventoryPage, r domain.NamespaceRefusal) error {
+func applyNamespaceRefusal(ctx context.Context, tx *sql.Tx, p domain.ImportedInventoryPage, r domain.NamespaceRefusal, slot importSlot) error {
+	if slot.correlation != nil && slot.correlation.RequestVersion == domain.CompactRequestVersion {
+		return applyBoundRefusal(ctx, tx, p, slot)
+	}
 	key := domain.NativeTaskKey{Device: p.Destination.Device, Root: p.Destination.Root, Task: r.Task}
 	if r.Origin != nil {
 		if err := checkPhysicalOrigin(ctx, tx, key, r.Origin.Operation); err != nil {

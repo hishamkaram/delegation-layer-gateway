@@ -14,7 +14,7 @@ func pendingRoot(t *testing.T, f *fixture) domain.RootInitializationStart {
 	route := domain.Destination{Device: "device", Project: "new-root"}
 	binding := domain.ContextBinding{Root: domain.RootGuard(fixtureGuard("new-root")), Project: domain.ProjectGuard(fixtureGuard("new-project"))}
 	requireOK(t, f.store.RegisterProject(t.Context(), domain.ProjectRegistration{Destination: route, Context: binding}))
-	requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: route}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 300}}))
+	requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: route}, Scopes: f.actor.Scopes}))
 	return domain.RootInitializationStart{Route: route, ExpectedContext: binding, Credential: f.credential, Connection: f.connection, Now: f.now}
 }
 

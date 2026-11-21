@@ -16,9 +16,26 @@ func observeRegistryBoundary(f *dispatchFixture) *[]RoutingObservation {
 	return &observations
 }
 
-func putRegistryBoundaryCeiling(t *testing.T, f *dispatchFixture, budget uint32) {
-	t.Helper()
-	dispatchOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: f.destination}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: budget}}))
+// Revoke at the final real-store transaction, after preliminary authorization.
+// Execution ceilings were removed; current access remains authoritative.
+type revokeAtRegistryPreparation struct {
+	DispatchStore
+	revoke func(context.Context) error
+	fault  error
+}
+
+func (s revokeAtRegistryPreparation) Prepare(ctx context.Context, actor domain.Actor, input domain.Preparation) (domain.PreparedOperation, error) {
+	if err := s.revoke(ctx); err != nil {
+		return domain.PreparedOperation{}, err
+	}
+	prepared, err := s.DispatchStore.Prepare(ctx, actor, input)
+	return prepared, errors.Join(err, s.fault)
+}
+
+func installPreparationRevocation(f *dispatchFixture, fault error) {
+	f.service.store = revokeAtRegistryPreparation{DispatchStore: f.store, fault: fault, revoke: func(ctx context.Context) error {
+		return f.store.RevokeGrant(ctx, domain.GrantKey{Principal: f.actor.Principal, Destination: f.destination})
+	}}
 }
 
 func assertRegistryBoundaryDenial(t *testing.T, values []RoutingObservation, principal domain.PrincipalID, class routing.ControlClass) {
@@ -57,24 +74,15 @@ func assertNoRegistryBoundaryPreparation(t *testing.T, f *dispatchFixture) {
 	}
 }
 
-func TestPrepareFinalPolicyDenialsHavePrincipalOnlyAudit(t *testing.T) {
-	for _, boundary := range []string{"registry-ceiling", "connector-ceiling"} {
-		t.Run(boundary, func(t *testing.T) {
-			f := newDispatchFixture(t)
-			f.request.BudgetSeconds = 90
-			f.link.snapshot.Capabilities.Projects[0].Providers[0].MaxBudgetSeconds = 120
-			putRegistryBoundaryCeiling(t, f, 60)
-			if boundary == "connector-ceiling" {
-				putRegistryBoundaryCeiling(t, f, 120)
-				f.link.snapshot.Capabilities.Projects[0].Providers[0].MaxBudgetSeconds = 60
-			}
-			observations := observeRegistryBoundary(f)
-			_, err := f.service.Prepare(t.Context(), f.actor, f.destination, f.request)
-			dispatchCode(t, err, domain.Forbidden)
-			assertNoRegistryBoundaryPreparation(t, f)
-			assertRegistryBoundaryDenial(t, *observations, f.actor.Principal, routing.PrepareClass)
-		})
-	}
+func TestPrepareFinalAccessRevocationHasPrincipalOnlyAudit(t *testing.T) {
+	f := newDispatchFixture(t)
+	installPreparationRevocation(f, nil)
+	observations := observeRegistryBoundary(f)
+	_, err := f.service.Prepare(t.Context(), f.actor, f.destination, f.request)
+	dispatchCode(t, err, domain.NotFound)
+	f.grant(t)
+	assertNoRegistryBoundaryPreparation(t, f)
+	assertRegistryBoundaryDenial(t, *observations, f.actor.Principal, routing.PrepareClass)
 }
 
 // Revoke through the real Registry immediately before its final transaction;
@@ -120,18 +128,18 @@ func TestDispatchFinalRegistryDenialHasPrincipalOnlyAudit(t *testing.T) {
 	assertRegistryBoundaryDenial(t, *observations, f.actor.Principal, routing.ControlClass(protocol.Admit))
 }
 
-func TestDispatchConnectorPolicyDenialHasPrincipalOnlyAudit(t *testing.T) {
+func TestDispatchAdvisoryCatalogDoesNotImposeExecutionCeiling(t *testing.T) {
 	f := newDispatchFixture(t)
 	prepared := f.prepare(t)
 	f.link.snapshot.Capabilities.Projects[0].Providers[0].MaxBudgetSeconds = 30
-	observations := observeRegistryBoundary(f)
 	_, err := f.service.Dispatch(t.Context(), f.actor, prepared.Correlation.Operation)
-	dispatchCode(t, err, domain.Forbidden)
-	assertUnsent(t, f, prepared.Correlation.Operation)
-	if f.link.reserves != 0 || f.link.releases != 0 {
-		t.Fatal("connector policy denial acquired transport ownership")
+	if err == nil {
+		t.Fatal("controlled lost acknowledgement disappeared")
 	}
-	assertRegistryBoundaryDenial(t, *observations, f.actor.Principal, routing.ControlClass(protocol.Admit))
+	view := f.view(t, prepared.Correlation.Operation)
+	if view.Delivery != domain.PossibleSend || !view.Reserved || f.link.writes != 1 || f.link.reserves != 1 || f.link.releases != 1 {
+		t.Fatal("advisory catalog vetoed Native execution intent")
+	}
 }
 
 func TestPrepareMissingConnectorProjectHasPrincipalOnlyAudit(t *testing.T) {
@@ -154,12 +162,11 @@ func assertMixedRegistryRefusal(t *testing.T, values []RoutingObservation, err e
 
 func TestMixedPreparationRegistryRefusalRemainsUnknown(t *testing.T) {
 	f := newDispatchFixture(t)
-	f.request.BudgetSeconds = 90
-	putRegistryBoundaryCeiling(t, f, 60)
-	f.service.store = failedPreparationStore{DispatchStore: f.store, fault: acceptanceFault()}
+	installPreparationRevocation(f, acceptanceFault())
 	observations := observeRegistryBoundary(f)
 	_, err := f.service.Prepare(t.Context(), f.actor, f.destination, f.request)
-	dispatchCode(t, err, domain.Forbidden)
+	dispatchCode(t, err, domain.NotFound)
+	f.grant(t)
 	assertNoRegistryBoundaryPreparation(t, f)
 	assertMixedRegistryRefusal(t, *observations, err)
 }

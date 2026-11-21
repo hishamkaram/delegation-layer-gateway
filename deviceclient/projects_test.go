@@ -61,7 +61,7 @@ func TestProjectPinReplayIsImmutableBeforePolicyAndLiveness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current, err := UpdateWorkspace(t.Context(), f.options.ProfileDirectory, local[0].ID, local[0].Revision, WorkspaceUpdate{Providers: []ProviderPolicy{}})
+	current, err := UpdateWorkspace(t.Context(), f.options.ProfileDirectory, local[0].ID, local[0].Revision, WorkspaceUpdate{Alias: "renamed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestProjectPinReplayIsImmutableBeforePolicyAndLiveness(t *testing.T) {
 	// The directory need not exist anymore. Passive history never scans it.
 	pin.Project.ProjectToken = "new inspection of a different object"
 	replay := commitProject(t, store, pin)
-	if !reflect.DeepEqual(first, replay) || len(replay.Project.Providers) != 0 {
+	if !reflect.DeepEqual(first, replay) {
 		t.Fatal("retry rebound immutable identity or captured policy")
 	}
 	found, ok, err := store.LookupResolution(t.Context(), pin.Request)
@@ -101,9 +101,9 @@ func TestProjectPinGuardsRejectSourceRetargetAndDoNotStorePolicy(t *testing.T) {
 		t.Fatal("workspace source rebound", err)
 	}
 	wrong = pin
-	wrong.Project.Providers = []connector.ProviderPolicy{{Provider: "claude"}}
+	wrong.Project.RootToken = "different-root-token"
 	if _, err = lease.CommitResolution(wrong); !errors.Is(err, connector.ErrEvidence) {
-		t.Fatal("immutable pin captured mutable policy", err)
+		t.Fatal("immutable pin changed original root identity", err)
 	}
 	if err = lease.Close(); err != nil {
 		t.Fatal(err)

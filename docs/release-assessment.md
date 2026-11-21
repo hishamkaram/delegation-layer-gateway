@@ -1,6 +1,30 @@
-# Candidate release assessment — 14 November 2026
+# Release assessment
 
-## Next release preparation
+## Remote Delegate candidate — 21 November 2026
+
+Source metadata prepares Gateway **0.2.0** and Delegate **0.9.0**. Neither has
+been published or deployed by this work. The candidate removes duplicate execution
+ceilings and adds scope-relative filesystem/provider discovery, explicit profile
+migration and an installed-executable handoff.
+
+**Not release-ready.** Compact registry-loss intent reconstruction and Gateway
+continuation are implemented in the candidate. New path-based admission requires
+the matching Native executable features and immutable binding; legacy
+binding-absent routes fail closed. The local paired-process compact-dispatch
+scenario passed with two connectors, exact accepted results, stable retries,
+restart/reconnect and confirmed cleanup. It used a literal test provider;
+installed-provider continuation and final integrated verification remain incomplete.
+Scoped Opus and native correction reviews do not replace the required final
+integrated Sol/Opus reviews. New actual-process Linux filesystem evidence has its
+own [recorded checkpoint](verification.md#november-21-remote-filesystem-candidate-checkpoint).
+Full current engineering gates, native macOS, installed providers, Cloud clients
+and seven actual elapsed days of login/refresh acceptance remain outstanding.
+There are no PR, merge or release claims for this candidate.
+
+The sections below retain the earlier revisions and evidence; they do not
+establish acceptance of the current working tree.
+
+## Historical Native-connect release preparation — 14 November 2026
 
 Source metadata prepares Gateway 0.1.0 and Delegate 0.6.0. This is version
 preparation, not a published release or an installed-binary upgrade. Application
@@ -14,7 +38,7 @@ historical cleanup limits.
 
 ## Recorded extension assessment
 
-**Current Native-connect extension: not release-ready.** The candidate adds
+**Recorded Native-connect extension: not release-ready at this assessment.** That candidate added
 owner enrollment and policy, schema-9 project-resolution state, wire-v2
 workspace routing, targeted capabilities and the Native-owned embedded-service
 path. Canonical path is the approved project identity; same-path replacement
@@ -95,10 +119,12 @@ Delegate prerequisite must be integrated before a Gateway release.
 
 The approved design remains [MCP over HTTPS plus outbound device mTLS
 WSS](architecture.md). Gateway owns enrollment, authorization, routing,
-correlation and metadata observability. Native owns its local profile, approved workspaces, immutable project pins,
-embedded service and stricter local ceiling; legacy connector aliases remain
+correlation and metadata observability. Native owns its local profile, approved workspaces, legacy project pins
+and embedded service; legacy connector aliases remain
 supported. Registry owns immutable device ownership and live owner policy,
-without duplicating that policy into project grants. Delegate alone owns task admission, execution,
+without duplicating that policy into project grants. The current candidate removes
+duplicate execution ceilings. Delegate alone owns provider support, execution
+permissions, budgets, defaults, task admission, execution,
 supervision, cancellation and accepted outcomes. The Gateway is trusted with
 plaintext; additional end-to-end encryption is deferred.
 

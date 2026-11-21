@@ -19,7 +19,6 @@ type ConnectOptions struct {
 	DeviceName            string
 	PrivateCAFile         string
 	Workspaces            []WorkspaceApproval
-	Providers             []ProviderPolicy
 	PresentChallenge      func(context.Context, Challenge) error
 	EnrollmentTokenFile   string
 	EnrollmentTokenReader io.Reader
@@ -30,10 +29,9 @@ func (ConnectOptions) String() string     { return "device_connect_options" }
 func (o ConnectOptions) GoString() string { return o.String() }
 
 type WorkspaceApproval struct {
-	Alias         string           `json:"alias"`
-	Directory     string           `json:"directory"`
-	NativeContext string           `json:"native_context"`
-	Providers     []ProviderPolicy `json:"providers"`
+	Alias         string `json:"alias"`
+	Directory     string `json:"directory"`
+	NativeContext string `json:"native_context"`
 }
 
 func (WorkspaceApproval) String() string     { return "workspace_approval" }
@@ -42,29 +40,16 @@ func (a WorkspaceApproval) GoString() string { return a.String() }
 // Workspace is a local UI view. Native identity tokens are retained privately.
 // Disabled historical approvals remain in the lifetime profile bound of 100.
 type Workspace struct {
-	ID        string           `json:"id"`
-	Alias     string           `json:"alias"`
-	Directory string           `json:"directory"`
-	Revision  uint64           `json:"revision"`
-	Enabled   bool             `json:"enabled"`
-	Providers []ProviderPolicy `json:"providers"`
+	ID        string `json:"id"`
+	Alias     string `json:"alias"`
+	Directory string `json:"directory"`
+	Revision  uint64 `json:"revision"`
+	Enabled   bool   `json:"enabled"`
 }
 
-// WorkspaceUpdate cannot retarget a directory or Native context. Nil Providers
-// preserves the current policy; an explicit empty slice disables all providers.
+// WorkspaceUpdate changes only the display alias, never directory or identity.
 type WorkspaceUpdate struct {
-	Alias     string
-	Providers []ProviderPolicy
-}
-
-type ProviderPolicy struct {
-	Provider         string   `json:"provider"`
-	Models           []string `json:"models"`
-	Efforts          []string `json:"efforts"`
-	Permissions      []string `json:"permissions"`
-	MaxBudgetSeconds uint32   `json:"max_budget_seconds"`
-	NativeModel      bool     `json:"native_model"`
-	NativeEffort     bool     `json:"native_effort"`
+	Alias string
 }
 
 // Challenge contains only the fields the caller may deliberately present.
@@ -96,11 +81,25 @@ type ConnectionStatus struct {
 // LocalContextInfo is explicit local-only input for Native context inspection.
 // It contains no credentials. Its opaque Native token must never cross MCP/WSS.
 type LocalContextInfo struct {
-	DelegateExecutable  string           `json:"delegate_executable"`
-	DelegateRoot        string           `json:"delegate_root"`
-	DelegateRootContext string           `json:"-"`
-	Providers           []ProviderPolicy `json:"providers"`
+	WorkspaceIDs        []string `json:"workspace_ids,omitempty"`
+	DelegateExecutable  string   `json:"delegate_executable"`
+	DelegateRoot        string   `json:"delegate_root"`
+	DelegateRootContext string   `json:"-"`
 }
 
 func (LocalContextInfo) String() string     { return "gateway_local_context" }
 func (c LocalContextInfo) GoString() string { return c.String() }
+
+// InstallationSelection is comparable local source identity for an explicit
+// installation handoff. It cannot select another Native execution root.
+type InstallationSelection struct {
+	DelegateExecutable  string
+	DelegateRoot        string
+	DelegateRootContext string
+}
+
+func (InstallationSelection) String() string     { return "gateway_installation_selection" }
+func (s InstallationSelection) GoString() string { return s.String() }
+func (c LocalContextInfo) InstallationSelection() InstallationSelection {
+	return InstallationSelection{DelegateExecutable: c.DelegateExecutable, DelegateRoot: c.DelegateRoot, DelegateRootContext: c.DelegateRootContext}
+}

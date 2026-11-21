@@ -2014,3 +2014,87 @@ Those fixes reject a foreign cached parent search path and foreign
 `acceptance.py` providers before import. They do not change the tested Gateway
 binaries or the fresh registration/Registry-denial behavior; their own regression
 and source-selection validation must be assessed separately.
+
+## November 21 remote filesystem candidate checkpoint
+
+Two actual-process runs on one Linux host used source-built Gateway, the official
+MCP SDK helper, Native and its adjacent runner. The source bases were Gateway
+`8937a4a7adacd2121017e1313022ecf8406b8ed3` and Native
+`8ca43c1366fe274950871cc0903a803d6203781c`, with uncommitted candidate changes;
+these are not published release revisions. Reproduction inputs are described in
+[local candidate verification](native-connect.md#verify-a-candidate-locally).
+
+The corrected run passed with two local embedded connectors, real self-enrollment,
+HTTPS authentication and mTLS/WSS. Each approved workspace exposed descendants
+created after its approval. Directory pagination preserved hidden/non-UTF-8
+names; ranged reads reconstructed exact fixture bytes; Git inspection returned
+structural candidates; lexical and symlink escapes were denied. Linux's automatic
+whole `/tmp` scope was exercised using requested test-owned children.
+Four fresh public profile previews reported schema 3 and zero pins. Gateway
+project/operation lists and canonical Native task observations stayed empty during
+the filesystem stage, with zero fixture-provider attempts.
+
+Each run then completed the three existing literal-provider fixture scenarios:
+accepted results, same-operation retry, same-path directory replacement,
+Gateway restart/reconnect and requested cancellation with canonical closure.
+There were six fixture attempts across both runs, with no concurrency or attempt
+rejection. All 111/116 respective owned control/service captures had completed
+direct Wait receipts. Canonical task closure and temporary-fixture cleanup were
+confirmed. Closed private evidence directories were retained.
+
+The first run's pin count relied on dated WSS inventory; the corrected run added
+the fresh public profile previews. Its first outer evidence exporter also rejected
+a retained FIFO after runtime cleanup had completed; a later metadata-preserving
+tar export retained that evidence without reading the FIFO. This was an evidence
+handling failure, not a passing exporter run.
+
+The diagnostic checker was subsequently strengthened to detect individual
+17-byte canary ranges and their base64 forms. It was rerun against both immutable
+capture sets, not presented as a third product run. All eight patterns were absent
+from eight product log streams, two audit files and 48,017/48,018 metrics bytes per
+run. Requested response captures were excluded from diagnostics checks. An
+independent read-only review verified byte reconstruction, manifests, archive
+contents and this limited sentinel scope; this is not proof against every possible
+content leak.
+
+**Unverified:** current integrated engineering gates, registry-loss intent binding,
+new-route admission/continuation, installed providers, native macOS, browser/device
+OAuth, separate physical networks, both Cloud clients and seven actual elapsed
+days of Cloud login/refresh usability. These remain prerequisites to the paired
+PRs and release verdict. No production configuration or Mac state changed for
+this checkpoint.
+
+## November 21 compact-dispatch process checkpoint
+
+The scope-relative candidate scenario now passes using actual Gateway, MCP SDK,
+two embedded Native connectors and the installed Pueue pair on Linux. Run the
+[local candidate command](native-connect.md#verify-a-candidate-locally) with
+`--compact-routes`. Both repositories remained uncommitted candidates on the
+source bases recorded above; this is not published-release evidence.
+
+The final run returned `native_connect_passed` in 99.323 seconds, with exactly
+three literal-provider attempts and confirmed process and temporary-file cleanup.
+It verified preparation and dispatch replay with stable IDs, exact accepted
+results and closure, same-path replacement, Gateway restart/reconnect, and
+historical status/cancellation after workspace approval removal. Public Native
+inventory independently matched all three compact dispatch commitments.
+Requested fixture canaries were absent from the checked product diagnostics,
+audit and metrics.
+
+Earlier runs exposed two real connector defects: guarded calls omitted the saved
+workspace projection flag, and receipt validation incorrectly required a redundant
+project-token header that Native omits for hash-addressed reads. Both were fixed;
+canonical receipt identity checks remain required. The controller also corrected
+an invalid textual timestamp comparison to compare the exact instant. The five
+runs made 0, 0, 1, 1 and 3 fixture attempts respectively; every run confirmed cleanup.
+The final successful run is separate from those failed/interrupted attempts.
+
+The corrected connector package passed `go test -race -count=1` in 35.830 seconds;
+its vet, lint and formatting checks passed. Driver regressions and Python lint
+also passed. These focused results do not establish the complete engineering gate.
+
+**Unverified:** successful continuation through an installed provider checkpoint,
+native macOS and both original device states, physical networks, actual Cloud
+clients and seven elapsed days of refresh/idle return. The literal provider does
+not save a usable checkpoint. Later protected-message sizing corrections are
+outside this process checkpoint. No production configuration or Mac state changed.

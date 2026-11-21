@@ -78,12 +78,12 @@ func (s *session) reserve(ctx context.Context, frame protocol.Frame) (*Reservati
 	if s.gateway && s.strictRouting && !s.routingAck.AllowsControl(binding.operation) {
 		return nil, fail(ErrNotReady, nil)
 	}
+	encoded, err := encodeReservedFrame(frame, s.wireVersion, binding.class)
+	if err != nil {
+		return nil, err
+	}
 	if !s.jobCapacity(binding.class) || !s.correlationCapacity(binding.class) {
 		return nil, fail(ErrCapacity, nil)
-	}
-	encoded, err := protocol.EncodeFrameVersion(frame, s.wireVersion)
-	if err != nil {
-		return nil, fail(ErrProtocol, err)
 	}
 	var wireFrame protocol.Frame
 	if decodeErr := json.Unmarshal(encoded, &wireFrame); decodeErr != nil {
@@ -98,6 +98,18 @@ func (s *session) reserve(ctx context.Context, frame protocol.Frame) (*Reservati
 	job.reservation = r
 	s.jobs[job] = struct{}{}
 	return r, nil
+}
+
+func encodeReservedFrame(frame protocol.Frame, version int, class trafficClass) ([]byte, error) {
+	encoded, err := protocol.EncodeFrameVersion(frame, version)
+	if err != nil {
+		return nil, fail(ErrProtocol, err)
+	}
+	// Encoded identity size is permanent, independently of current queue load.
+	if class == protectedTraffic && len(encoded) > MaxProtectedFrameBytes {
+		return nil, protocol.ErrTooLarge
+	}
+	return encoded, nil
 }
 
 func (s *session) outbound(frame protocol.Frame) (replyBinding, error) {
@@ -283,7 +295,7 @@ func (s *session) validateResponseLocked(frame protocol.Frame, size int) (*Reser
 		return nil, nil, fail(ErrProtocol, nil)
 	}
 	if r.binding.class == protectedTraffic && size > MaxProtectedFrameBytes {
-		return nil, nil, fail(ErrProtocol, nil)
+		return nil, nil, fail(ErrProtocol, protocol.ErrTooLarge)
 	}
 	completion, checkErr := r.validateResponse(frame)
 	return r, completion, checkErr

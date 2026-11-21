@@ -15,6 +15,8 @@ const (
 	MaxFrameBytes         = 1 << 20
 	// Admission must leave routing headroom for two cancellation/fence calls.
 	MaxAdmissionFrameBytes = MaxFrameBytes - (64 << 10)
+	// Protected requests and replies must each fit the reserved control budget.
+	MaxProtectedFrameBytes = 16 << 10
 	MaxTTL                 = 30 * time.Second
 )
 
@@ -149,20 +151,28 @@ func (f Frame) Deadline(received time.Time) time.Time {
 
 type Operation string
 
+const SelectProject Operation = "select_project"
+
 const (
-	ContextInspect  Operation = "context_inspect"
-	Admit           Operation = "admit"
-	Resolve         Operation = "resolve"
-	ResumeExisting  Operation = "resume_existing"
-	FenceAbsent     Operation = "fence_absent"
-	Status          Operation = "status"
-	Collect         Operation = "collect"
-	ResultChunk     Operation = "result_chunk"
-	Cancel          Operation = "cancel"
-	OriginBarrier   Operation = "origin_barrier"
-	OriginInventory Operation = "origin_inventory"
-	OriginReopen    Operation = "origin_reopen"
-	ResolveProject  Operation = "resolve_project"
+	ContextInspect   Operation = "context_inspect"
+	Admit            Operation = "admit"
+	Continue         Operation = "continue"
+	Resolve          Operation = "resolve"
+	ResumeExisting   Operation = "resume_existing"
+	FenceAbsent      Operation = "fence_absent"
+	Status           Operation = "status"
+	Collect          Operation = "collect"
+	ResultChunk      Operation = "result_chunk"
+	Cancel           Operation = "cancel"
+	OriginBarrier    Operation = "origin_barrier"
+	OriginInventory  Operation = "origin_inventory"
+	OriginReopen     Operation = "origin_reopen"
+	ResolveProject   Operation = "resolve_project"
+	FilesystemScopes Operation = "filesystem_scopes"
+	ListDirectory    Operation = "list_directory"
+	ReadFile         Operation = "read_file"
+	InspectFile      Operation = "inspect_file"
+	InspectGit       Operation = "inspect_git"
 )
 
 func (o Operation) Validate() error {
@@ -178,7 +188,7 @@ func (o Operation) ValidateVersion(version int) error {
 	switch o {
 	case ContextInspect, Admit, Resolve, ResumeExisting, FenceAbsent, Status, Collect, ResultChunk, Cancel, OriginBarrier, OriginInventory, OriginReopen:
 		return nil
-	case ResolveProject:
+	case Continue, ResolveProject, SelectProject, ProviderModels, FilesystemScopes, ListDirectory, ReadFile, InspectFile, InspectGit:
 		if version == WireVersion2 {
 			return nil
 		}
@@ -193,14 +203,14 @@ func (o Operation) Administrative() bool {
 }
 
 func (o Operation) RootRouted() bool {
-	return o == ContextInspect || o.Administrative() || o == ResolveProject
+	return o == ContextInspect || o.Administrative() || o == ResolveProject || o == SelectProject || o == ProviderModels || o.Filesystem()
 }
 
 func (o Operation) AllowedRecoveryOnly() bool {
 	switch o {
 	case ContextInspect, Resolve, FenceAbsent, Status, Collect, ResultChunk, Cancel, OriginBarrier, OriginInventory:
 		return true
-	case Admit, ResumeExisting, OriginReopen, ResolveProject:
+	case Admit, Continue, ResumeExisting, OriginReopen, ResolveProject, SelectProject, ProviderModels, FilesystemScopes, ListDirectory, ReadFile, InspectFile, InspectGit:
 		return false
 	default:
 		return false
@@ -269,8 +279,20 @@ func (c Command) ValidateVersion(version int) error {
 		}
 		return ErrInvalid
 	}
-	if identifier(c.Project) && !c.Operation.Administrative() && c.Operation != ResolveProject {
+	if identifier(c.Project) && (!c.Operation.RootRouted() || c.Operation == ContextInspect) {
 		return nil
 	}
 	return ErrInvalid
+}
+
+func (o Operation) Filesystem() bool {
+	switch o {
+	case FilesystemScopes, ListDirectory, ReadFile, InspectFile, InspectGit:
+		return true
+	case ContextInspect, Admit, Continue, Resolve, ResumeExisting, FenceAbsent, Status, Collect, ResultChunk, Cancel,
+		OriginBarrier, OriginInventory, OriginReopen, ResolveProject, SelectProject, ProviderModels:
+		return false
+	default:
+		return false
+	}
 }

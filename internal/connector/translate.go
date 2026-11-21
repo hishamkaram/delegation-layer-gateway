@@ -13,10 +13,14 @@ func (r request) rootTaskProof(response cliResponse) bool {
 }
 
 func (r request) receipt(response cliResponse) error {
-	if !r.rootTaskProof(response) || response.Connector.ProjectToken != r.project.ProjectToken {
+	if !r.rootTaskProof(response) {
 		return ErrEvidence
 	}
 	c := response.Connector
+	// Hash controls attest the project through the canonical receipt below.
+	if (r.task.Route.Version != 1 || c.ProjectToken != "") && !r.matchesProjectToken(c.ProjectToken) {
+		return ErrEvidence
+	}
 	if c.Receipt == nil {
 		if c.Resolution == "existing" {
 			return ErrEvidence
@@ -26,14 +30,29 @@ func (r request) receipt(response cliResponse) error {
 	if !r.receiptBinding(c.Receipt) || !validReceiptOptions(c.Receipt) {
 		return ErrEvidence
 	}
-	if r.admission != nil && (c.Receipt.ExecutionOptions != admissionOptions(*r.admission) || c.Receipt.BriefSHA256 != briefHash(r.admission.Brief)) {
+	return r.receiptIntent(c.Receipt)
+}
+
+func (r request) receiptIntent(receipt *cliReceipt) error {
+	if r.task.Origin.Binding != "" && !matchesCompactBrief(r.task.Origin.Binding, receipt.BriefSHA256) {
+		return ErrEvidence
+	}
+	if r.admission != nil {
+		if receipt.BriefSHA256 != briefHash(r.admission.Brief) {
+			return ErrEvidence
+		}
+		if r.admission.Native.Version == 0 && receipt.ExecutionOptions != admissionOptions(*r.admission) {
+			return ErrEvidence
+		}
+	}
+	if r.continuation != nil && r.continuation.BriefPresent && receipt.BriefSHA256 != briefHash(r.continuation.Brief) {
 		return ErrEvidence
 	}
 	return nil
 }
 
 func (r request) receiptBinding(receipt *cliReceipt) bool {
-	if receipt.RootToken != r.project.RootToken || receipt.ProjectToken != r.project.ProjectToken || receipt.TaskID != r.task.TaskID || receipt.Origin != r.task.Origin {
+	if receipt.RootToken != r.project.RootToken || !r.matchesProjectToken(receipt.ProjectToken) || receipt.TaskID != r.task.TaskID || receipt.Origin != r.task.Origin {
 		return false
 	}
 	if !r.matchesWorkspace(receipt.WorkspaceConstraint) {
@@ -173,4 +192,11 @@ func (r request) rootReport(response cliResponse) (protocol.RootCapability, erro
 		return protocol.RootCapability{}, ErrEvidence
 	}
 	return result, nil
+}
+
+func (r request) matchesProjectToken(token string) bool {
+	if r.task.Route.Version == 1 {
+		return protocol.WireContextGuard(token) == r.task.Context.Project
+	}
+	return token == r.project.ProjectToken
 }

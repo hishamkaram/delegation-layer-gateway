@@ -25,10 +25,12 @@ func TestWireGuardHidesPathBearingCLIToken(t *testing.T) {
 }
 
 func TestExplicitModelSupportsProviderNamespaces(t *testing.T) {
-	if (Selection{Kind: "explicit", Value: "provider/model-v1"}).Validate() != nil {
-		t.Fatal("namespaced model rejected")
+	for _, value := range []string{"provider/model-v1", "custom model name", strings.Repeat("m", 1024), "model\nvalue"} {
+		if (Selection{Kind: "explicit", Value: value}).Validate() != nil {
+			t.Fatal("Gateway rejected an opaque Native option literal")
+		}
 	}
-	for _, value := range []string{"", "model\nsecret", "model\u0085name"} {
+	for _, value := range []string{"", "model\x00name", string([]byte{0xff}), strings.Repeat("m", MaxFrameBytes+1)} {
 		if (Selection{Kind: "explicit", Value: value}).Validate() == nil {
 			t.Fatal("invalid model accepted")
 		}
@@ -66,5 +68,26 @@ func TestAcceptedOutcomeDoesNotInventLiveness(t *testing.T) {
 	observation.Publication = "unknown"
 	if observation.Validate() == nil {
 		t.Fatal("uncommitted verdict accepted")
+	}
+}
+
+func TestObservationBoundsPresentBriefDigest(t *testing.T) {
+	for _, resolution := range []string{"existing", "absent", "unresolved", "permanently_refused"} {
+		t.Run(resolution, func(t *testing.T) {
+			observation := TaskObservation{Task: taskBinding(), Resolution: resolution, Admission: "unknown", Liveness: "undetermined", Publication: "unknown"}
+			if (observation.Validate() == nil) != (resolution != "existing") {
+				t.Fatal("omitted digest changed the existing-task presence requirement")
+			}
+			observation.BriefSHA256 = strings.Repeat("a", 64)
+			if err := observation.Validate(); err != nil {
+				t.Fatal("canonical present SHA256 was rejected", err)
+			}
+			for _, invalid := range []string{strings.Repeat("a", 65), strings.Repeat("A", 64), strings.Repeat("g", 64)} {
+				observation.BriefSHA256 = invalid
+				if observation.Validate() == nil {
+					t.Fatal("invalid present brief digest escaped its encoded bound")
+				}
+			}
+		})
 	}
 }

@@ -45,7 +45,7 @@ func validateProjectMetadata(ctx context.Context, tx *sql.Tx, resolution domain.
 		return validateResolveMetadata(ctx, tx, resolution, scope, command)
 	case protocol.ContextInspect:
 		return validateInspectMetadata(ctx, tx, resolution, command)
-	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
 		return domain.Reject(domain.Forbidden)
 	default:
 		return domain.Reject(domain.Forbidden)

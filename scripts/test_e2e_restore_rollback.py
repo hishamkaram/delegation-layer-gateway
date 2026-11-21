@@ -88,6 +88,53 @@ class SnapshotTests(unittest.TestCase):
 
 
 class RestoreOwnerTests(unittest.TestCase):
+    def test_later_access_grant_cannot_attribute_unknown_native_history(self):
+        origin = {"operation_id": "unmatched-operation"}
+        for attributed in (False, True):
+            with self.subTest(attributed=attributed):
+                root = SimpleNamespace(
+                    device="device",
+                    alias="project",
+                    context={"root_token": "root", "project_token": "project"},
+                )
+                h = SimpleNamespace(
+                    issuer="https://issuer.invalid",
+                    principal="original-principal",
+                    summary={},
+                    admin=mock.Mock(
+                        side_effect=[
+                            {"principal_id": "later-principal"},
+                            {},
+                            {"attributed": attributed, "origin": origin},
+                        ]
+                    ),
+                )
+                scenario = object.__new__(rollback.SnapshotRollback)
+                scenario.h = h
+                scenario.unattributed = {"task_id": "task", "origin": origin}
+                scenario.verify_native_result = mock.Mock()
+                if attributed:
+                    with self.assertRaisesRegex(
+                        ProofFailure, "inherited an unattributed"
+                    ):
+                        scenario.verify_unattributed_visibility(root)
+                    scenario.verify_native_result.assert_not_called()
+                else:
+                    scenario.verify_unattributed_visibility(root)
+                    scenario.verify_native_result.assert_called_once_with(root)
+                self.assertEqual(
+                    h.admin.call_args_list[1],
+                    mock.call(
+                        "put-grant",
+                        {
+                            "principal_id": "later-principal",
+                            "device_id": "device",
+                            "project_alias": "project",
+                            "scopes": ["inventory:read", "task:read", "task:cancel"],
+                        },
+                    ),
+                )
+
     def test_invalid_pre_snapshot_budget_cannot_prepare_stop_or_copy(self):
         for counts in (
             {"attempted": 1, "rejected_concurrent": 0, "rejected_limit": 0},

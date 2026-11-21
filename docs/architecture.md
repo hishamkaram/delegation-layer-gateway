@@ -11,8 +11,8 @@ See the maintained [component and operation-safety diagrams](../diagrams/README.
 | Owner | Writes | Readers | Invariant |
 | --- | --- | --- | --- |
 | Gateway registry | Enrollment, credentials, grants, routing correlations and reservations | MCP handlers, device transport, local admin | One durable request identity; no blind replay or authority inferred from a timeout |
-| Native local profile / connector configuration | Approved workspaces, immutable project pins and current local ceilings; legacy alias pins | Connector policy and public CLI adapter | Only approved workspace-relative directories can acquire new pins; saved identity never changes with policy |
-| Delegate | Admission/refusal, tasks, supervision, cancellation and accepted results | Connector through versioned public interfaces | Exactly one execution authority; accepted outcome and canonical closure are distinct from transport success |
+| Native local profile / connector configuration | Approved workspace paths/revisions, connection credentials and legacy alias pins | Embedded connector and public Native CLI adapter | New selection stays inside a current approval or Native OS temp scope; historical task identity never changes with approval edits |
+| Delegate | Filesystem selection/reads, provider support/defaults/validation, admission/refusal, tasks, supervision, cancellation and accepted results | Connector through versioned public interfaces | One execution authority; held directory custody through process start; accepted outcome and closure differ from transport success |
 | Identity provider | User authentication and access tokens | Gateway verifier | Principal comes from validated issuer/subject, never tool arguments or OAuth client ID |
 | Observability Recorder | Private audit attempts and fixed aggregate counters | Protected local admin and operator | Observations cannot authorize, settle reservations or replace Native outcomes |
 
@@ -31,7 +31,7 @@ or definitely-unsent expiry releases capacity. Publication and generic
 CLI project tokens contain encoded local directory identity. They stay inside
 the connector. Wire and registry context guards use `ctx1_` plus SHA-256 of the
 locally pinned CLI token; the adapter verifies and normalizes public receipts.
-MCP output contains project aliases, not CLI tokens or local paths.
+MCP task output contains routing selectors/operation IDs, never CLI tokens or absolute local paths. Requested relative filenames and file bytes are authorized response data; diagnostics and metrics exclude both.
 
 ## Connectivity and identity
 
@@ -66,8 +66,7 @@ requires the completed authenticated wire handshake, including routing and
 capability exchange, and a session that is not closing. Transport's existing
 handshake-completion signal is authoritative; registering a candidate session
 alone does not make it online. Online still does not establish Delegate
-compatibility or provider authentication. Every operation requires current Registry authority
-and the connector's local ceiling. Legacy devices use explicit project grants;
+compatibility or provider authentication. Every operation requires current Registry authority. New work also requires the connector's current local scope approval. Legacy devices use explicit project grants;
 owned devices use their current owner policy. Explicit device and project selection never
 silently falls back.
 
@@ -95,8 +94,8 @@ outcome or execution-closure evidence.
 ## Native-connect ownership and workspace routing
 
 The default user path is Native's embedded Gateway client and user service,
-not a separately installed connector. Native owns its profile, workspace policy,
-project-pin storage and service lifecycle; Gateway remains the authorization and
+not a separately installed connector. Native owns its profile, workspace approvals,
+legacy project-pin storage and service lifecycle; Gateway remains the authorization and
 routing authority, and Delegate remains the sole task authority. The standalone
 connector path remains available for legacy configurations. See
 [Native connect](native-connect.md) for OAuth device login, headless approval,
@@ -116,7 +115,9 @@ See [ownership](../internal/registry/ownership.go),
 [self-enrollment](../internal/registry/self_enrollment.go) and
 [server composition](../internal/server/selfservice.go).
 
-Registry schema 9 adds durable project-resolution requests and references from
+### Legacy alias compatibility
+
+Registry schema 9 added durable project-resolution requests and references from
 owned project routes to the first accepted pin. The connector's local profile
 remains authoritative for local workspace approvals and project bindings. Native
 owns their canonical-path semantics. A replacement at the same approved path
@@ -134,7 +135,7 @@ See [resolution orchestration](../internal/gateway/workspaces/resolve.go) and
 
 Each project handle has fresh targeted capabilities for `get_capabilities`,
 preparation and dispatch; periodic metadata never grows with historical pins.
-The local policy lock covers reloading the current ceiling through CLI Start,
+The local approval lock covers reloading the current workspace revision through CLI Start,
 then releases before Wait. Removed workspaces retain saved task identity for
 authorized observation/cancel/result controls but cannot authorize new resolution,
 admission or resume. There is no automatic repin, eviction or device fallback.
@@ -144,6 +145,44 @@ device at 1,024. Budget reports are dated observations, never reserved capacity.
 See [wire contracts](../internal/protocol/workspace.go),
 [targeted inspection](../internal/gateway/workspaces/inspect.go) and
 [local owner boundary](../internal/connector/workspace_contract.go).
+
+### Directory discovery and operation-owned selection
+
+The normal flow uses `list_workspaces`, `list_directory`, `read_file` and
+`inspect_git`, then `get_capabilities` for a typed scope-relative selection.
+Native alone reads the filesystem through rooted descriptors. A Git candidate
+is structural evidence, not validated repository identity. Hidden and non-UTF-8
+names are carried losslessly; requested bytes are not filtered or redacted.
+Directory pages and file versions are live optimistic observations, not snapshots.
+
+Whole OS temporary scopes are automatic: Linux `/tmp`; macOS native per-user
+temp and shared `/private/tmp`, canonicalized and deduplicated. The connector
+obtains these roots from Native, never a remote caller's environment or an
+absolute path. File tools require both task dispatch and read scopes in the token
+and current owner policy, with connection/root/credential rechecks before output.
+Reads do not initialize an admission namespace or allocate project/task records.
+
+`list_models` explicitly runs bounded Native discovery, preserving project
+configuration and Native process custody. `get_capabilities` does not trigger it.
+Catalogs are dated advice and paginated by content-bound cursors; they never
+veto a task option. Missing executable features produce an upgrade error.
+
+Schema 10 removes saved duplicate execution ceilings only through explicit
+migration acceptance. New preparation owns its selector and original Native
+option omissions, keyed by principal/device/client request ID. Lookup precedes
+filesystem reads, connectivity and random ID allocation. Permanent operation
+history is disk-backed; the live draft and retained-body limits protect current
+resources, not lifetime task counts. Legacy frozen operations and old alias
+controls retain their prior digest format.
+
+Compact Native intent commits original request identity without duplicating
+execution-option authority. Registry-loss import restores the original key and
+correlation; a discarded request body never authorizes fresh admission.
+Gateway continuation prepares one successor tied to the exact predecessor and
+same Native context, then uses Native's guarded continuation command. Fresh routes
+require the corresponding executable features and immutable binding; browsing
+and historical controls have independent checks. Integrated process and live
+acceptance remain release gates. See [the binding and continuation contracts](contracts.md#compact-intent-and-registry-loss-recovery).
 
 ## Admission and recovery
 
@@ -186,7 +225,8 @@ Gateway restart resolves correlations without launching them again. Snapshot
 restore resets credentials/grants and reserves all capacity until each prior
 destination applies a new Delegate admission-generation barrier and returns a
 complete canonical inventory. Stale preparation loses before writing fragments.
-Reopening revalidates inventory under exclusive maintenance ownership. Missing
+Initial reopening revalidates inventory under exclusive maintenance ownership;
+an already-open retry uses its committed membership receipt. Missing
 rosters, evidence or devices keep restore blocked; revocation never frees unknown
 execution capacity.
 

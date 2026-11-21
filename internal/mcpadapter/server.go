@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -22,6 +23,7 @@ import (
 )
 
 type Options struct {
+	Filesystem    FilesystemTools
 	Registry      Registry
 	Operations    Operations
 	Presence      Presence
@@ -60,9 +62,9 @@ func New(options Options) (*Adapter, error) {
 	// allowlisted audit/metrics path may write application observability.
 	quiet := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	// Older versions require batches; this boundary admits one RPC per HTTP request.
-	server := mcp.NewServer(&mcp.Implementation{Name: "delegation-layer-gateway", Version: appversion.Current}, &mcp.ServerOptions{Logger: quiet, Instructions: "Select a device and project explicitly. Prepare a dispatch, retain its operation ID, then confirm it. Retry by the same handle; never create a replacement after an unknown admission. Accepted results and confirmed execution closure are separate. A project grant does not provide an OS sandbox.", SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18"}})
+	server := mcp.NewServer(&mcp.Implementation{Name: "delegation-layer-gateway", Version: appversion.Current}, &mcp.ServerOptions{Logger: quiet, Instructions: "Select a device explicitly, discover approved workspaces and automatic OS temporary scopes, then browse with scope_id and relative_path. Base64 selectors preserve unusual Unix names for file reads. File access requires both task:dispatch and task:read. Inspect Native capabilities as dated advice; Native owns execution choices and defaults. Prepare using a stable request_id, selection and native_options; retain the returned operation ID before confirmation. For a follow-up, use prepare_continuation with the saved predecessor operation handle, explicit device_id and a stable new request_id; omitted selection, brief and overrides inherit the saved Native task. Confirm the returned successor with dispatch_task. Reuse the same request or operation identity after uncertainty, never create replacement work. Historical project_alias tools remain available for old handles. Accepted results and confirmed execution closure are separate. Same device account is one trust boundary; a scope is not an OS sandbox.", SupportedProtocolVersions: []string{"2026-07-28", "2025-11-25", "2025-06-18"}})
 	adapter := &Adapter{options: options, server: server, metadataURL: resource.Scheme + "://" + resource.Host + "/.well-known/oauth-protected-resource/mcp", limits: limits}
-	if err = adapter.registerTools(); err != nil {
+	if err = errors.Join(adapter.registerTools(), adapter.registerFilesystemTools(), adapter.registerModelTools()); err != nil {
 		return nil, err
 	}
 	// The composition guard owns exact public Host/Origin checks, including behind
@@ -140,7 +142,7 @@ func (a *Adapter) Metadata() http.Handler {
 			http.Error(writer, "method_not_allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		data, err := json.Marshal(resourceMetadata{Resource: a.options.ResourceURL, AuthorizationServers: []string{a.options.Issuer}, ScopesSupported: []string{string(domain.InventoryRead), string(domain.TaskDispatch), string(domain.TaskRead), string(domain.TaskCancel)}, BearerMethodsSupported: []string{"header"}})
+		data, err := json.Marshal(resourceMetadata{Resource: a.options.ResourceURL, AuthorizationServers: []string{a.options.Issuer}, ScopesSupported: []string{string(domain.InventoryRead), string(domain.TaskDispatch), string(domain.TaskRead), string(domain.TaskCancel), "offline_access"}, BearerMethodsSupported: []string{"header"}})
 		if err != nil {
 			http.Error(writer, "internal_error", http.StatusInternalServerError)
 			return
@@ -156,7 +158,7 @@ func (a *Adapter) Metadata() http.Handler {
 	})
 }
 
-func (a *Adapter) actor(request *mcp.CallToolRequest, scopes []domain.Scope) (domain.Actor, *ToolError, string) {
+func (a *Adapter) actorWithMode(request *mcp.CallToolRequest, scopes []domain.Scope, all bool) (domain.Actor, *ToolError, string) {
 	if request == nil || request.Extra == nil || request.Extra.TokenInfo == nil {
 		return domain.Actor{}, &ToolError{Code: "unauthenticated"}, a.challenge("invalid_token", "Authentication required", scopes)
 	}
@@ -174,18 +176,28 @@ func (a *Adapter) actor(request *mcp.CallToolRequest, scopes []domain.Scope) (do
 	if actor.Validate() != nil {
 		return domain.Actor{}, &ToolError{Code: "unauthenticated"}, a.challenge("invalid_token", "Authentication required", scopes)
 	}
+	matched := 0
 	for _, scope := range scopes {
 		if actor.Scopes.Has(scope) {
-			return actor, nil, ""
+			matched++
 		}
+	}
+	if (all && matched == len(scopes)) || (!all && matched > 0) {
+		return actor, nil, ""
 	}
 	return actor, &ToolError{Code: "forbidden"}, a.challenge("insufficient_scope", "Required scope is missing", scopes)
 }
 
 func (a *Adapter) challenge(code, description string, scopes []domain.Scope) string {
-	scope := ""
-	if len(scopes) > 0 {
-		scope = string(scopes[0])
+	requested := make([]string, 0, len(scopes)+1)
+	for _, value := range scopes {
+		requested = append(requested, string(value))
 	}
+	// offline_access is an authorization-server acquisition hint, never a
+	// required resource-token permission. Clients keep refresh-token custody.
+	if code == "invalid_token" {
+		requested = append(requested, "offline_access")
+	}
+	scope := strings.Join(requested, " ")
 	return fmt.Sprintf("Bearer resource_metadata=%q, error=%q, error_description=%q, scope=%q", a.metadataURL, code, description, scope)
 }
