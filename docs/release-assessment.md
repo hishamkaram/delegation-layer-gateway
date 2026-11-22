@@ -34,14 +34,20 @@ Independent Sol and Opus reviews found no actionable P0/P1/P2 in those
 corrections. Subsequent source review identified a P2 retirement case: an
 unfinished upgrade can retire the resident that still owns its accepted
 target's Wait. A regression reproduced the forbidden retirement attempt; its
-guard and the automatic GUI upgrade adapter remain under implementation.
+guard is implemented in Native `845b1372` and passed focused race/static checks
+and independent scoped review. Two valid completion crash tails retain their
+canonical cleanup path. Native `db086178` implements the automatic GUI upgrade
+adapter; 74 focused race-test cases, scoped static checks and independent native
+review passed. Current full CI, final integrated Sol/Opus review and actual
+macOS adapter acceptance remain outstanding.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
 also passed exact-byte/hash verification and observed-session continuation.
 They used the managed service's configured PATH in a natural Aqua context.
 The operator subsequently reported a successful actual ChatGPT Cloud two-turn
 Gateway test on Home, including exact bytes/hashes and both canonical terminal
-closures. This is separate evidence from the Native proof. Office rollout,
-automatic GUI upgrade implementation and seven actual elapsed days of
+closures. Root independently matched the stored correlation, descriptors and
+closure observations. This is separate evidence from the Native proof. Office rollout,
+actual automatic GUI upgrade acceptance and seven actual elapsed days of
 login/refresh acceptance remain outstanding. See the
 [deployment checkpoint](verification.md#november-21-reviewed-candidate-deployment).
 Home's current Claude authentication differs between Aqua and SSH despite the
@@ -50,7 +56,8 @@ rejected; their historical execution-context cause remains unverified. The later
 GUI-controlled upgrade wrote a minimal service PATH. Supported service
 uninstall/install/start restored the invoking user's provider PATH; all six
 installed provider executable names then resolved. Routine-upgrade PATH
-preservation and automatic GUI control still need implementation and review.
+preservation and automatic GUI control are implemented; final integrated review
+and actual-Mac proof remain outstanding.
 There are no PR, merge or release claims for this candidate.
 
 The sections below retain the earlier revisions and evidence; they do not

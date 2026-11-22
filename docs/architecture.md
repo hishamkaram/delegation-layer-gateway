@@ -76,10 +76,12 @@ reports. A compatible, authorized route can therefore report execution readiness
 provider task supplies its own dated execution evidence.
 
 On macOS, the caller's execution context can differ between SSH and a GUI login.
-Native owns any explicit same-root runtime restart needed to change that context;
-Gateway neither relocates the supervisor nor performs provider login. The
-acceptance setup's temporary GUI operator bridge is outside the Gateway protocol.
-The selected connector process is subsequently owned by launchd. See the
+Native owns explicit same-root maintenance and its finite GUI upgrade adapter;
+Gateway neither relocates the supervisor nor performs provider login. Accepted
+Native Gateway upgrades use that adapter before profile locking, preserving PATH
+from the validated managed service definition. The normal connector remains
+owned by launchd and has no maintenance authority. The earlier temporary GUI
+operator bridge was test setup outside the Gateway protocol. See the
 [dated service proof and remaining limits](verification.md#november-13-office-runtime-and-service-checkpoint).
 
 Transport owns each outbound write and its completion signal. A completed

@@ -263,6 +263,15 @@ not mint another registration. A pending Native upgrade is resumed by its exact
 operation identity. Failed prerequisites are reported; do not delete state to make
 the command pass.
 
+On macOS, accepted maintenance automatically runs in the same user's existing
+GUI domain, including calls through SSH. It preserves PATH from the validated
+connector service definition and retains that configuration through pending
+reconciliation. No other SSH environment or credentials are copied. A missing
+GUI session is an explicit prerequisite. Preview remains passive; the normal
+connector service carries no maintenance authority. Follow the same profile's
+reported next action after uncertainty. See Native's
+[upgrade procedure](https://github.com/hishamkaram/delegation-layer/blob/main/docs/gateway-connect.md#native-root-and-profile).
+
 For a standalone legacy connector configuration, stop that connector first:
 
 ```sh

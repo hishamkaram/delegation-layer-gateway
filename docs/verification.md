@@ -2374,6 +2374,12 @@ The client reported one retryable status `resource_limit` and one retryable
 collection `pending`; only passive collection was retried. Exactly two
 dispatch calls were reported. No replacement, redispatch, admission recovery,
 credential change or device switch occurred. Earlier rejected operations were
-left untouched. This proves the reported Home Cloud/provider/continuation
+left untouched. Root subsequently read only these two operations' Gateway
+registry metadata. Both task identities, result lengths/digests, terminal
+closure observations and released reservations matched the report. The
+successor's stored predecessor operation and task also matched. This verifies
+Gateway correlation and cached Native observations independently of the
+client report; it is not an independent retrieval of accepted bytes.
+This proves the reported Home Cloud/provider/continuation
 scenario, not actual refresh-token exchange, seven elapsed login days, another
 Cloud client, Office execution or automated GUI maintenance.
