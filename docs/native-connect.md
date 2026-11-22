@@ -313,9 +313,12 @@ error; upgrade both sides before verifying the corrected behavior.
 
 Native exposes explicit `gateway service install|start|stop|status|uninstall`
 commands and `gateway serve`. Linux requires the intended user's systemd
-manager; macOS requires its GUI LaunchAgent context. Missing manager/session
-prerequisites are explicit errors. No SSH background-context fallback or hidden
-sudo configuration is performed.
+manager; macOS requires the same user's existing GUI LaunchAgent domain.
+Same-user SSH can control that domain; the SSH shell itself need not run in
+Aqua. No tmux session is required. Missing manager/session prerequisites are
+explicit errors; Native does not create a GUI session, select a background
+service instead or configure sudo. Service registration alone does not prove
+an authenticated Gateway connection or provider readiness.
 
 ```sh
 delegate gateway status

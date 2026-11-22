@@ -1,10 +1,13 @@
 # Release assessment
 
-## Remote Delegate candidate — 21 November 2026
+## Remote Delegate candidate — 22 November 2026
 
-Source metadata prepares Gateway **0.2.0** and Delegate **0.9.0**. Neither has
-been published or deployed by this work. The candidate removes duplicate execution
-ceilings and adds scope-relative filesystem/provider discovery, explicit profile
+Source metadata prepares Gateway **0.2.0** and Delegate **0.9.0**. Neither release
+has been published. The Gateway candidate is deployed to the authorized test
+server. Home's original registration now selects a reviewed, locally built
+Native candidate; Office's original selection remains unchanged. Global
+package installations were not replaced. The candidate removes
+duplicate execution ceilings and adds scope-relative filesystem/provider discovery, explicit profile
 migration and an installed-executable handoff.
 
 **Not release-ready.** Compact registry-loss intent reconstruction and Gateway
@@ -17,8 +20,29 @@ installed-provider continuation and final integrated verification remain incompl
 Scoped Opus and native correction reviews do not replace the required final
 integrated Sol/Opus reviews. New actual-process Linux filesystem evidence has its
 own [recorded checkpoint](verification.md#november-21-remote-filesystem-candidate-checkpoint).
-Full current engineering gates, native macOS, installed providers, Cloud clients
-and seven actual elapsed days of login/refresh acceptance remain outstanding.
+[Gateway CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44952678892)
+passed its complete Linux/macOS and harness gates at `958afe0`.
+[Native CI](https://github.com/hishamkaram/delegation-layer/actions/runs/44952678897)
+passed Linux's gate and all six Linux/macOS distribution installations at
+`bac77dbf`. Its first macOS attempt failed during a public dependency download;
+the bounded failed-job rerun reached the tests and failed the cold-predecessor
+upgrade scenario. The exact focused scenario subsequently passed on Linux and
+Home's native macOS, but the aggregate failure remains unexplained and Native
+CI is not green. Home's SSH-driven original-profile upgrade and authenticated
+same-credential WSS reconnect passed after an explicit Native supervisor
+handoff. Its composition correction and the stdin EOF fix passed focused Linux
+and actual macOS scratch tests; original-service rollout remains outstanding.
+The corrected Native revision `d5208d35` has a separate
+[current CI run](https://github.com/hishamkaram/delegation-layer/actions/runs/44996630923).
+Independent Sol and Opus reviews found no actionable P0/P1/P2 in those
+corrections. Their separate P2 execution-placement design finding remains open.
+Current ChatGPT Cloud browsing passed. Installed-provider continuation and
+seven actual elapsed days of
+login/refresh acceptance remain outstanding. See the
+[deployment checkpoint](verification.md#november-21-reviewed-candidate-deployment).
+Home's current Claude authentication differs between Aqua and SSH despite the
+same executable/config directory and no auth overrides. Two Cloud tasks were
+rejected; the execution-context cause and safe recovery remain under review.
 There are no PR, merge or release claims for this candidate.
 
 The sections below retain the earlier revisions and evidence; they do not
