@@ -17,9 +17,10 @@ func (a *Adapter) registerTools() error {
 	dispatch := []domain.Scope{domain.TaskDispatch}
 	return errors.Join(
 		register(a, "list_devices", "List authorized devices. Online, Delegate compatibility, and provider authentication are separate dated facts.", inventory, read, a.devices),
-		register(a, "list_projects", "List authorized project aliases on the explicitly selected device; never returns local paths.", inventory, read, a.projects),
-		register(a, "get_capabilities", "Inspect dated providers, supported selections and effective dispatch ceilings for one device and project.", inventory, read, a.capabilities),
-		register(a, "prepare_dispatch", "Prepare one immutable request for an explicit device and project. Starts nothing. Retain the returned operation ID before confirming.", dispatch, toolHints{}, a.prepare),
+		register(a, "list_projects", "List authorized historical project handles on the explicit device. These handles are not filesystem discovery; use list_workspaces and list_directory to find new work.", inventory, read, a.projects),
+		register(a, "get_capabilities", "Inspect dated Native provider modes, options, required inputs and continuation support for an explicit device and scope selection. Discovery is advisory; Native owns defaults and validates requests. Legacy project_alias remains supported.", inventory, read, a.capabilities),
+		register(a, "prepare_dispatch", "Prepare immutable work with an explicit device, selection {scope_id, relative_path}, stable request_id and native_options. Omitted options retain Native defaults. Starts nothing. Reuse the same request_id after uncertainty; retain the returned operation ID before confirming. Legacy project_alias inputs must not be mixed with selection inputs.", dispatch, toolHints{}, a.prepare),
+		register(a, "prepare_continuation", "Prepare a follow-up from a saved predecessor_operation_id with an explicit device_id and stable request_id. Omit selection to reuse its captured project, omit brief to inherit Native's saved bytes, and omit overrides to inherit Native options. Only budget, model, effort and output_silence_timeout may be overridden. Starts nothing and reveals no task results. Reuse the identical request_id after uncertainty; retain the returned successor operation ID and confirm it with dispatch_task.", dispatch, toolHints{Idempotent: true}, a.prepareContinuation),
 		register(a, "dispatch_task", "Confirm an existing prepared operation. Reuse its handle after retries; an unknown admission never authorizes a replacement task.", dispatch, execute, a.dispatch),
 		register(a, "list_operations", "Recover authorized operation handles without briefs. Dispatch-only access lists drafts; task-read access permits current authorized observations.", []domain.Scope{domain.TaskRead, domain.TaskDispatch}, read, a.operations),
 		register(a, "resolve_operation", "Passively resolve the same operation. Never starts, resumes or fences a task.", observe, read, a.resolve),
@@ -33,6 +34,9 @@ func (a *Adapter) registerTools() error {
 }
 
 func (a *Adapter) prepare(ctx context.Context, actor domain.Actor, input PrepareInput) (Prepared, error) {
+	if input.Selection != nil || input.NativeOptions != nil || input.RequestID != "" {
+		return a.prepareSelected(ctx, actor, input)
+	}
 	request := domain.FrozenRequest{Provider: domain.ProviderID(input.Provider), Permission: domain.Permission(input.Permission), BudgetSeconds: input.BudgetSeconds, Brief: input.Brief, Model: selection(input.Model), Effort: selection(input.Effort)}
 	prepared, err := a.options.Operations.Prepare(ctx, actor, domain.Destination{Device: domain.DeviceID(input.DeviceID), Project: domain.ProjectAlias(input.ProjectAlias)}, request)
 	if err != nil {

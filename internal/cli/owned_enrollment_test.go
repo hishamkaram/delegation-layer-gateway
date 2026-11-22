@@ -45,7 +45,7 @@ func newOwnedCLIAdmin(t *testing.T) *ownedCLIAdmin {
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(ctx) }()
 	t.Cleanup(func() { cancel(); require(t, server.Close()); require(t, <-done) })
-	code, out, diagnostic := command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", "--provider", "claude:print", "--max-devices", "2")
+	code, out, diagnostic := command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", "--max-devices", "2")
 	if code != 0 || diagnostic != "" {
 		t.Fatal("real Unix owner setup failed", code, diagnostic)
 	}

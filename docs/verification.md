@@ -2014,3 +2014,479 @@ Those fixes reject a foreign cached parent search path and foreign
 `acceptance.py` providers before import. They do not change the tested Gateway
 binaries or the fresh registration/Registry-denial behavior; their own regression
 and source-selection validation must be assessed separately.
+
+## November 21 remote filesystem candidate checkpoint
+
+Two actual-process runs on one Linux host used source-built Gateway, the official
+MCP SDK helper, Native and its adjacent runner. The source bases were Gateway
+`8937a4a7adacd2121017e1313022ecf8406b8ed3` and Native
+`8ca43c1366fe274950871cc0903a803d6203781c`, with uncommitted candidate changes;
+these are not published release revisions. Reproduction inputs are described in
+[local candidate verification](native-connect.md#verify-a-candidate-locally).
+
+The corrected run passed with two local embedded connectors, real self-enrollment,
+HTTPS authentication and mTLS/WSS. Each approved workspace exposed descendants
+created after its approval. Directory pagination preserved hidden/non-UTF-8
+names; ranged reads reconstructed exact fixture bytes; Git inspection returned
+structural candidates; lexical and symlink escapes were denied. Linux's automatic
+whole `/tmp` scope was exercised using requested test-owned children.
+Four fresh public profile previews reported schema 3 and zero pins. Gateway
+project/operation lists and canonical Native task observations stayed empty during
+the filesystem stage, with zero fixture-provider attempts.
+
+Each run then completed the three existing literal-provider fixture scenarios:
+accepted results, same-operation retry, same-path directory replacement,
+Gateway restart/reconnect and requested cancellation with canonical closure.
+There were six fixture attempts across both runs, with no concurrency or attempt
+rejection. All 111/116 respective owned control/service captures had completed
+direct Wait receipts. Canonical task closure and temporary-fixture cleanup were
+confirmed. Closed private evidence directories were retained.
+
+The first run's pin count relied on dated WSS inventory; the corrected run added
+the fresh public profile previews. Its first outer evidence exporter also rejected
+a retained FIFO after runtime cleanup had completed; a later metadata-preserving
+tar export retained that evidence without reading the FIFO. This was an evidence
+handling failure, not a passing exporter run.
+
+The diagnostic checker was subsequently strengthened to detect individual
+17-byte canary ranges and their base64 forms. It was rerun against both immutable
+capture sets, not presented as a third product run. All eight patterns were absent
+from eight product log streams, two audit files and 48,017/48,018 metrics bytes per
+run. Requested response captures were excluded from diagnostics checks. An
+independent read-only review verified byte reconstruction, manifests, archive
+contents and this limited sentinel scope; this is not proof against every possible
+content leak.
+
+**Unverified:** current integrated engineering gates, registry-loss intent binding,
+new-route admission/continuation, installed providers, native macOS, browser/device
+OAuth, separate physical networks, both Cloud clients and seven actual elapsed
+days of Cloud login/refresh usability. These remain prerequisites to the paired
+PRs and release verdict. No production configuration or Mac state changed for
+this checkpoint.
+
+## November 21 compact-dispatch process checkpoint
+
+The scope-relative candidate scenario now passes using actual Gateway, MCP SDK,
+two embedded Native connectors and the installed Pueue pair on Linux. Run the
+[local candidate command](native-connect.md#verify-a-candidate-locally) with
+`--compact-routes`. Both repositories remained uncommitted candidates on the
+source bases recorded above; this is not published-release evidence.
+
+The final run returned `native_connect_passed` in 99.323 seconds, with exactly
+three literal-provider attempts and confirmed process and temporary-file cleanup.
+It verified preparation and dispatch replay with stable IDs, exact accepted
+results and closure, same-path replacement, Gateway restart/reconnect, and
+historical status/cancellation after workspace approval removal. Public Native
+inventory independently matched all three compact dispatch commitments.
+Requested fixture canaries were absent from the checked product diagnostics,
+audit and metrics.
+
+Earlier runs exposed two real connector defects: guarded calls omitted the saved
+workspace projection flag, and receipt validation incorrectly required a redundant
+project-token header that Native omits for hash-addressed reads. Both were fixed;
+canonical receipt identity checks remain required. The controller also corrected
+an invalid textual timestamp comparison to compare the exact instant. The five
+runs made 0, 0, 1, 1 and 3 fixture attempts respectively; every run confirmed cleanup.
+The final successful run is separate from those failed/interrupted attempts.
+
+The corrected connector package passed `go test -race -count=1` in 35.830 seconds;
+its vet, lint and formatting checks passed. Driver regressions and Python lint
+also passed. These focused results do not establish the complete engineering gate.
+
+**Unverified:** successful continuation through an installed provider checkpoint,
+native macOS and both original device states, physical networks, actual Cloud
+clients and seven elapsed days of refresh/idle return. The literal provider does
+not save a usable checkpoint. Later protected-message sizing corrections are
+outside this process checkpoint. No production configuration or Mac state changed.
+
+## November 21 reviewed candidate deployment
+
+Gateway revision `958afe0c814875ce7e603bf30aaece9c5e233c5c` passed its complete
+[harness and Linux/macOS engineering gates](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44952678892).
+Native revision `bac77dbf735f16997639311f0b1633120b923000` passed the
+[Linux gate, auxiliary acceptance and all six distribution installations](https://github.com/hishamkaram/delegation-layer/actions/runs/44952678897).
+That Native run's first macOS gate stopped on a public Go module archive TLS
+handshake timeout, before runtime validation. Its dependent gate failed as well;
+only those failed jobs were submitted for a retry after the run completed.
+The retry subsequently reached runtime validation and failed
+`TestSupervisorUpgradeColdPredecessorPublicCLINative`. Native CI remains failed.
+The exact focused scenario passed separately on Linux and Home's native macOS;
+those focused passes do not explain or override the aggregate failure. Bounded
+failure diagnostics were added without changing the scenario's assertions.
+
+Independent Sol and Opus reviews of the actual protected-control sizing and
+atomic continuation changes, followed by the CI fixture corrections, found no
+P0/P1/P2 within their inspected scope. Sol identified stale skill wording that
+called the implemented continuation tool unfinished. The canonical reference
+and plugin mirror were corrected to distinguish implementation from unverified
+installed-provider acceptance. Review agreement does not establish live proof.
+
+The authorized test Gateway was stopped through its systemd owner and confirmed
+inactive with exit 0. A protected SQLite backup passed integrity checking before
+the explicit schema-9-to-10 migration. Gateway identity, all 21 operations, 10
+devices, four grants and two owner policies were preserved; every original
+operation column compared equal to the backup. Six obsolete execution-policy
+fields were removed through the supported migration.
+
+The first deployment attempt changed the base service unit but missed an
+existing systemd override that still selected the older binary. That binary
+refused the migrated database, and the public endpoint returned 502. The base
+unit was restored and the existing override updated to the source-built
+candidate. The loaded service command was then verified, with zero restarts.
+System-trusted public HTTPS checks returned OAuth metadata 200, Native discovery
+200 and unauthenticated MCP 401. Metadata advertises `offline_access`; no Auth0
+tenant setting was changed by this deployment. A separate official Go MCP SDK
+client obtained an Auth0 test token and successfully called `list_devices`.
+Its separate principal saw zero devices. This proves authenticated public MCP
+transport, not device browsing or task execution. Its spent local token file
+was removed after the client joined.
+
+The existing compact-route process driver was also rerun against that Gateway
+binary and Native's verified `bac77dbf` distribution, after the protected-message
+sizing correction. It returned `native_connect_passed`: three literal-provider
+attempts, no concurrency/attempt rejection, canonical closure for all three tasks,
+and confirmed process and requested-temp-file cleanup. The two-connector flow
+verified exact filesystem bytes, pagination, Git/escape checks, no browsing pins
+or task creation, stable dispatch identities, same-path replacement, restart and
+historical cancellation after approval removal. The checked eight log streams,
+two audit files and metrics contained none of the eight fixture-canary patterns.
+Private evidence was retained. This closes the earlier process checkpoint's
+post-correction gap; it still does not test installed-provider continuation.
+
+The verified Native candidate archive was extracted on both physical Macs.
+Neither original installation was replaced. Both passive upgrade previews
+recognized the original default profile, one workspace, zero pins and two
+obsolete execution policies. Preview reports Native verification `not_run`;
+it does not prove root-context equality, identity preservation or service
+readiness. Home's existing profile still requires migration. Office has an
+active task, which was left untouched. Actual upgrade completion requires the
+logged-in macOS user's GUI service context.
+
+The candidate's local Native filesystem CLI separately passed eight temp
+list/read calls across the original Home and Office roots. Both canonical
+per-user temporary directories and shared `/private/tmp` were discovered
+automatically. Four binary reads each matched the expected 288 bytes exactly.
+The original RootIDs and guards stayed unchanged, every invocation joined, and
+all four identity-checked test files were removed. Approved-workspace discovery
+returned `migration_required` with `run_gateway_upgrade_preview` on both Macs;
+Git proof through those approvals remained blocked. No service, approval,
+credential or task was changed. This is Native macOS boundary evidence, not
+Gateway/MCP, Cloud or provider-execution acceptance.
+
+**Unverified:** original-root Mac upgrades and execution, successful installed-
+provider continuation, both Cloud clients' new-route acceptance, actual refresh
+and seven elapsed days of login usability. No PR, merge or release readiness is
+claimed by this checkpoint.
+
+## November 22 SSH upgrade and Cloud browsing checkpoint
+
+An actual same-user Background SSH session could target the existing macOS
+`gui/501` domain: bootstrap of an owned one-shot probe succeeded, its child
+reported Aqua, and supported bootout removed the exact test service. All owned
+probe files were removed. No GUI session was created and no privileged helper,
+tmux session or credential change was used.
+
+Native's correction targets that explicit GUI domain for both registration
+observation and controls. Exit-only probes discard launchctl output before
+capture; missing jobs require a successful domain recheck before reporting
+absence. Independent Sol and Opus source reviews found no P0/P1/P2 in this
+correction. Native Home race tests for `internal/gatewayservice` and
+`internal/gatewaycommand` passed on the reviewed source-built candidate.
+
+Home's original-profile upgrade then succeeded through SSH, preserving the
+root, device and generation-1 credential while moving profile version 2 to 3
+and removing the two obsolete execution policies. The first automatic Native
+handoff failed at `supervisor_transition`: the task-contained control child was
+correctly refused. Direct public `supervisor ensure-owner` created and completed
+one reactive operation, after which the original Gateway upgrade completed.
+That workaround is evidence of successful recovery, not proof that automatic
+handoff works. Its composition correction is recorded separately below. Gateway audit
+metadata recorded authenticated WSS admission at `2026-11-22T05:41:28Z` with the
+same credential reference. Global installed packages and Office's profile were
+not replaced by this Home upgrade.
+
+An authenticated public MCP catalog check negotiated `2025-11-25` and returned
+all 19 tools, including `list_workspaces` and `list_directory`. The operator's
+first Cloud session lacked these tools. After refreshing and enabling the
+updated action list, actual ChatGPT Cloud reported successful workspace
+discovery and a complete 53-folder listing of Home's approved Active-Projects
+workspace, including eight hidden folders and both automatic temporary scopes.
+No task was prepared or dispatched. The initial `limit: 200` call was rejected;
+the advertised schema allows at most 100 entries per page, and the default-limit
+call returned `eof: true`. Cloud result bodies are operator-reported; Root
+independently checked the authenticated live server catalog.
+
+The subsequent Cloud continuation probe dispatched its first task once, but
+`collect_result` returned nonretryable `result_unavailable`. Public Native status
+and one collection of that exact task corroborated rejected publication with
+`provider_authentication_failed`; collection exited 4 and directed native
+provider login. There were no accepted bytes, and no continuation was prepared
+or dispatched. Terminal execution closure and released reservation do not turn
+that rejection into provider success. No task retry or login was performed by
+this diagnostic.
+
+**Unverified:** Office's original-profile upgrade, automatic Native maintenance
+composition, installed-provider continuation, current Claude Cloud acceptance,
+refresh-token issuance and seven actual elapsed days of cloud login usability.
+Native's aggregate macOS CI failure remains unresolved. These scoped successes
+do not establish PR or release readiness.
+
+## November 22 Native correction proof
+
+The actual App Gateway-upgrade regression failed on the preimage at
+`supervisor_transition` with `migration_required` while retaining the expected
+Native operation. The corrected in-process App composition completed that same
+operation against a real store, resident, daemon and source-built CLI. Profile
+and OS-service edges were controlled doubles. The Linux regression passed in
+51.46 seconds, including completed-A/current-B replay and contained/origin
+completed-replay refusals; the existing cold-predecessor scenario passed in
+25.04 seconds. Host/owner race coverage separately exercised exact-A/current-B
+canonical replay without stale-owner contact, an actual Unix owner handler
+blocked on bootstrap exclusion returning Busy then progressing after unlock,
+and serving release while a real owned child Wait remained pending. Those are
+separate cells, not a forced fully interleaved real-owner routing race.
+
+A positive pipe-EOF regression independently failed before the reader fix:
+`errors.Join(io.EOF, nil)` changed ordinary EOF into an error returned by
+`io.ReadAll`, so valid stdin JSON was rejected. The correction preserves plain
+EOF when descriptor control succeeds, retaining real read/control faults.
+Focused race/cancellation checks passed without changing borrowed stdin flags,
+deadlines or ownership.
+
+Actual Home Darwin arm64, Go 1.27.4, then passed five focused `-race -count=1`
+selectors: 17 top-level tests plus 16 subtests, zero skips/failures, 50.932 seconds
+total. This covered EOF/cancellation, the real App and cold-predecessor scenarios,
+maintenance guards, host completion fences and root-owner stop/Wait behavior.
+The new source-built 0.9.0 CLI accepted finite `{}` from a pipe for
+`filesystem scopes --request - --json` with exit 0. All 3,671 source inputs stayed
+unchanged; test owners joined and test-only roots/temp were removed. Owned
+source/candidate/evidence remain private intentional deliverables. Neither the
+original registration nor a production service was changed by these tests.
+An initial archive preflight rejected permission metadata before any tests;
+all bytes matched, metadata was corrected in a second new directory, and the
+failed preflight evidence was retained.
+
+The independent native production-diff reviewer reported no actionable
+P0/P1/P2/P3 within that inspected correction scope. Independent Sol and Opus
+reviews then checked the exact 37 correction inputs and reported no actionable
+P0/P1/P2 in that diff. Sol's separate P2 design finding concerns macOS provider
+execution placement; it is not resolved by the service-control or maintenance
+composition fixes. The corrected Native revision `d5208d35` has a separate
+[CI run](https://github.com/hishamkaram/delegation-layer/actions/runs/44996630923).
+Combined CI and original-service/provider acceptance remain separate gates.
+
+A second operator-reported Cloud probe reused its existing operation rather
+than redispatching it. Native's public status and one collection corroborated
+another `provider_authentication_failed` rejection. No accepted bytes or
+continuation were created. A finite owned one-shot Aqua job subsequently
+reported Claude logged in, while a later SSH call of the same executable and
+configuration directory reported no login. Neither call had the four inspected
+Claude/API authentication environment overrides. The GUI job exited naturally,
+was removed through its exact launchd label, and its identity-checked files
+were removed. These dated observations support an execution-context hypothesis;
+they do not identify the failed task's historical context or prove its Keychain
+cause. Original-state recovery and provider continuation remain unverified.
+
+## November 22 original Home handoff and Native provider proof
+
+The corrected Native revision `d5208d35` passed all 22 jobs in
+[CI](https://github.com/hishamkaram/delegation-layer/actions/runs/44996630923),
+including the full macOS gate. Gateway `57ac598` passed all three jobs in its
+[matching CI run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44998593189).
+These successes do not explain the earlier aggregate macOS failure.
+
+One actual Aqua control job ran the supported Gateway upgrade against Home's
+original root and a different reviewed candidate installation. It returned
+pending with an exact reactive Native operation. One subsequent public
+`supervisor ensure-owner --complete-upgrade` completed that same operation;
+one same-profile Gateway finalization then verified Native context/capabilities,
+preserved device identity, completed the source CAS and registered the service.
+Authenticated WSS admission followed with the same generation-1 credential.
+All three control jobs exited naturally; exact labels were removed, direct
+children joined and identity-checked control files removed.
+
+The GUI upgrade wrote its minimal ambient PATH into the service definition.
+A subsequent natural-GUI provider test stopped at `prepare-provider` with
+`provider_unavailable` and explicit-ID task creation `unknown`. That identity
+was retired without observation or replay; its private inputs remain retained.
+Source inspection placed this invocation's refusal before ordinary task creation
+and submission, but did not prove the identity's present absence.
+
+Passive checks confirmed that both the natural GUI and actual service PATH
+omitted all six installed provider executable names. Supported service
+uninstall/install/start restored the same user's existing SSH PATH, preserving
+the profile, executable and service label. The validated definition contains
+only PATH in its environment; all six executable names resolved in place.
+No installed executable was copied, hashed or invoked by those lookup checks.
+The exact device reconnected with its existing credential after this repair.
+This is an operational configuration repair; upgrade PATH preservation is not
+yet implemented in production source.
+
+A new, independent Native test used Native-allocated task identities and actual
+Aqua context, overriding only PATH with the validated service configuration.
+The first Claude turn committed exactly eight bytes, `FIRST_OK`, with SHA-256
+`5f11dd5eea3687a1d9eeb64f0975bfcb83f24c444d3832f9e1565a05664a0a07`.
+The conditional continuation committed the exact 28-byte remembered marker,
+with SHA-256
+`44636498b62cc09580fb4fe865aae22484bba658d2dd039db8a214a88e114420`.
+Both complete payloads were saved through the public descriptor API and
+independently length/hash/byte verified. Parent/predecessor links matched;
+Native reported continuation mode `native` and session source `observed`.
+No model override was requested; the provider reported `claude-opus-5-5`.
+
+The initial continuation admission returned the documented `not_created`
+supervisor-migration prerequisite. One same-root migration reported
+`migrated`/`retry_dispatch`, followed by the argv-identical continuation retry.
+Thus three admission calls produced two confirmed-created provider turns.
+All new GUI/control resources joined and were removed. Shared-root task history
+and the earlier uncertain identity remain retained. Ordinary Native controls
+did not export a raw provider conversation ID or connector execution-closure
+witness. This proves installed-provider Native continuation, separately from
+MCP routing or a Cloud client.
+
+The operator reported saving the required Auth0 offline-access, refresh grant
+and lifetime settings. Fresh Cloud issuance/refresh and seven actual elapsed
+days remain unverified. Office's original root was only inspected/staged;
+its running scheduled work was left untouched. No PR, merge or release
+readiness follows from these checkpoints.
+
+### Actual Home Cloud two-turn acceptance
+
+After saving the Auth0 settings, the operator reported a successful actual
+ChatGPT Cloud Gateway test on the same Home device and approved project. Fresh
+capabilities showed online, Delegate-ready, open admission, Native continuation
+and task read/cancel access. The exact 90-second Native budget was accepted;
+this does not test timeout enforcement or enumerate supported durations.
+
+One prepare/dispatch returned `FIRST_OK`; one conditional continuation
+prepare/dispatch returned the exact 24-byte remembered marker. The client
+reported retrieving the actual accepted chunks and independently decoding and
+hashing them with Python. Root separately verified the bytes supplied in that
+report against both lengths and digests. Root did not retrieve the Cloud tool
+responses independently. The first digest matched the eight-byte Native
+checkpoint above; the second was
+`4b6b7f5cacd8e43b9b69e62ab18d54358856ecc80867a7e8c5d3cb57f300ea86`.
+Both reported final delivery `resolved`, observation `terminal`, closure kind
+`registered-native` and reservation false. The predecessor link was supplied
+to the successful continuation request; status did not separately echo it.
+
+The client reported one retryable status `resource_limit` and one retryable
+collection `pending`; only passive collection was retried. Exactly two
+dispatch calls were reported. No replacement, redispatch, admission recovery,
+credential change or device switch occurred. Earlier rejected operations were
+left untouched. Root subsequently read only these two operations' Gateway
+registry metadata. Both task identities, result lengths/digests, terminal
+closure observations and released reservations matched the report. The
+successor's stored predecessor operation and task also matched. This verifies
+Gateway correlation and cached Native observations independently of the
+client report; it is not an independent retrieval of accepted bytes.
+This proves the reported Home Cloud/provider/continuation
+scenario, not actual refresh-token exchange, seven elapsed login days, another
+Cloud client, Office execution or automated GUI maintenance.
+
+### Home installation handoff and temporary recovery
+
+On 22 November, the public `gateway upgrade` command activated Home's owned
+`d18b9e44` source-built candidate on its original default state. One initial
+invocation returned typed pending; one explicitly permitted reconciliation
+completed the same Native operation. Both automatic GUI jobs reported their
+owned children joined and their jobs cleaned. The original root identity,
+registration, credential generation and validated service PATH were preserved.
+Gateway recorded an authenticated reconnection using the same credential.
+Office's original service and scheduler remained untouched.
+
+This handoff exposed a separate readiness defect. Passive status still reported
+`legacy_present` with `run_supervisor_migrate`. A read-only Native projection
+confirmed that the private generation was complete and current, but the
+inspection head still selected its predecessor (`GroupCleanupDue=true`). There
+was no pending private upgrade or prepared inspection successor. A scratch
+two-installation regression independently reproduced completed Gateway upgrade
+followed by refused continuation and serial inspection, without a setup or
+cleanup failure.
+
+For temporary restoration, the operator ran one supported `supervisor migrate`
+from a normal Home macOS Terminal using the staged candidate. It returned
+`migrated` and `retry_dispatch`. Subsequent passive status reported a current
+installation binding, clear migration readiness and `next_action: none`. A
+second read-only projection confirmed head, active and published binding agreed
+and `GroupCleanupDue=false`. This recovery did not dispatch provider work. It
+does not prove unchanged daemon lifetime or history bytes across the operator
+command; no matching before/after baseline was captured for those claims.
+
+The separate recovery is a temporary operational mitigation. The fixed-build
+original-root proof of the automatic Native-owned correction remains pending.
+Home's submission pause was released; local commands must use the staged
+candidate until the compatible release. No PR or release readiness follows
+from the preservation or temporary-recovery evidence.
+
+### Automatic inspection-readiness correction: Linux proof
+
+The Native correction separates historical upgrade completion from current
+admission readiness. Replaying a completed operation remains read-only. A
+separate internal request for that exact operation uses Native's existing
+startup and inspection-routing owners; Gateway verifies the original root's
+readiness before changing the profile or restarting its service.
+
+The source-built Linux regression `TestGatewayUpgradeCompletesExistingInspectionGroup`
+passed under `-race`, including continuation validation and serial inspection
+after a two-installation handoff. The retained-operation recovery regression
+`TestGatewayUpgradeReadiesCompletedCurrentGenerationAfterDaemonStop` also passed
+under `-race` (40.46 seconds). It used the actual App, Native owner, store,
+resident and Pueue. Its historical retained intent was fixture data; the GUI
+Manager still performed its real claim, finish, join and cleanup. Recovery
+changed the stopped daemon's runtime birth, preserved the completed operation
+and history, and settled a subsequent same-target identity-publication receipt
+without another runtime birth. This does not establish how an earlier GUI
+receipt arose or prove macOS launchd placement.
+
+The exact custodian-contact regression
+`TestUpgradeReadyCurrentContactsCustodianWithoutRetirement` passed separately
+under `-race`. It was omitted from an earlier 124-pass selector, so that earlier
+aggregate is not evidence for this case. The genuine-uninitialized App upgrade
+also passed its four partitions, preserving startup on first dispatch and
+rejecting malformed, wrong-type and symlinked private state.
+
+These are local composition and fault-test results. Final-head CI,
+fixed-build original-root macOS acceptance and OAuth refresh/week-long login
+acceptance remain separate gates.
+
+The additional pending-without-operation retry regression failed with the old
+Manager and passed with the correction. Its focused race selection ran 53
+checks with no skips. Those cases use real Manager/profile storage and a Native
+boundary double; the actual Native/Pueue composition above is separate evidence.
+Native commit `f3587686` contains the integrated correction. Its full CI run
+[45052860577](https://github.com/hishamkaram/delegation-layer/actions/runs/45052860577)
+has started; no successful final-head verdict is claimed here.
+
+### Final correction: actual Home macOS scratch proof
+
+The immutable `f3587686` source built with Go 1.27.4 on Home. Its source archive
+was matched to the Git archive, and all 3,695 source entries and 287 directories
+were unchanged after build and testing. The first race-test invocation failed
+during C compilation before any test or Native fixture started: the compiler
+could not find system headers. Read-only diagnosis found the installed SDK and
+headers. A command-local `SDKROOT` and absolute compiler selection passed a
+syntax-only header probe, then the same exact
+`TestGatewayUpgradeCompletesExistingInspectionGroup` passed under
+`-race -count=1` (one test, zero failures/skips; 29.988 seconds overall).
+No global developer-tool setting or installation changed. The original failed
+invocation remains recorded; its inherited SDK selection was not captured.
+
+This was an actual Darwin Native/App/Pueue composition with SDK, service and GUI
+edges doubled. All owned commands joined, and the successful fixture completed
+its runtime cleanup. It made no original-root, Office or provider change.
+The subsequent `4d72ee3e` correction changes only two Markdown mirrors to meet
+the existing skill-packaging bound; it does not retarget or relabel this
+candidate's `f3587686` provenance. Fixed-build original-root handoff and provider
+acceptance remain outstanding.
+
+The later `ec866dfa` delta changes only three assertions in the GUI-upgrade
+tests. Initial verification failure still requires zero maintenance calls; its
+next explicit fresh upgrade now correctly requires one. A post-CAS failure
+checks one call before retry and the same total afterward, proving the NoNew
+retry adds none. The actual macOS CI failure exposed the old expectations;
+production code was unchanged. Full affected-package race testing passed 409
+checks with five Pueue-dependent skips. A separate configured native run passed
+all five missing partitions and their parent, with Wait joins and cleanup.
+Sol and Opus independently reviewed the delta without P0–P3 findings. The
+original failed CI remains a failure, and final-head CI is still required.

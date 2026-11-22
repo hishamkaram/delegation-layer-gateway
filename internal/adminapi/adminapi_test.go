@@ -155,7 +155,7 @@ func TestUnixRegistryAdministrativeWorkflow(t *testing.T) {
 	f.call(t, http.MethodPost, "/v1/projects", body, nil)
 	var principal adminapi.Principal
 	f.call(t, http.MethodPost, "/v1/principals/resolve", `{"issuer":"https://issuer.example/","subject":"alice"}`, &principal)
-	grant := `{"principal_id":"` + principal.PrincipalID + `","device_id":"device","project_alias":"project","scopes":["task:dispatch"],"providers":["codex"],"permissions":["read-only"],"max_budget_seconds":60}`
+	grant := `{"principal_id":"` + principal.PrincipalID + `","device_id":"device","project_alias":"project","scopes":["task:dispatch"]}`
 	f.call(t, http.MethodPut, "/v1/grants", grant, nil)
 	actor := domain.Actor{Principal: domain.PrincipalID(principal.PrincipalID), Scopes: domain.ScopeSet{domain.TaskDispatch}}
 	request := domain.AuthorizationRequest{Actor: actor, Destination: domain.Destination{Device: "device", Project: "project"}, Scope: domain.TaskDispatch}

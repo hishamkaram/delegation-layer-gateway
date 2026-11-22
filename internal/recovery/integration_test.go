@@ -294,10 +294,12 @@ func (f *recoveryTLS) responseBody(t *testing.T, c protocol.Command, p domain.Ro
 		}
 		f.peerOpen = true
 		response = protocol.OriginStateReport{GatewayID: input.GatewayID, RecoveryID: input.RecoveryID, Generation: input.Generation, AdmissionOpen: true}
-	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
+	case protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
 		response = f.taskObservation(t, c, operation)
 	case protocol.ResolveProject:
 		t.Fatal("workspace resolution is outside the legacy recovery fixture")
+	case protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.ProviderModels:
+		t.Fatal("unexpected recovery operation")
 	default:
 		t.Fatal("unexpected recovery operation")
 	}

@@ -117,13 +117,10 @@ type (
 		ProjectAlias string `json:"project_alias"`
 	}
 	PutGrantInput struct {
-		PrincipalID      string              `json:"principal_id"`
-		DeviceID         string              `json:"device_id"`
-		ProjectAlias     string              `json:"project_alias"`
-		Scopes           []domain.Scope      `json:"scopes"`
-		Providers        []domain.ProviderID `json:"providers"`
-		Permissions      []domain.Permission `json:"permissions"`
-		MaxBudgetSeconds uint32              `json:"max_budget_seconds"`
+		PrincipalID  string         `json:"principal_id"`
+		DeviceID     string         `json:"device_id"`
+		ProjectAlias string         `json:"project_alias"`
+		Scopes       []domain.Scope `json:"scopes"`
 	}
 )
 

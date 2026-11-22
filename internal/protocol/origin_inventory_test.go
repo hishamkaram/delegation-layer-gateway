@@ -71,7 +71,7 @@ func TestOriginInventoryRejectsConflictingAttributionAndPagination(t *testing.T)
 		},
 		"request-limit": func(_ *OriginInventoryReport, r *OriginInventoryRequest) { r.Limit = 0 },
 		"invalid-permission": func(i *OriginInventoryReport, _ *OriginInventoryRequest) {
-			i.Entries[0].Receipt.ExecutionOptions.Permission = "unknown"
+			i.Entries[0].Receipt.ExecutionOptions.Permission = "invalid\x00permission"
 		},
 		"nonpositive-budget": func(i *OriginInventoryReport, _ *OriginInventoryRequest) {
 			i.Entries[0].Receipt.ExecutionOptions.BudgetNanoseconds = 0

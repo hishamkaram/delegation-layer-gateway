@@ -175,7 +175,7 @@ func TestCancelOnlyFencesBeforeCancelAndKeepsIdentityAcrossAckRetries(t *testing
 	dispatchCode(t, err, domain.Forbidden)
 }
 
-func TestRecoveryDispatchOnlyUsesCanonicalExistingSpecAndCurrentCeiling(t *testing.T) {
+func TestRecoveryDispatchOnlyUsesCanonicalExistingSpecAndCurrentAccess(t *testing.T) {
 	f := newDispatchFixture(t)
 	c := f.possible(t)
 	f.seedExisting(t, c, false)
@@ -204,13 +204,13 @@ func TestRecoveryDispatchOnlyUsesCanonicalExistingSpecAndCurrentCeiling(t *testi
 	_, err = f.store.GetOperation(t.Context(), dispatcher, c.Operation)
 	dispatchCode(t, err, domain.Forbidden)
 	f.link.beforeWrite = func(ctx context.Context) error {
-		return f.store.PutGrant(ctx, domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: f.destination}, Scopes: f.actor.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 30}})
+		return f.store.PutGrant(ctx, domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: f.destination}, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskRead, domain.TaskCancel}})
 	}
 	_, err = f.service.Recover(t.Context(), dispatcher, c.Operation)
-	dispatchCode(t, err, domain.Forbidden)
+	dispatchCode(t, err, domain.NotFound)
 	assertPublishedOperations(t, f.link, protocol.ResumeExisting)
 	if !f.view(t, c.Operation).Reserved {
-		t.Fatal("recovery ceiling refusal freed uncertain execution")
+		t.Fatal("recovery access refusal freed uncertain execution")
 	}
 }
 

@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS grants (principal TEXT NOT NULL REFERENCES principals
 CREATE TABLE IF NOT EXISTS enrollment (token BLOB PRIMARY KEY, device TEXT NOT NULL REFERENCES devices(id), mode TEXT NOT NULL, generation INTEGER NOT NULL, created TEXT NOT NULL, expires TEXT NOT NULL, issuance TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS issuance (id TEXT PRIMARY KEY, replay TEXT NOT NULL UNIQUE, intent BLOB NOT NULL, certificate BLOB);
 CREATE TABLE IF NOT EXISTS credentials (device TEXT PRIMARY KEY REFERENCES devices(id), epoch TEXT NOT NULL, generation INTEGER NOT NULL, value BLOB NOT NULL);
-CREATE TABLE IF NOT EXISTS operations (row_id INTEGER PRIMARY KEY, id TEXT UNIQUE, origin_operation TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('attributed','unattributed')), task TEXT NOT NULL, owner TEXT, device TEXT NOT NULL, root_guard TEXT NOT NULL, project_guard TEXT NOT NULL, project TEXT, correlation BLOB, native_receipt BLOB, request BLOB, execution_options BLOB, options_sha256 BLOB, state TEXT NOT NULL, created TEXT NOT NULL, expires TEXT NOT NULL, reserved INTEGER NOT NULL DEFAULT 0 CHECK(reserved IN (0,1)), cancellation TEXT NOT NULL DEFAULT '', observation BLOB, UNIQUE(device,root_guard,task), CHECK((kind='attributed' AND id IS NOT NULL AND id=origin_operation AND project IS NOT NULL AND correlation IS NOT NULL) OR (kind='unattributed' AND id IS NULL AND owner IS NULL AND project IS NULL AND correlation IS NULL AND native_receipt IS NOT NULL)));
+CREATE TABLE IF NOT EXISTS operations (row_id INTEGER PRIMARY KEY, id TEXT UNIQUE, origin_operation TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('attributed','unattributed')), task TEXT NOT NULL, owner TEXT, device TEXT NOT NULL, root_guard TEXT NOT NULL, project_guard TEXT NOT NULL, project TEXT, correlation BLOB, native_receipt BLOB, request BLOB, execution_options BLOB, options_sha256 BLOB, preparation_key TEXT, preparation_expires_ns INTEGER, state TEXT NOT NULL, created TEXT NOT NULL, expires TEXT NOT NULL, reserved INTEGER NOT NULL DEFAULT 0 CHECK(reserved IN (0,1)), cancellation TEXT NOT NULL DEFAULT '', observation BLOB, UNIQUE(device,root_guard,task), CHECK((kind='attributed' AND id IS NOT NULL AND id=origin_operation AND project IS NOT NULL AND correlation IS NOT NULL) OR (kind='unattributed' AND id IS NULL AND owner IS NULL AND project IS NULL AND correlation IS NULL AND native_receipt IS NOT NULL)));
 CREATE INDEX IF NOT EXISTS operations_recovery ON operations(device,root_guard,reserved);
 CREATE TABLE IF NOT EXISTS administrative_routes (device TEXT NOT NULL, root_guard TEXT NOT NULL, project_guard TEXT NOT NULL, alias TEXT NOT NULL, credential BLOB NOT NULL, connection BLOB NOT NULL, PRIMARY KEY(device,root_guard,project_guard));
 CREATE INDEX IF NOT EXISTS operations_owner ON operations(owner,id);
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS root_admissions (device TEXT NOT NULL REFERENCES devi
 CREATE TABLE IF NOT EXISTS credential_epochs (epoch TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS recovery_destinations (recovery TEXT NOT NULL, device TEXT NOT NULL, root_guard TEXT NOT NULL, generation TEXT NOT NULL DEFAULT '', expected_generation TEXT NOT NULL DEFAULT '', barrier BLOB, membership BLOB, cursor TEXT NOT NULL DEFAULT '', started INTEGER NOT NULL DEFAULT 0, finished INTEGER NOT NULL DEFAULT 0, completeness BLOB, approved INTEGER NOT NULL DEFAULT 0, reopened BLOB, PRIMARY KEY(recovery,device,root_guard));
 CREATE TABLE IF NOT EXISTS inventory_pages (recovery TEXT NOT NULL, device TEXT NOT NULL, root_guard TEXT NOT NULL, cursor TEXT NOT NULL, digest BLOB NOT NULL, PRIMARY KEY(recovery,device,root_guard,cursor));
-` + ownershipSchema + projectResolutionSchema
+` + ownershipSchema + projectResolutionSchema + preparationSchema
 
 func (s *Store) validateExisting(ctx context.Context, expected domain.GatewayID) error {
 	_, err := transaction(ctx, s, func(tx *sql.Tx) (struct{}, error) {
@@ -107,7 +107,7 @@ func (s *Store) validateExisting(ctx context.Context, expected domain.GatewayID)
 		if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 			return struct{}{}, err
 		}
-		if version != 9 {
+		if version != 10 {
 			return struct{}{}, fmt.Errorf("registry schema requires explicit initialization or offline migration: %w", domain.Reject(domain.Conflict))
 		}
 		if _, err := validateRegistryAuthority(ctx, tx, expected); err != nil {
@@ -117,6 +117,9 @@ func (s *Store) validateExisting(ctx context.Context, expected domain.GatewayID)
 			return struct{}{}, err
 		}
 		if err := verifyProjectResolutionSchema(ctx, tx); err != nil {
+			return struct{}{}, err
+		}
+		if err := verifyPreparationSchema(ctx, tx); err != nil {
 			return struct{}{}, err
 		}
 		return struct{}{}, verifyRoutingConstraints(ctx, tx)

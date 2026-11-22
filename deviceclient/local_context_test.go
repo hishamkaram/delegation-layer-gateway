@@ -38,14 +38,19 @@ func TestLocalContextIsCopiedAndRedacted(t *testing.T) {
 	if err != nil || local.DelegateRootContext != f.options.DelegateRootContext || local.DelegateRoot != f.options.DelegateRoot || local.DelegateExecutable != f.options.DelegateExecutable {
 		t.Fatal("selected local source not retained", err)
 	}
+	workspaces, err := ListWorkspaces(t.Context(), f.options.ProfileDirectory)
+	if err != nil || len(local.WorkspaceIDs) != 1 || len(workspaces) != 1 || local.WorkspaceIDs[0] != workspaces[0].ID {
+		t.Fatal("local context omitted profile-owned workspace identity", err)
+	}
 	encoded, err := json.Marshal(local)
 	if err != nil || strings.Contains(string(encoded), f.options.DelegateRootContext) || strings.Contains(local.String(), f.options.DelegateRootContext) {
 		t.Fatal("local root token escaped UI formatting", err)
 	}
-	local.Providers[0].Permissions[0] = "danger-full-access"
+	local.DelegateRoot = "changed-copy"
+	local.WorkspaceIDs[0] = "changed-copy"
 	again, err := LocalContext(t.Context(), f.options.ProfileDirectory)
-	if err != nil || again.Providers[0].Permissions[0] != "read-only" {
-		t.Fatal("local context reader mutated policy defaults", err)
+	if err != nil || again.DelegateRoot != f.options.DelegateRoot || again.WorkspaceIDs[0] != workspaces[0].ID {
+		t.Fatal("local context reader mutated saved source", err)
 	}
 }
 

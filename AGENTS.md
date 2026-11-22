@@ -7,7 +7,7 @@ it; harness configuration and skills refer here rather than duplicating rules.
 
 Read [product boundary](agents/_data/product-boundary.md) before changing a
 contract. Gateway owns registry, grants, operation correlation and routing;
-connector owns local alias configuration and its stricter grant ceiling;
+connector owns local workspace approvals, credentials and legacy alias configuration;
 Delegate alone owns task admission, launch, supervision and accepted outcomes.
 Gateway observations are dated caches. Same device account is one trust boundary;
 a project grant is routing, never an OS sandbox.

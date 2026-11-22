@@ -16,12 +16,12 @@ func TestOwnedDeviceAuthorizationNeedsOwnerAndCurrentTaskScope(t *testing.T) {
 	requireOK(t, err)
 	value, err := f.store.AuthorizeOwnedDevice(t.Context(), request)
 	authorized := must(t, value, err)
-	if authorized.Principal != f.actor.Principal || authorized.Device.ID != "device" || authorized.Policy.Ceiling.MaxBudgetSeconds != 60 {
+	if authorized.Principal != f.actor.Principal || authorized.Device.ID != "device" || authorized.Policy.MaxDevices != 10 {
 		t.Fatal("zero-project authorization lost its current owner policy")
 	}
-	authorized.Policy.Ceiling.Providers[0] = "changed-copy"
+	authorized.Policy.Scopes[0] = domain.TaskRead
 	value, err = f.store.AuthorizeOwnedDevice(t.Context(), request)
-	if got := must(t, value, err); got.Policy.Ceiling.Providers[0] != "provider" {
+	if got := must(t, value, err); got.Policy.Scopes[0] != domain.InventoryRead {
 		t.Fatal("caller mutated Registry's policy authority")
 	}
 	other, err := f.store.ResolvePrincipal(t.Context(), domain.ExternalSubject{Issuer: "https://issuer.example/", Subject: "other"})

@@ -177,7 +177,10 @@ func (h *Handler) getAdministrativeTask(ctx context.Context, input TaskKey) (Adm
 		return AdministrativeTask{}, domain.Reject(domain.Pending)
 	}
 	view, err := h.options.Tasks.Get(ctx, input.Domain())
-	return administrativeTask(view), err
+	if err != nil {
+		return AdministrativeTask{}, err
+	}
+	return administrativeTask(view)
 }
 
 func (h *Handler) drainAdministrativeTask(ctx context.Context, input TaskDrainInput) (AdministrativeTask, error) {
@@ -189,12 +192,22 @@ func (h *Handler) drainAdministrativeTask(ctx context.Context, input TaskDrainIn
 	}
 	request := recovery.DrainRequest{Key: (TaskKey{DeviceID: input.DeviceID, RootGuard: input.RootGuard, TaskID: input.TaskID}).Domain(), Route: domain.Destination{Device: domain.DeviceID(input.DeviceID), Project: domain.ProjectAlias(input.ProjectAlias)}, Action: input.Action, Cancellation: domain.CancellationID(input.CancellationID)}
 	view, err := h.options.Tasks.Control(ctx, request)
-	return administrativeTask(view), err
+	if err != nil {
+		return AdministrativeTask{}, err
+	}
+	return administrativeTask(view)
 }
 
-func administrativeTask(view domain.AdministrativeTaskView) AdministrativeTask {
-	origin := view.Binding.Origin
-	result := AdministrativeTask{Key: taskKey(view.Key), Attributed: view.Correlation != nil, ProjectGuard: string(view.Binding.Context.Project), Origin: protocol.Origin{GatewayID: string(origin.Gateway), AdmissionGeneration: string(origin.AdmissionGeneration), OperationID: string(origin.Operation), PrincipalRef: string(origin.Principal), RequestSHA256: optionalDigest(origin.RequestDigest)}, SpecSHA256: optionalDigest(view.Binding.SpecDigest), Delivery: view.Delivery, Reserved: view.Reserved, CancellationID: string(view.Cancellation)}
+func administrativeTask(view domain.AdministrativeTaskView) (AdministrativeTask, error) {
+	var origin protocol.Origin
+	if view.Binding.Origin != (domain.TaskOrigin{}) {
+		converted, err := protocol.OriginFromDomain(view.Binding.Origin)
+		if err != nil {
+			return AdministrativeTask{}, domain.Reject(domain.EvidenceInvalid)
+		}
+		origin = converted
+	}
+	result := AdministrativeTask{Key: taskKey(view.Key), Attributed: view.Correlation != nil, ProjectGuard: string(view.Binding.Context.Project), Origin: origin, SpecSHA256: optionalDigest(view.Binding.SpecDigest), Delivery: view.Delivery, Reserved: view.Reserved, CancellationID: string(view.Cancellation)}
 	if view.Correlation != nil {
 		result.OriginalProjectAlias = string(view.Correlation.Destination.Project)
 	}
@@ -205,7 +218,7 @@ func administrativeTask(view domain.AdministrativeTaskView) AdministrativeTask {
 	if view.Observation != nil {
 		result.Observation = taskObservation(*view.Observation)
 	}
-	return result
+	return result, nil
 }
 
 func taskObservation(observation domain.DelegateObservation) *TaskObservation {

@@ -419,3 +419,23 @@ func TestProtectedClassRequiresStrictTypedControl(t *testing.T) {
 	_, err = f.hub.Reserve(t.Context(), "device-one", frame)
 	requireError(t, err, ErrProtocol)
 }
+
+func TestProtectedOversizeIsPermanentAndLeavesHeadroom(t *testing.T) {
+	f := newFixture(t, Settings{})
+	client := f.dial(t)
+	for _, operation := range []protocol.Operation{protocol.FenceAbsent, protocol.Cancel} {
+		frame := protectedControl(t, operation)
+		task := capacityTask()
+		task.Origin.Binding = strings.Repeat("x", MaxProtectedFrameBytes)
+		body := payload(t, protocol.TaskControl{Task: task})
+		if operation == protocol.Cancel {
+			body = payload(t, protocol.Cancellation{Task: task, CancellationID: strings.Repeat("c", 32)})
+		}
+		frame.Payload = payload(t, protocol.Command{Operation: operation, Project: "project-one", Body: body})
+		_, err := f.hub.Reserve(t.Context(), "device-one", frame)
+		if !errors.Is(err, protocol.ErrTooLarge) || errors.Is(err, ErrCapacity) {
+			t.Fatalf("oversize %s was classified as retryable pressure: %v", operation, err)
+		}
+	}
+	protectedRoundTrip(t, f, client)
+}

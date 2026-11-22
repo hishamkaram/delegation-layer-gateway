@@ -43,7 +43,7 @@ func readAdministrativeTask(ctx context.Context, tx *sql.Tx, key domain.NativeTa
 	if row.view.Delivery.Validate() != nil || row.view.Binding.Validate() != nil || row.view.Binding.Context.Project != project || row.view.Correlation == nil && (kind != "unattributed" || row.view.Receipt == nil) {
 		return row, domain.Reject(domain.EvidenceInvalid)
 	}
-	return row, nil
+	return row, validateAdministrativeCompactOperation(ctx, tx, row)
 }
 
 func decodeAdministrativeCorrelation(row *administrativeRow, data []byte, operation domain.OperationID, kind string) error {
@@ -59,7 +59,11 @@ func decodeAdministrativeCorrelation(row *administrativeRow, data []byte, operat
 		return domain.Reject(domain.EvidenceInvalid)
 	}
 	row.view.Correlation = &c
-	row.view.Binding = domain.AdministrativeTaskBinding{Task: c.Task, Context: c.Context, Origin: domain.OriginFromCorrelation(c)}
+	origin, err := correlationOrigin(c)
+	if err != nil {
+		return domain.Reject(domain.EvidenceInvalid)
+	}
+	row.view.Binding = domain.AdministrativeTaskBinding{Task: c.Task, Context: c.Context, Origin: origin}
 	return nil
 }
 
@@ -75,7 +79,7 @@ func decodeAdministrativeReceipt(row *administrativeRow, data []byte, operation 
 	if r.Validate() != nil || r.Binding.Task != key.Task || r.Binding.Context.Root != key.Root || r.Binding.Origin.Operation != operation {
 		return domain.Reject(domain.EvidenceInvalid)
 	}
-	if row.view.Correlation != nil && (r.Binding.Origin != row.view.Binding.Origin || r.Binding.Context != row.view.Binding.Context || r.BriefDigest != row.view.Correlation.BriefDigest) {
+	if row.view.Correlation != nil && (r.Binding.Origin != row.view.Binding.Origin || r.Binding.Context != row.view.Binding.Context || !domain.RequestedBriefMatches(*row.view.Correlation, r.BriefDigest)) {
 		return domain.Reject(domain.EvidenceInvalid)
 	}
 	row.view.Receipt = &r

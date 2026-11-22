@@ -198,11 +198,11 @@ type TaskObservation struct {
 
 type TaskReceipt struct {
 	BriefSHA256       string             `json:"brief_sha256"`
-	Provider          string             `json:"provider"`
-	Permission        domain.Permission  `json:"permission"`
-	BudgetNanoseconds int64              `json:"budget_nanoseconds"`
-	Model             protocol.Selection `json:"model"`
-	Effort            protocol.Selection `json:"effort"`
+	Provider          string             `json:"provider,omitempty"`
+	Permission        domain.Permission  `json:"permission,omitempty"`
+	BudgetNanoseconds int64              `json:"budget_nanoseconds,omitempty"`
+	Model             protocol.Selection `json:"model,omitzero"`
+	Effort            protocol.Selection `json:"effort,omitzero"`
 }
 
 type AdministrativeTask struct {

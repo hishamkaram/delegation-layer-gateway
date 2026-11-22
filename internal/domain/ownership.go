@@ -5,7 +5,6 @@ package domain
 type OwnerPolicy struct {
 	Enabled    bool
 	Scopes     ScopeSet
-	Ceiling    DispatchCeiling
 	MaxDevices uint32
 }
 
@@ -18,7 +17,7 @@ func (p OwnerPolicy) Validate() error {
 			return ErrInvalid
 		}
 	}
-	return p.Ceiling.Validate()
+	return nil
 }
 
 // OwnerGrant projects current owner authority into the common authorization
@@ -27,5 +26,5 @@ func OwnerGrant(owner PrincipalID, p OwnerPolicy, request AuthorizationRequest) 
 	if p.Validate() != nil || !p.Enabled || request.Validate() != nil || owner != request.Actor.Principal || !p.Scopes.Has(request.Scope) {
 		return Grant{}, Reject(NotFound)
 	}
-	return Grant{Key: GrantKey{Principal: owner, Destination: request.Destination}, Scopes: append(ScopeSet(nil), p.Scopes...), Ceiling: DispatchCeiling{Providers: append([]ProviderID(nil), p.Ceiling.Providers...), Permissions: append([]Permission(nil), p.Ceiling.Permissions...), MaxBudgetSeconds: p.Ceiling.MaxBudgetSeconds}}, nil
+	return Grant{Key: GrantKey{Principal: owner, Destination: request.Destination}, Scopes: append(ScopeSet(nil), p.Scopes...)}, nil
 }

@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -57,13 +58,13 @@ func (l limits) acquire(op protocol.Operation) (permit, error) {
 		lane = l.urgent
 	}
 	channels := []chan struct{}{lane}
-	if op == protocol.Admit || op == protocol.ResumeExisting {
+	if op == protocol.Admit || op == protocol.Continue || op == protocol.ResumeExisting {
 		channels = append(channels, l.admission)
 	}
 	if op.ScanConsumer() {
 		channels = append(channels, l.scan)
 	}
-	if op == protocol.ResolveProject {
+	if op == protocol.ResolveProject || op == protocol.SelectProject {
 		channels = append(channels, l.resolution)
 	}
 	p := permit{}
@@ -160,11 +161,12 @@ func (a *Adapter) Status() Status {
 }
 
 type invocation struct {
-	directory  string
-	command    string
-	args       []string
-	config     *configuration
-	startGuard func(context.Context) (func() error, error)
+	directory             string
+	command               string
+	args                  []string
+	config                *configuration
+	startGuard            func(context.Context) (func() error, error)
+	classifyArgumentExit2 bool
 }
 
 func (a *Adapter) run(ctx context.Context, call invocation) (cliResponse, error) {
@@ -187,7 +189,7 @@ func (a *Adapter) run(ctx context.Context, call invocation) (cliResponse, error)
 		return cliResponse{}, guardErr
 	}
 	// Start is the generation linearization point. Reload cannot change pins or
-	// ceilings between this check and starting the locally owned CLI process.
+	// approvals between this check and starting the locally owned CLI process.
 	a.mu.RLock()
 	if a.config.generation != call.config.generation {
 		a.mu.RUnlock()
@@ -214,7 +216,20 @@ func (a *Adapter) run(ctx context.Context, call invocation) (cliResponse, error)
 	if stdout.overflow || stderr.overflow {
 		return cliResponse{}, ErrCapacity
 	}
-	response, err := decodeResponse(stdout.data, call.command, limit)
+	return decodeCLIOutput(call, stdout.data, limit, waitErr)
+}
+
+func decodeCLIOutput(call invocation, data []byte, limit int, waitErr error) (cliResponse, error) {
+	// Native ParseArguments writes usage to stderr and exits 2 before its JSON
+	// response boundary. Only new admission opts into this narrow projection.
+	// No receipt, absence, accepted outcome or execution closure is inferred.
+	if call.classifyArgumentExit2 && len(bytes.TrimSpace(data)) == 0 {
+		var exit *exec.ExitError
+		if errors.As(waitErr, &exit) && exit.ExitCode() == 2 {
+			return cliResponse{}, errNativeArguments
+		}
+	}
+	response, err := decodeResponse(data, call.command, limit)
 	if err != nil {
 		return cliResponse{}, err
 	}

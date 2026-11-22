@@ -94,7 +94,8 @@ func TestPublicHostnameLoopbackTLSKeepsComposedSecurityAndDiscovery(t *testing.T
 
 	session := f.session(t)
 	tools, err := session.ListTools(t.Context(), nil)
-	if len(checked(t, tools, err).Tools) != 12 || keyRequests.Load() == 0 {
-		t.Fatal("public-host discovery did not verify JWT and return twelve tools")
+	assertRuntimeToolCatalog(t, checked(t, tools, err).Tools)
+	if keyRequests.Load() == 0 {
+		t.Fatal("public-host discovery did not verify JWT")
 	}
 }

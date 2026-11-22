@@ -18,7 +18,7 @@ const (
 	ProtectedFrames        = 2
 	ProtectedDeviceBytes   = DeviceQueueBytes - protocol.MaxAdmissionFrameBytes
 	ProtectedGlobalBytes   = 256 << 10
-	MaxProtectedFrameBytes = 16 << 10
+	MaxProtectedFrameBytes = protocol.MaxProtectedFrameBytes
 )
 
 type trafficClass uint8
@@ -46,18 +46,46 @@ func commandClass(command protocol.Command) (trafficClass, error) {
 		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) != nil || body.Task.Validate(false) != nil {
 			return ordinaryTraffic, fail(ErrProtocol, nil)
 		}
-	case protocol.ResolveProject:
-		var body protocol.ResolveProjectRequest
-		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) != nil || body.Validate() != nil {
-			return ordinaryTraffic, fail(ErrProtocol, nil)
-		}
-		return ordinaryTraffic, nil
+	case protocol.ResolveProject, protocol.SelectProject, protocol.ProviderModels, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit:
+		return ordinaryTraffic, validateMetadataCommand(command)
+	case protocol.Continue:
+		return ordinaryTraffic, validateMetadataBody(command.Body, &protocol.Continuation{})
 	case protocol.ContextInspect, protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
 		return ordinaryTraffic, nil
 	default:
 		return ordinaryTraffic, fail(ErrProtocol, nil)
 	}
 	return protectedTraffic, nil
+}
+
+// New metadata bodies are validated before entering ordinary queue accounting;
+// they cannot claim the cancellation/fence headroom.
+func validateMetadataCommand(command protocol.Command) error {
+	switch command.Operation {
+	case protocol.ResolveProject:
+		return validateMetadataBody(command.Body, &protocol.ResolveProjectRequest{})
+	case protocol.SelectProject:
+		return validateMetadataBody(command.Body, &protocol.SelectionRequest{})
+	case protocol.ProviderModels:
+		return validateMetadataBody(command.Body, &protocol.ModelQuery{})
+	case protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit:
+		var body protocol.FilesystemRequest
+		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) == nil && body.ValidateFor(command.Operation) == nil {
+			return nil
+		}
+	case protocol.ContextInspect, protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
+		return fail(ErrProtocol, nil)
+	}
+	return fail(ErrProtocol, nil)
+}
+
+// Callers supply a concrete typed DTO pointer; decoding never accepts a remote
+// implementation or an unvalidated generic map.
+func validateMetadataBody[T interface{ Validate() error }](data []byte, body *T) error {
+	if protocol.DecodeStrict(data, body, protocol.MaxFrameBytes) != nil || (*body).Validate() != nil {
+		return fail(ErrProtocol, nil)
+	}
+	return nil
 }
 
 // CredentialChecker is the session's current authorization read boundary.

@@ -52,7 +52,7 @@ func (f *fixture) owner(t *testing.T, subject string) domain.PrincipalID {
 	defer func() { require(t, s.Close()) }()
 	p, err := s.ResolvePrincipal(t.Context(), domain.ExternalSubject{Issuer: f.cfg.Identity.Issuer, Subject: subject})
 	require(t, err)
-	require(t, s.PutOwnerPolicy(t.Context(), p.ID, domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 2}))
+	require(t, s.PutOwnerPolicy(t.Context(), p.ID, domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 2}))
 	return p.ID
 }
 
@@ -105,7 +105,7 @@ func TestPublicNativeDescriptorHasOnlyPublicConfiguredValues(t *testing.T) {
 		Scopes []string `json:"scopes_supported"`
 	}
 	require(t, json.Unmarshal(data, &metadata))
-	if strings.Join(metadata.Scopes, " ") != "inventory:read task:dispatch task:read task:cancel" {
+	if strings.Join(metadata.Scopes, " ") != "inventory:read task:dispatch task:read task:cancel offline_access" {
 		t.Fatal("native management scopes changed MCP consent")
 	}
 }

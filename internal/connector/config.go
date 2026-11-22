@@ -24,23 +24,16 @@ const (
 )
 
 var (
+	errNativeArguments = errors.New("invalid_native_arguments")
+
 	ErrConfiguration = errors.New("connector_invalid_configuration")
 	ErrPending       = errors.New("pending")
 	ErrCapacity      = errors.New("resource_limit")
 	ErrConflict      = errors.New("conflict")
 	ErrEvidence      = errors.New("evidence_invalid")
+	ErrUnsupported   = errors.New("unsupported_feature")
 )
 
-// ProviderPolicy is the local authority, independent of Gateway grants.
-type ProviderPolicy struct {
-	Provider         string
-	Models           []string
-	Efforts          []string
-	Permissions      []domain.Permission
-	MaxBudgetSeconds uint32
-	NativeModel      bool
-	NativeEffort     bool
-}
 type (
 	Project struct {
 		Alias        string
@@ -48,7 +41,6 @@ type (
 		Directory    string
 		RootToken    string
 		ProjectToken string
-		Providers    []ProviderPolicy
 	}
 	Config struct {
 		Executable         string
@@ -56,7 +48,7 @@ type (
 		GatewayID          domain.GatewayID
 		Projects           []Project
 		// ProjectStore enables the opt-in workspace protocol. It is exclusive
-		// with static Projects and remains the local policy/pin authority.
+		// with static Projects and remains the local approval/pin-history authority.
 		ProjectStore   ProjectStore
 		ControlTimeout time.Duration
 	}
@@ -87,7 +79,6 @@ func checkedConfig(input Config) (*configuration, error) {
 		if _, exists := result.projects[project.Alias]; exists {
 			return nil, ErrConfiguration
 		}
-		project.Providers = clonePolicies(project.Providers)
 		result.projects[project.Alias] = project
 		result.Projects = append(result.Projects, project)
 	}
@@ -128,16 +119,6 @@ func checkProject(p Project) error {
 	if pinsErr := checkProjectPins(p); pinsErr != nil {
 		return pinsErr
 	}
-	seen := make(map[string]bool)
-	for _, policy := range p.Providers {
-		if seen[policy.Provider] {
-			return ErrConfiguration
-		}
-		seen[policy.Provider] = true
-		if policyErr := checkPolicy(policy); policyErr != nil {
-			return policyErr
-		}
-	}
 	return nil
 }
 
@@ -145,36 +126,10 @@ func checkProjectPins(p Project) error {
 	if !existingDirectory(p.Root) || !filepath.IsAbs(p.Directory) || filepath.Clean(p.Directory) != p.Directory || (protocol.ProjectCapability{Alias: p.Alias}).Validate() != nil || !digest(p.RootToken) {
 		return ErrConfiguration
 	}
-	if len(p.ProjectToken) == 0 || len(p.ProjectToken) > 4096 || strings.ContainsAny(p.ProjectToken, "\x00\r\n") || len(p.Providers) > 100 {
+	if len(p.ProjectToken) == 0 || len(p.ProjectToken) > 4096 || strings.ContainsAny(p.ProjectToken, "\x00\r\n") {
 		return ErrConfiguration
 	}
 	return nil
-}
-
-func checkPolicy(policy ProviderPolicy) error {
-	ceiling := domain.DispatchCeiling{Providers: []domain.ProviderID{domain.ProviderID(policy.Provider)}, Permissions: policy.Permissions, MaxBudgetSeconds: policy.MaxBudgetSeconds}
-	if ceiling.Validate() != nil || len(policy.Models) > 100 || len(policy.Efforts) > 100 {
-		return ErrConfiguration
-	}
-	for _, values := range [][]string{policy.Models, policy.Efforts} {
-		for _, value := range values {
-			if (protocol.Selection{Kind: "explicit", Value: value}).Validate() != nil {
-				return ErrConfiguration
-			}
-		}
-	}
-	return nil
-}
-
-func clonePolicies(input []ProviderPolicy) []ProviderPolicy {
-	result := make([]ProviderPolicy, len(input))
-	for i, p := range input {
-		p.Models = append([]string(nil), p.Models...)
-		p.Efforts = append([]string(nil), p.Efforts...)
-		p.Permissions = append([]domain.Permission(nil), p.Permissions...)
-		result[i] = p
-	}
-	return result
 }
 
 func (p Project) wireContext() protocol.ContextBinding {

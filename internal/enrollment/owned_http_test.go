@@ -46,7 +46,7 @@ func TestHTTPSRequiredOwnershipRejectsLegacyAndAcceptsOwnedTokenIncludingReplay(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = store.PutOwnerPolicy(t.Context(), principal.ID, domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 2}); err != nil {
+	if err = store.PutOwnerPolicy(t.Context(), principal.ID, domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead}, MaxDevices: 2}); err != nil {
 		t.Fatal(err)
 	}
 	token, hash, err := NewToken(rand.Reader)

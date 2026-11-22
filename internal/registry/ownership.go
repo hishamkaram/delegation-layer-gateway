@@ -112,7 +112,7 @@ func (s *Store) ReadOwnerPolicy(ctx context.Context, principal domain.PrincipalI
 	})
 }
 
-// DisableOwnerPolicy preserves ownership, ceilings and task history. A revoked
+// DisableOwnerPolicy preserves ownership, scopes and task history. A revoked
 // principal can still be disabled, so later unrevocation cannot restore access.
 func (s *Store) DisableOwnerPolicy(ctx context.Context, principal domain.PrincipalID) error {
 	if err := s.requireAdmin(ctx); err != nil {

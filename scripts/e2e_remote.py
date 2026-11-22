@@ -577,14 +577,13 @@ def bootstrap_peer(root, harness, source, files, manifest, pump=None):
         and initialized.get("state") == root.base + "/d/s"
         and initialized.get("allocation") == 2
         and initialized.get("project_alias") == root.alias
-        and initialized.get("providers")
-        == [
-            {
-                "provider": "pi:json",
-                "models": ["openai/gpt-4.1"],
-                "max_budget_seconds": 30,
-            }
-        ],
+        and initialized.get("fixture_task_options")
+        == {
+            "provider": "pi:json",
+            "model": "openai/gpt-4.1",
+            "permission": "read-only",
+            "budget_seconds": 30,
+        },
         "peer identity/budget mismatch",
     )
     context = initialized.get("context")
@@ -1238,9 +1237,6 @@ class Controller:
                         "device_id": root.device,
                         "project_alias": root.alias,
                         "scopes": ["inventory:read"],
-                        "providers": ["pi:json"],
-                        "permissions": ["read-only"],
-                        "max_budget_seconds": 30,
                     },
                 )
             enrollment = h.admin(

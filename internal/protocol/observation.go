@@ -75,7 +75,10 @@ func (o TaskObservation) validateIdentity() error {
 	if !oneOf(o.Resolution, "existing", "permanently_refused", "absent", "unresolved") {
 		return ErrInvalid
 	}
-	if o.Resolution == "existing" && !lowerHex(o.BriefSHA256, 64) {
+	if o.BriefSHA256 != "" && !lowerHex(o.BriefSHA256, 64) {
+		return ErrInvalid
+	}
+	if o.Resolution == "existing" && o.BriefSHA256 == "" {
 		return ErrInvalid
 	}
 	return nil

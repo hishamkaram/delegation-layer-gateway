@@ -35,9 +35,6 @@ func (s *workspaceTestStore) Snapshot(ctx context.Context) (WorkspaceSnapshot, e
 
 func copiedWorkspaceState(state WorkspaceSnapshot) WorkspaceSnapshot {
 	state.Workspaces = append([]WorkspacePolicy(nil), state.Workspaces...)
-	for i := range state.Workspaces {
-		state.Workspaces[i].Providers = clonePolicies(state.Workspaces[i].Providers)
-	}
 	return state
 }
 
@@ -124,7 +121,7 @@ func newWorkspaceFixture(t *testing.T) (*fixture, *workspaceTestStore, protocol.
 	f.state.Features = []string{protocol.FeatureNamespaceAdmission, protocol.FeatureNamespaceMutationLease, protocol.WorkspaceFeature}
 	f.writeState()
 	p := f.config.Projects[0]
-	s := &workspaceTestStore{state: WorkspaceSnapshot{RootDirectory: p.Root, RootContext: p.RootToken, Workspaces: []WorkspacePolicy{{ID: "workspace-one", Alias: "work", Directory: p.Directory, NativeContext: "opaque-workspace-token", Enabled: true, Revision: 1, Providers: p.Providers}}, ProjectBudget: protocol.ProjectBudget{Limit: protocol.MaxProjectPins, ByteLimit: protocol.MaxProjectPinBytes, BytesUsed: 2}}, pins: make(map[string]ProjectPin)}
+	s := &workspaceTestStore{state: WorkspaceSnapshot{RootDirectory: p.Root, RootContext: p.RootToken, Workspaces: []WorkspacePolicy{{ID: "workspace-one", Alias: "work", Directory: p.Directory, NativeContext: "opaque-workspace-token", Enabled: true, Revision: 1}}, ProjectBudget: protocol.ProjectBudget{Limit: protocol.MaxProjectPins, ByteLimit: protocol.MaxProjectPinBytes, BytesUsed: 2}}, pins: make(map[string]ProjectPin)}
 	cfg := f.config
 	cfg.Projects = nil
 	cfg.ProjectStore = s
@@ -205,15 +202,15 @@ func workspaceAdmission(t *testing.T, f *fixture, handle string) protocol.Comman
 	return protocol.Command{Operation: protocol.Admit, Project: handle, Body: encoded(t, protocol.Admission{Task: task, Provider: "fixture", Model: protocol.Selection{Kind: "native_default"}, Effort: protocol.Selection{Kind: "native_default"}, Permission: "read-only", BudgetSeconds: 120, Brief: f.state.Brief})}
 }
 
-func TestWorkspaceCurrentCeilingIsCheckedAtStartWithoutStrandingReads(t *testing.T) {
+func TestWorkspaceCurrentApprovalIsCheckedAtStartWithoutStrandingReads(t *testing.T) {
 	f, s, request := newWorkspaceFixture(t)
 	resolveWorkspace(t, f, request)
 	s.mu.Lock()
-	s.beforeLock = func(state *WorkspaceSnapshot) { state.Workspaces[0].Providers[0].MaxBudgetSeconds = 60 }
+	s.beforeLock = func(state *WorkspaceSnapshot) { state.Workspaces[0].Enabled = false }
 	s.mu.Unlock()
 	reply := f.adapter.Execute(t.Context(), workspaceAdmission(t, f, request.RequestID))
 	if reply.Error == nil {
-		t.Fatal("late local ceiling narrowing allowed Start")
+		t.Fatal("late local approval revocation allowed Start")
 	}
 	assertNoNewExecution(t, f.calls())
 	s.mu.Lock()

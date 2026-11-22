@@ -517,9 +517,6 @@ class DiagnosticDriverTests(unittest.TestCase):
                 "device_id": "fixture-device-2",
                 "project_alias": "fixture-project",
                 "scopes": ["inventory:read"],
-                "providers": ["pi:json"],
-                "permissions": ["read-only"],
-                "max_budget_seconds": 30,
             },
         )
         self.assertEqual(
@@ -685,13 +682,12 @@ class HandoffTests(unittest.TestCase):
             "state": "/Users/fixture/gp-" + run_id + "/d/s",
             "allocation": 2,
             "project_alias": "fixture-project",
-            "providers": [
-                {
-                    "provider": "pi:json",
-                    "models": ["openai/gpt-4.1"],
-                    "max_budget_seconds": 30,
-                }
-            ],
+            "fixture_task_options": {
+                "provider": "pi:json",
+                "model": "openai/gpt-4.1",
+                "permission": "read-only",
+                "budget_seconds": 30,
+            },
             "context": {"root_token": "root", "project_token": "project"},
             "workspace": "/Users/fixture/gp-" + run_id + "/d/project-canary",
         }
@@ -737,6 +733,36 @@ class HandoffTests(unittest.TestCase):
             0o600,
         )
         self.assertTrue(root.initialized)
+
+    def test_handoff_preserves_exact_fixture_task_budget_and_options(self):
+        for field, changed in (
+            ("budget_seconds", 31),
+            ("permission", "workspace-write"),
+            ("provider", "other-provider"),
+            ("model", "other-model"),
+        ):
+            with (
+                self.subTest(field=field),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = self.root()
+                harness = SimpleNamespace(
+                    base=Path(directory).resolve(), processes=object()
+                )
+                original = root.channel.expect
+
+                def changed_options(event, **kwargs):
+                    frame = original(event, **kwargs)
+                    if event == "initialized":
+                        frame["fixture_task_options"][field] = changed
+                    return frame
+
+                with patch.object(root.channel, "expect", side_effect=changed_options):
+                    with self.assertRaisesRegex(
+                        local.ProofFailure, "identity/budget mismatch"
+                    ):
+                        remote.bootstrap_peer(root, harness, b"source", (), {})
+                self.assertFalse(root.initialized)
 
     def test_diagnostic_handoff_requires_capture_variant_without_changing_default(self):
         for capture_tag in (None, "diagnostic_capture", "direct"):

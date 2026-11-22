@@ -353,13 +353,12 @@ class Peer:
             "workspace": str(root.workspace),
             "context": root.context,
             "project_alias": self.manifest.project_alias,
-            "providers": [
-                {
-                    "provider": "pi:json",
-                    "models": ["openai/gpt-4.1"],
-                    "max_budget_seconds": 30,
-                }
-            ],
+            "fixture_task_options": {
+                "provider": "pi:json",
+                "model": "openai/gpt-4.1",
+                "permission": "read-only",
+                "budget_seconds": 30,
+            },
             "allocation": self.manifest.allocation,
         }
         if self.manifest.capture_native:
@@ -375,7 +374,7 @@ class Peer:
         identity = root.base / "identity"
         identity.mkdir(mode=0o700)
         config = {
-            "schema_version": 1,
+            "schema_version": 2,
             "gateway_id": manifest.gateway_id,
             "expected_device_id": manifest.device_id,
             "enrollment_url": manifest.enrollment_url,
@@ -394,17 +393,6 @@ class Peer:
                     "directory": str(root.workspace),
                     "root_token": root.context["root_token"],
                     "project_token": root.context["project_token"],
-                    "providers": [
-                        {
-                            "provider": "pi:json",
-                            "models": ["openai/gpt-4.1"],
-                            "efforts": [],
-                            "permissions": ["read-only"],
-                            "max_budget_seconds": 30,
-                            "native_model": True,
-                            "native_effort": True,
-                        }
-                    ],
                 }
             ],
         }

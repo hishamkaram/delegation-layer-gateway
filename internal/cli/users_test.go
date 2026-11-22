@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/adminapi"
-	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/testsupport"
 )
 
@@ -30,11 +29,11 @@ func TestUsersAllowBuildsTypedPolicyWithoutInputFiles(t *testing.T) {
 			t.Error(err)
 		}
 	}))
-	code, out, diagnostic := command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", "--provider", "claude:print", "--max-budget-seconds", "60", "--max-devices", "2")
+	code, out, diagnostic := command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", "--max-devices", "2")
 	if code != 0 || out == "" || diagnostic != "" || calls.Load() != 1 {
 		t.Fatalf("typed owner command failed: exit%d diagnostic%s", code, diagnostic)
 	}
-	code, _, _ = command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", "--provider", "claude:print", "--scope", "device:manage")
+	code, _, _ = command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", "--scope", "device:manage")
 	if code != 2 || calls.Load() != 1 {
 		t.Fatal("invalid policy reached the administrative mutation boundary")
 	}
@@ -45,10 +44,20 @@ func assertOwnerPolicyRequest(t *testing.T, r *http.Request, input adminapi.Owne
 	if r.URL.Path != "/v1/users/allow" || r.Method != http.MethodPost || input.Validate() != nil {
 		t.Error("invalid policy request boundary")
 	}
-	if input.Issuer != "https://issuer.example/" || input.Subject != "alice" || input.MaxDevices != 2 || input.MaxBudgetSeconds != 60 {
-		t.Error("flags changed the requested owner or ceiling")
+	if input.Issuer != "https://issuer.example/" || input.Subject != "alice" || input.MaxDevices != 2 {
+		t.Error("flags changed the requested owner or limits")
 	}
-	if len(input.Providers) != 1 || input.Providers[0] != "claude:print" || len(input.Permissions) != 1 || input.Permissions[0] != domain.ReadOnly || len(input.Scopes) != 4 {
+	if len(input.Scopes) != 4 {
 		t.Error("flags changed the requested authority")
+	}
+}
+
+func TestUsersAllowRejectsRemovedExecutionPolicyFlags(t *testing.T) {
+	socket := filepath.Join(testsupport.PrivateSocketDirectory(t), "absent.sock")
+	for _, flag := range []string{"--provider", "--permission", "--max-budget-seconds"} {
+		code, _, _ := command(t, "users", "allow", "--socket", socket, "--issuer", "https://issuer.example/", "--subject", "alice", flag, "obsolete-value")
+		if code != 2 {
+			t.Fatalf("removed execution flag %s passed argument validation", flag)
+		}
 	}
 }

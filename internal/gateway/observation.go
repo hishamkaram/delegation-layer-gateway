@@ -24,7 +24,7 @@ func (s *Service) acceptObservation(ctx context.Context, actor domain.Actor, c d
 	if reply.Validate() != nil {
 		return domain.OperationView{}, protocol.TaskObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
-	if _, err := s.store.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: c.Destination, Scope: scope}); err != nil {
+	if err := s.authorizeCorrelation(ctx, actor, c, scope); err != nil {
 		s.observeAuthorizationFailure(actor, reply.Operation, err)
 		return domain.OperationView{}, protocol.TaskObservation{}, err
 	}
@@ -109,10 +109,19 @@ func observationMatches(o protocol.TaskObservation, c domain.Correlation) bool {
 	if task.TaskID != string(c.Task) || task.Context.Root != string(c.Context.Root) || task.Context.Project != string(c.Context.Project) {
 		return false
 	}
-	if task.Origin.GatewayID != string(c.Gateway) || task.Origin.AdmissionGeneration != string(c.AdmissionGeneration) || task.Origin.OperationID != string(c.Operation) || task.Origin.PrincipalRef != string(c.Owner.Principal) || task.Origin.RequestSHA256 != hex.EncodeToString(c.RequestDigest[:]) {
+	route, err := protocol.TaskRouteFromDomain(c.Route)
+	if err != nil || task.Route != route {
 		return false
 	}
-	return o.Resolution != "existing" || o.BriefSHA256 == hex.EncodeToString(c.BriefDigest[:])
+	origin, err := protocol.OriginFromCorrelation(c)
+	if err != nil || task.Origin != origin {
+		return false
+	}
+	if o.Resolution != "existing" {
+		return true
+	}
+	brief, err := decodeDigest(o.BriefSHA256)
+	return err == nil && domain.RequestedBriefMatches(c, brief)
 }
 
 func decodeDigest(value string) (domain.Digest, error) {

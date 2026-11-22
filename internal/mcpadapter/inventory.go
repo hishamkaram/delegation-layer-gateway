@@ -89,6 +89,9 @@ func (a *Adapter) projects(ctx context.Context, actor domain.Actor, input Projec
 }
 
 func (a *Adapter) capabilities(ctx context.Context, actor domain.Actor, input CapabilitiesInput) (Capabilities, error) {
+	if input.Selection != nil {
+		return a.selectedCapabilities(ctx, actor, input)
+	}
 	destination := domain.Destination{Device: domain.DeviceID(input.DeviceID), Project: domain.ProjectAlias(input.ProjectAlias)}
 	authorization, err := a.options.Registry.Authorize(ctx, domain.AuthorizationRequest{Actor: actor, Destination: destination, Scope: domain.InventoryRead})
 	if err != nil {
@@ -206,29 +209,11 @@ func publicProvider(provider protocol.ProviderCapability, actor domain.Actor, gr
 	if !actor.Scopes.Has(domain.TaskDispatch) || !grant.Scopes.Has(domain.TaskDispatch) {
 		return result
 	}
-	allowed := false
-	for _, id := range grant.Ceiling.Providers {
-		if string(id) == provider.Provider {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		return result
-	}
-	for _, permission := range provider.Permissions {
-		for _, allowedPermission := range grant.Ceiling.Permissions {
-			if permission == string(allowedPermission) {
-				result.Permissions = append(result.Permissions, permission)
-				break
-			}
-		}
-	}
-	if len(result.Permissions) == 0 {
-		return result
-	}
-	result.MaxBudgetSeconds = min(provider.MaxBudgetSeconds, grant.Ceiling.MaxBudgetSeconds)
-	result.DispatchAllowed = result.MaxBudgetSeconds > 0
+	// Legacy peer observations remain dated metadata, not an independent
+	// Gateway ceiling. Native validates every execution request.
+	result.Permissions = append(result.Permissions, provider.Permissions...)
+	result.MaxBudgetSeconds = provider.MaxBudgetSeconds
+	result.DispatchAllowed = true
 	return result
 }
 

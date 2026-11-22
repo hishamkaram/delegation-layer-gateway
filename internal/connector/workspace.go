@@ -22,6 +22,20 @@ func (a *Adapter) decodeRequest(ctx context.Context, cfg *configuration, command
 		return request{}, ErrEvidence
 	}
 	r := request{command: command, config: cfg}
+	if command.Operation.Filesystem() {
+		return a.decodeFilesystem(ctx, r)
+	}
+	if command.Operation == protocol.ProviderModels {
+		return a.decodeModelRequest(ctx, r)
+	}
+	if command.Operation == protocol.SelectProject {
+		var body protocol.SelectionRequest
+		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) != nil || body.Validate() != nil {
+			return request{}, ErrEvidence
+		}
+		r.selection = &body
+		return a.decodeSelection(ctx, r)
+	}
 	if command.Operation == protocol.ResolveProject {
 		var body protocol.ResolveProjectRequest
 		if protocol.DecodeStrict(command.Body, &body, protocol.MaxFrameBytes) != nil || body.Validate() != nil {
@@ -32,6 +46,12 @@ func (a *Adapter) decodeRequest(ctx context.Context, cfg *configuration, command
 	}
 	if command.Root != "" {
 		return a.decodeRoot(ctx, r)
+	}
+	if err := r.decodeBody(); err != nil {
+		return request{}, err
+	}
+	if r.task.Route.Version == 1 {
+		return a.decodeOperationRoute(ctx, r)
 	}
 	return a.decodePinned(ctx, r)
 }
@@ -105,9 +125,6 @@ func (r *request) readCurrentPolicy(ctx context.Context) error {
 	for _, workspace := range state.Workspaces {
 		if workspace.ID == r.workspace.pin.Request.WorkspaceID && workspace.NativeContext == r.workspace.pin.WorkspaceContext {
 			r.workspace.policy = workspace
-			if workspace.Enabled {
-				r.project.Providers = clonePolicies(workspace.Providers)
-			}
 			return nil
 		}
 	}
@@ -115,13 +132,19 @@ func (r *request) readCurrentPolicy(ctx context.Context) error {
 }
 
 func (r request) matchesWorkspace(value *workspaceConstraint) bool {
+	if r.task.Route.Version == 1 {
+		if value == nil || protocol.WireContextGuard(value.Token) != r.task.Route.WorkspaceGuard || value.RelativeProject != r.task.Route.Selection.RelativePath {
+			return false
+		}
+		return r.scoped == nil || r.scoped.scope.ExpectedWorkspace == "" || value.Token == r.scoped.scope.ExpectedWorkspace
+	}
 	if r.workspace == nil {
 		return value == nil
 	}
 	return value != nil && value.Token == r.workspace.pin.WorkspaceContext && value.RelativeProject == r.workspace.pin.Request.RelativePath
 }
 
-// The lease serializes the current local ceiling with CLI Start. Native still
+// The lease serializes the current local approval with CLI Start. Native still
 // owns guarded admission; the lease never spans Wait or a task's execution.
 func (r request) startGuard(ctx context.Context) (func() error, error) {
 	lease, err := r.config.ProjectStore.Lock(ctx)
@@ -144,18 +167,6 @@ func (r request) checkStartPolicy(lease WorkspaceLease) error {
 		return err
 	}
 	if !current.Enabled || current.NativeContext != r.workspace.pin.WorkspaceContext {
-		return ErrConflict
-	}
-	options := r.startOptions
-	if r.admission != nil {
-		value := admissionOptions(*r.admission)
-		options = &value
-	}
-	if options == nil {
-		return ErrEvidence
-	}
-	r.project.Providers = current.Providers
-	if !r.optionsAllowed(*options) {
 		return ErrConflict
 	}
 	return nil
@@ -214,4 +225,25 @@ func resolvedReply(r request, pin ProjectPin) protocol.Reply {
 		return failed(r.command.Operation, ErrConflict)
 	}
 	return bodyReply(r.command.Operation, protocol.ResolveProjectReply{RequestID: pin.Request.RequestID, RelativePathSHA256: briefHash(pin.Request.RelativePath), Project: pin.WireIdentity()})
+}
+
+func (a *Adapter) decodeModelRequest(ctx context.Context, r request) (request, error) {
+	var body protocol.ModelQuery
+	if protocol.DecodeStrict(r.command.Body, &body, protocol.MaxFrameBytes) != nil || body.Validate() != nil {
+		return request{}, ErrEvidence
+	}
+	r.models = &body
+	r.selection = &protocol.SelectionRequest{Selection: body.Selection}
+	selected, err := a.decodeSelection(ctx, r)
+	if err != nil {
+		return request{}, err
+	}
+	state, err := r.config.ProjectStore.Snapshot(ctx)
+	if err != nil {
+		return request{}, err
+	}
+	if _, err = selectFilesystemScope(state, body.Selection.ScopeID); err != nil {
+		return request{}, err
+	}
+	return selected, nil
 }

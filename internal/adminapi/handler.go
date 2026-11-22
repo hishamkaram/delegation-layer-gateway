@@ -240,17 +240,9 @@ func key(input GrantKey) domain.GrantKey {
 }
 
 func (h *Handler) putGrant(ctx context.Context, input PutGrantInput) (Mutation, error) {
-	if len(input.Providers) > 100 || len(input.Permissions) > 3 {
-		return Mutation{}, domain.ErrInvalid
-	}
-	grant := domain.Grant{Key: key(GrantKey{PrincipalID: input.PrincipalID, DeviceID: input.DeviceID, ProjectAlias: input.ProjectAlias}), Scopes: input.Scopes, Ceiling: domain.DispatchCeiling{Providers: input.Providers, Permissions: input.Permissions, MaxBudgetSeconds: input.MaxBudgetSeconds}}
+	grant := domain.Grant{Key: key(GrantKey{PrincipalID: input.PrincipalID, DeviceID: input.DeviceID, ProjectAlias: input.ProjectAlias}), Scopes: input.Scopes}
 	if err := grant.Validate(); err != nil {
 		return Mutation{}, err
-	}
-	if len(input.Providers) != 0 || len(input.Permissions) != 0 || input.MaxBudgetSeconds != 0 {
-		if err := grant.Ceiling.Validate(); err != nil {
-			return Mutation{}, err
-		}
 	}
 	err := h.options.Store.PutGrant(ctx, grant)
 	return Mutation{Committed: err == nil}, err

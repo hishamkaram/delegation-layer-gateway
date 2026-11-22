@@ -25,7 +25,7 @@ type workspaceRecord struct {
 }
 
 func validWorkspaceApproval(a WorkspaceApproval) bool {
-	return domain.Token(a.Alias) == nil && localPath(a.Directory) && opaqueContext(a.NativeContext) && validProviders(a.Providers)
+	return domain.Token(a.Alias) == nil && localPath(a.Directory) && opaqueContext(a.NativeContext)
 }
 
 func opaqueContext(value string) bool {
@@ -52,37 +52,16 @@ func validWorkspaceRecords(workspaces []workspaceRecord) bool {
 	return true
 }
 
-func clonePolicies(policies []ProviderPolicy) []ProviderPolicy {
-	result := slices.Clone(policies)
-	for i := range result {
-		result[i].Models = slices.Clone(result[i].Models)
-		result[i].Efforts = slices.Clone(result[i].Efforts)
-		result[i].Permissions = slices.Clone(result[i].Permissions)
-	}
-	return result
-}
-
 func cloneApprovals(approvals []WorkspaceApproval) []WorkspaceApproval {
 	result := slices.Clone(approvals)
-	for i := range result {
-		result[i].Providers = clonePolicies(result[i].Providers)
-	}
 	return result
 }
 
 func (w workspaceRecord) view() Workspace {
-	return Workspace{ID: w.ID, Alias: w.Alias, Directory: w.Directory, Revision: w.Revision, Enabled: w.Enabled, Providers: clonePolicies(w.Providers)}
+	return Workspace{ID: w.ID, Alias: w.Alias, Directory: w.Directory, Revision: w.Revision, Enabled: w.Enabled}
 }
 
-func approvalWithDefaults(a WorkspaceApproval, defaults []ProviderPolicy) WorkspaceApproval {
-	if a.Providers == nil {
-		a.Providers = defaults
-	}
-	a.Providers = clonePolicies(a.Providers)
-	return a
-}
-
-func mintWorkspace(approval WorkspaceApproval, defaults []ProviderPolicy, random io.Reader) (workspaceRecord, error) {
+func mintWorkspace(approval WorkspaceApproval, random io.Reader) (workspaceRecord, error) {
 	if !validWorkspaceApproval(approval) || random == nil {
 		return workspaceRecord{}, ErrConfiguration
 	}
@@ -90,13 +69,13 @@ func mintWorkspace(approval WorkspaceApproval, defaults []ProviderPolicy, random
 	if _, err := io.ReadFull(random, id[:]); err != nil {
 		return workspaceRecord{}, failed(ErrPersistence, err)
 	}
-	return workspaceRecord{WorkspaceApproval: approvalWithDefaults(approval, defaults), ID: hex.EncodeToString(id[:]), Revision: 1, Enabled: true}, nil
+	return workspaceRecord{WorkspaceApproval: approval, ID: hex.EncodeToString(id[:]), Revision: 1, Enabled: true}, nil
 }
 
-func initialWorkspaces(approvals []WorkspaceApproval, defaults []ProviderPolicy, random io.Reader) ([]workspaceRecord, error) {
+func initialWorkspaces(approvals []WorkspaceApproval, random io.Reader) ([]workspaceRecord, error) {
 	records := make([]workspaceRecord, 0, len(approvals))
 	for _, approval := range approvals {
-		record, err := mintWorkspace(approval, defaults, random)
+		record, err := mintWorkspace(approval, random)
 		if err != nil {
 			return nil, err
 		}
@@ -105,12 +84,12 @@ func initialWorkspaces(approvals []WorkspaceApproval, defaults []ProviderPolicy,
 	return records, nil
 }
 
-func sameApprovals(input []WorkspaceApproval, stored []workspaceRecord, defaults []ProviderPolicy) bool {
+func sameApprovals(input []WorkspaceApproval, stored []workspaceRecord) bool {
 	if len(input) != len(stored) {
 		return false
 	}
 	for i, approval := range input {
-		if !stored[i].Enabled || !reflect.DeepEqual(approvalWithDefaults(approval, defaults), stored[i].WorkspaceApproval) {
+		if !stored[i].Enabled || !reflect.DeepEqual(approval, stored[i].WorkspaceApproval) {
 			return false
 		}
 	}
@@ -187,7 +166,7 @@ func AllowWorkspace(ctx context.Context, directory string, approval WorkspaceApp
 	}
 	approval = cloneApprovals([]WorkspaceApproval{approval})[0]
 	return changeWorkspace(ctx, directory, false, func(current profile) (profile, Workspace, bool, error) {
-		normalized := approvalWithDefaults(approval, current.Providers)
+		normalized := approval
 		for _, existing := range current.Workspaces {
 			if existing.Enabled && existing.Alias == approval.Alias {
 				if reflect.DeepEqual(existing.WorkspaceApproval, normalized) {
@@ -199,7 +178,7 @@ func AllowWorkspace(ctx context.Context, directory string, approval WorkspaceApp
 		if len(current.Workspaces) >= protocol.MaxWorkspaces {
 			return current, Workspace{}, false, ErrCapacity
 		}
-		record, err := mintWorkspace(approval, current.Providers, rand.Reader)
+		record, err := mintWorkspace(approval, rand.Reader)
 		if err != nil {
 			return current, Workspace{}, false, err
 		}
@@ -208,14 +187,13 @@ func AllowWorkspace(ctx context.Context, directory string, approval WorkspaceApp
 	})
 }
 
-// UpdateWorkspace changes only one approval's alias or provider ceiling using
+// UpdateWorkspace changes only one approval's alias using
 // its current revision. Directory and Native identity cannot be retargeted.
 func UpdateWorkspace(ctx context.Context, directory, id string, expectedRevision uint64, update WorkspaceUpdate) (Workspace, error) {
-	if expectedRevision == 0 || (update.Alias != "" && domain.Token(update.Alias) != nil) || !validProviders(update.Providers) {
+	if expectedRevision == 0 || (update.Alias != "" && domain.Token(update.Alias) != nil) {
 		return Workspace{}, ErrConfiguration
 	}
-	update.Providers = clonePolicies(update.Providers)
-	return changeWorkspace(ctx, directory, update.Providers != nil && len(update.Providers) == 0 && update.Alias == "", func(current profile) (profile, Workspace, bool, error) {
+	return changeWorkspace(ctx, directory, false, func(current profile) (profile, Workspace, bool, error) {
 		return reviseWorkspace(current, id, expectedRevision, update, false)
 	})
 }
@@ -244,15 +222,12 @@ func reviseWorkspace(current profile, id string, revision uint64, update Workspa
 	if update.Alias != "" {
 		next.Alias = update.Alias
 	}
-	if update.Providers != nil {
-		next.Providers = clonePolicies(update.Providers)
-	}
 	next.Enabled = !remove
 	if reflect.DeepEqual(existing, next) {
 		return current, existing.view(), false, nil
 	}
 	if existing.Revision == ^uint64(0) {
-		if !remove && (update.Providers == nil || len(update.Providers) != 0 || update.Alias != "") {
+		if !remove {
 			return current, Workspace{}, false, ErrCapacity
 		}
 	} else {
@@ -276,11 +251,8 @@ func (p profile) payloadBytesExceedBudget() bool {
 			return true
 		}
 	}
-	if !takePolicyBytes(p.Providers, &remaining) {
-		return true
-	}
 	for _, workspace := range p.Workspaces {
-		if !takeProfileBytes(workspace.NativeContext, &remaining) || !takeProfileBytes(workspace.Directory, &remaining) || !takeProfileBytes(workspace.Alias, &remaining) || !takePolicyBytes(workspace.Providers, &remaining) {
+		if !takeProfileBytes(workspace.NativeContext, &remaining) || !takeProfileBytes(workspace.Directory, &remaining) || !takeProfileBytes(workspace.Alias, &remaining) {
 			return true
 		}
 	}
@@ -292,22 +264,6 @@ func takeProfileBytes(value string, remaining *int) bool {
 		return false
 	}
 	*remaining -= len(value)
-	return true
-}
-
-func takePolicyBytes(policies []ProviderPolicy, remaining *int) bool {
-	for _, provider := range policies {
-		if !takeProfileBytes(provider.Provider, remaining) {
-			return false
-		}
-		for _, values := range [][]string{provider.Models, provider.Efforts, provider.Permissions} {
-			for _, value := range values {
-				if !takeProfileBytes(value, remaining) {
-					return false
-				}
-			}
-		}
-	}
 	return true
 }
 

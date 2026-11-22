@@ -9,7 +9,7 @@ import (
 )
 
 func testOwnerPolicy() domain.OwnerPolicy {
-	return domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 10}
+	return domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 10}
 }
 
 func makeOwnedFixture(t *testing.T, f *fixture) {
@@ -27,8 +27,8 @@ func TestOwnedAuthorityUsesLivePolicyAndNeverLegacyGrantFallback(t *testing.T) {
 	makeOwnedFixture(t, f)
 	request := domain.AuthorizationRequest{Actor: f.actor, Destination: destination(), Scope: domain.TaskDispatch}
 	authorized, err := f.store.Authorize(t.Context(), request)
-	if got := must(t, authorized, err); got.Grant.Ceiling.MaxBudgetSeconds != 60 {
-		t.Fatal("owner ceiling was not derived from current policy")
+	if got := must(t, authorized, err); !reflect.DeepEqual(got.Grant.Scopes, testOwnerPolicy().Scopes) {
+		t.Fatal("owner scopes were not derived from current policy")
 	}
 	c := f.prepare(t, "owned-operation")
 	operations, err := f.store.ListOperations(t.Context(), f.actor, domain.OperationPageRequest{})
@@ -37,10 +37,10 @@ func TestOwnedAuthorityUsesLivePolicyAndNeverLegacyGrantFallback(t *testing.T) {
 	}
 	f.restart(t)
 	policy := testOwnerPolicy()
-	policy.Ceiling.MaxBudgetSeconds = 30
+	policy.Scopes = domain.ScopeSet{domain.TaskDispatch}
 	requireOK(t, f.store.PutOwnerPolicy(t.Context(), f.actor.Principal, policy))
 	authorized, err = f.store.Authorize(t.Context(), request)
-	if got := must(t, authorized, err); got.Grant.Ceiling.MaxBudgetSeconds != 30 {
+	if got := must(t, authorized, err); !reflect.DeepEqual(got.Grant.Scopes, policy.Scopes) {
 		t.Fatal("policy change did not narrow effective authority")
 	}
 	bob, err := f.store.ResolvePrincipal(t.Context(), domain.ExternalSubject{Issuer: "https://issuer.example/", Subject: "bob"})
@@ -48,7 +48,7 @@ func TestOwnedAuthorityUsesLivePolicyAndNeverLegacyGrantFallback(t *testing.T) {
 	request.Actor.Principal = other.ID
 	_, err = f.store.Authorize(t.Context(), request)
 	requireCode(t, err, domain.NotFound)
-	grant := domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: destination()}, Scopes: f.actor.Scopes, Ceiling: policy.Ceiling}
+	grant := domain.Grant{Key: domain.GrantKey{Principal: f.actor.Principal, Destination: destination()}, Scopes: f.actor.Scopes}
 	requireCode(t, f.store.PutGrant(t.Context(), grant), domain.Conflict)
 	grant.Key.Principal = other.ID
 	requireCode(t, f.store.PutGrant(t.Context(), grant), domain.Conflict)
@@ -135,13 +135,13 @@ func TestOwnerRevokeRequiresManagementAndCannotTargetLegacyDevice(t *testing.T) 
 func TestSchemaSevenMigrationPreservesAuthorityWithoutAdoption(t *testing.T) {
 	f := newFixture(t)
 	before := migrationSnapshot(t, f.store.db)
-	_, err := f.store.db.ExecContext(t.Context(), "DROP TABLE self_enrollments; DROP TABLE device_owners; DROP TABLE owner_policies; PRAGMA user_version=7;")
+	_, err := f.store.db.ExecContext(t.Context(), "DROP TABLE self_enrollments; DROP TABLE device_owners; DROP TABLE owner_policies; DROP INDEX operations_retained_bodies; DROP INDEX operations_preparations; DROP INDEX operations_preparation_key; ALTER TABLE operations DROP COLUMN preparation_key; ALTER TABLE operations DROP COLUMN preparation_expires_ns; PRAGMA user_version=7;")
 	requireOK(t, err)
 	requireOK(t, f.store.Close())
 	_, err = Open(t.Context(), f.path, options(f.gateway))
 	requireCode(t, err, domain.Conflict)
 	result, err := Migrate(t.Context(), f.path)
-	if got := must(t, result, err); got.FromVersion != 7 || got.ToVersion != 9 || got.Gateway != f.gateway {
+	if got := must(t, result, err); got.FromVersion != 7 || got.ToVersion != 10 || got.Gateway != f.gateway {
 		t.Fatal("migration changed authority")
 	}
 	s, err := Open(t.Context(), f.path, options(f.gateway))

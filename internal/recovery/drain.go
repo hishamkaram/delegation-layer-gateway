@@ -90,6 +90,10 @@ func (d *Drainer) observe(ctx context.Context, input DrainRequest, view domain.A
 	if view.Correlation != nil && view.Correlation.Operation != view.Binding.Origin.Operation {
 		return view, domain.Reject(domain.EvidenceInvalid)
 	}
+	compact := view.Correlation != nil && view.Correlation.RequestVersion == domain.CompactRequestVersion
+	if compact && input.Route != view.Correlation.Destination {
+		return view, domain.Reject(domain.Conflict)
+	}
 	command, err := drainCommand(input, view)
 	if err != nil {
 		return view, err
@@ -115,7 +119,7 @@ func (d *Drainer) observe(ctx context.Context, input DrainRequest, view domain.A
 			return acceptErr
 		}
 		observed = updated
-		if observation.Kind == domain.Existing {
+		if observation.Kind == domain.Existing && !compact {
 			return d.store.BindAdministrativeRoute(ctx, domain.AdministrativeRouteBinding{Destination: input.Route, Context: view.Binding.Context, Credential: transmission.Credential, Connection: transmission.Connection, Now: d.now()})
 		}
 		return nil
@@ -138,9 +142,11 @@ func drainCommand(input DrainRequest, view domain.AdministrativeTaskView) (proto
 	default:
 		return protocol.Command{}, domain.ErrInvalid
 	}
-	task := drainBinding(view.Binding)
+	task, err := drainBinding(view.Binding)
+	if err != nil {
+		return protocol.Command{}, err
+	}
 	var body []byte
-	var err error
 	if operation == protocol.Cancel {
 		if view.Cancellation != input.Cancellation || view.Binding.SpecDigest == (domain.Digest{}) {
 			return protocol.Command{}, domain.Reject(domain.Conflict)
@@ -152,13 +158,30 @@ func drainCommand(input DrainRequest, view domain.AdministrativeTaskView) (proto
 	return protocol.Command{Operation: operation, Project: string(input.Route.Project), Body: body}, err
 }
 
-func drainBinding(binding domain.AdministrativeTaskBinding) protocol.TaskBinding {
-	origin := binding.Origin
-	result := protocol.TaskBinding{TaskID: string(binding.Task), Context: protocol.ContextBinding{Root: string(binding.Context.Root), Project: string(binding.Context.Project)}, Origin: protocol.Origin{GatewayID: string(origin.Gateway), AdmissionGeneration: string(origin.AdmissionGeneration), OperationID: string(origin.Operation), PrincipalRef: string(origin.Principal), RequestSHA256: hex.EncodeToString(origin.RequestDigest[:])}}
+func drainBinding(binding domain.AdministrativeTaskBinding) (protocol.TaskBinding, error) {
+	origin, err := protocol.OriginFromDomain(binding.Origin)
+	if err != nil {
+		return protocol.TaskBinding{}, domain.Reject(domain.EvidenceInvalid)
+	}
+	result := protocol.TaskBinding{TaskID: string(binding.Task), Context: protocol.ContextBinding{Root: string(binding.Context.Root), Project: string(binding.Context.Project)}, Origin: origin}
+	if origin.Binding != "" {
+		c, err := domain.ParseOriginBinding(origin.Binding)
+		if err != nil {
+			return protocol.TaskBinding{}, err
+		}
+		key := domain.NativeTaskKey{Device: c.Destination.Device, Root: binding.Context.Root, Task: binding.Task}
+		if _, err = domain.VerifyOriginBinding(c.Gateway, key, binding.Origin); err != nil || c.Context != binding.Context {
+			return protocol.TaskBinding{}, domain.Reject(domain.EvidenceInvalid)
+		}
+		result.Route, err = protocol.TaskRouteFromDomain(c.Route)
+		if err != nil {
+			return protocol.TaskBinding{}, domain.Reject(domain.EvidenceInvalid)
+		}
+	}
 	if binding.SpecDigest != (domain.Digest{}) {
 		result.SpecSHA256 = hex.EncodeToString(binding.SpecDigest[:])
 	}
-	return result
+	return result, nil
 }
 
 func drainObservation(reply protocol.Reply, view domain.AdministrativeTaskView, now time.Time) (domain.DelegateObservation, error) {
@@ -166,18 +189,29 @@ func drainObservation(reply protocol.Reply, view domain.AdministrativeTaskView, 
 	if protocol.DecodeStrict(reply.Body, &observation, protocol.MaxFrameBytes) != nil || observation.Validate() != nil {
 		return domain.DelegateObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
-	want := drainBinding(view.Binding)
+	want, err := drainBinding(view.Binding)
+	if err != nil {
+		return domain.DelegateObservation{}, err
+	}
 	got := observation.Task
-	if got.TaskID != want.TaskID || got.Context != want.Context || got.Origin != want.Origin || (want.SpecSHA256 != "" && got.SpecSHA256 != want.SpecSHA256) {
+	if got.TaskID != want.TaskID || got.Context != want.Context || got.Origin != want.Origin || got.Route != want.Route || (want.SpecSHA256 != "" && got.SpecSHA256 != want.SpecSHA256) {
 		return domain.DelegateObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
-	if observation.Resolution == "existing" {
-		if view.Correlation != nil && observation.BriefSHA256 != hex.EncodeToString(view.Correlation.BriefDigest[:]) {
-			return domain.DelegateObservation{}, domain.Reject(domain.EvidenceInvalid)
-		}
-		if view.Receipt != nil && observation.BriefSHA256 != hex.EncodeToString(view.Receipt.BriefDigest[:]) {
-			return domain.DelegateObservation{}, domain.Reject(domain.EvidenceInvalid)
-		}
+	if !drainBriefMatches(observation, view) {
+		return domain.DelegateObservation{}, domain.Reject(domain.EvidenceInvalid)
 	}
 	return gateway.ObservationFromReply(reply, observation, view.Cancellation, now)
+}
+
+func drainBriefMatches(observation protocol.TaskObservation, view domain.AdministrativeTaskView) bool {
+	if observation.Resolution != "existing" {
+		return true
+	}
+	if view.Correlation != nil {
+		brief, err := parseDigest(observation.BriefSHA256)
+		if err != nil || !domain.RequestedBriefMatches(*view.Correlation, brief) {
+			return false
+		}
+	}
+	return view.Receipt == nil || observation.BriefSHA256 == view.Receipt.BriefDigest.Hex()
 }

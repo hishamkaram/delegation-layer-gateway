@@ -12,20 +12,25 @@ import (
 )
 
 type request struct {
-	command      protocol.Command
-	rootOnly     bool
-	project      Project
-	config       *configuration
-	task         protocol.TaskBinding
-	admission    *protocol.Admission
-	cancellation *protocol.Cancellation
-	rangeRequest *protocol.RangeRequest
-	barrier      *protocol.OriginBarrierRequest
-	inventory    *protocol.OriginInventoryRequest
-	reopen       *protocol.OriginReopenRequest
-	workspace    *workspaceRequest
-	resolution   *protocol.ResolveProjectRequest
-	startOptions *executionOptions
+	models          *protocol.ModelQuery
+	selection       *protocol.SelectionRequest
+	scoped          *scopedRequest
+	filesystem      *protocol.FilesystemRequest
+	filesystemScope filesystemScope
+	command         protocol.Command
+	rootOnly        bool
+	project         Project
+	config          *configuration
+	task            protocol.TaskBinding
+	admission       *protocol.Admission
+	continuation    *protocol.Continuation
+	cancellation    *protocol.Cancellation
+	rangeRequest    *protocol.RangeRequest
+	barrier         *protocol.OriginBarrierRequest
+	inventory       *protocol.OriginInventoryRequest
+	reopen          *protocol.OriginReopenRequest
+	workspace       *workspaceRequest
+	resolution      *protocol.ResolveProjectRequest
 }
 
 func decodeRequest(cfg *configuration, command protocol.Command) (request, error) {
@@ -43,6 +48,9 @@ func decodeRequest(cfg *configuration, command protocol.Command) (request, error
 	if r.task.Validate(command.Operation == protocol.ResumeExisting || command.Operation == protocol.ResultChunk) != nil || r.task.Context != project.wireContext() || r.task.Origin.GatewayID != string(cfg.GatewayID) {
 		return request{}, ErrConflict
 	}
+	if r.task.Route != (protocol.TaskRoute{}) || r.task.Origin.Binding != "" {
+		return request{}, ErrUnsupported
+	}
 	return r, nil
 }
 
@@ -50,6 +58,8 @@ func (r *request) decodeBody() error {
 	switch r.command.Operation {
 	case protocol.Admit:
 		return r.decodeAdmission()
+	case protocol.Continue:
+		return r.decodeContinuation()
 	case protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect:
 		return r.decodeTask()
 	case protocol.Cancel:
@@ -64,7 +74,7 @@ func (r *request) decodeBody() error {
 		return r.decodeInventory()
 	case protocol.OriginReopen:
 		return r.decodeReopen()
-	case protocol.ResolveProject:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.ResolveProject:
 		return ErrEvidence // Decoded separately before root/project lookup.
 	default:
 		return ErrEvidence
@@ -87,6 +97,15 @@ func (r *request) decodeTask() error {
 		return ErrEvidence
 	}
 	r.task = body.Task
+	return nil
+}
+
+func (r *request) decodeContinuation() error {
+	var body protocol.Continuation
+	if protocol.DecodeStrict(r.command.Body, &body, protocol.MaxFrameBytes) != nil || body.Validate() != nil {
+		return ErrEvidence
+	}
+	r.continuation, r.task = &body, body.Task
 	return nil
 }
 
@@ -171,39 +190,6 @@ func wireIdentifier(value string) bool {
 	return true
 }
 
-func (r request) optionsAllowed(options executionOptions) bool {
-	if options.BudgetNanoseconds <= 0 || options.Model.Validate() != nil || options.Effort.Validate() != nil {
-		return false
-	}
-	for _, policy := range r.project.Providers {
-		if policy.Provider != options.Provider || options.BudgetNanoseconds > int64(policy.MaxBudgetSeconds)*int64(time.Second) {
-			continue
-		}
-		permission := false
-		for _, candidate := range policy.Permissions {
-			if string(candidate) == options.Permission {
-				permission = true
-			}
-		}
-		if permission && selectionAllowed(options.Model, policy.Models, policy.NativeModel) && selectionAllowed(options.Effort, policy.Efforts, policy.NativeEffort) {
-			return true
-		}
-	}
-	return false
-}
-
-func selectionAllowed(selection protocol.Selection, allowed []string, native bool) bool {
-	if selection.Kind == "native_default" {
-		return native && selection.Value == ""
-	}
-	for _, value := range allowed {
-		if selection.Kind == "explicit" && selection.Value == value {
-			return true
-		}
-	}
-	return false
-}
-
 func admissionOptions(a protocol.Admission) executionOptions {
 	return executionOptions{Provider: a.Provider, Permission: a.Permission, BudgetNanoseconds: int64(a.BudgetSeconds) * int64(time.Second), Model: a.Model, Effort: a.Effort}
 }
@@ -216,13 +202,16 @@ func (r request) common(ctx context.Context, command string, arguments ...string
 	if duration <= 0 {
 		return invocation{}, ErrPending
 	}
+	if command == "filesystem" {
+		duration = min(duration, protocol.MaxTTL)
+	}
 	args := append([]string{command}, arguments...)
 	args = append(args, "--root", r.project.Root, "--json", "--control-timeout", duration.String())
 	return invocation{command: command, args: args, config: r.config}, nil
 }
 
 func (r request) guarded(ctx context.Context, owner *controlOwner, command string, extra ...string) (invocation, error) {
-	origin, err := protocol.Encode(r.task.Origin, MaxStdoutBytes)
+	origin, err := protocol.Encode(r.task.Origin, protocol.NativeInputRecordBytes)
 	if err != nil {
 		return invocation{}, ErrEvidence
 	}
@@ -234,7 +223,11 @@ func (r request) guarded(ctx context.Context, owner *controlOwner, command strin
 	if command == "dispatch" {
 		flag = "--origin"
 	}
-	args := []string{r.task.TaskID, "--expected-root", r.project.RootToken, "--expected-project", r.project.ProjectToken, flag, file}
+	projectFlag, projectGuard := "--expected-project", r.project.ProjectToken
+	if r.task.Route.Version == 1 && command != "dispatch" && r.command.Operation != protocol.ResumeExisting {
+		projectFlag, projectGuard = "--expected-project-sha256", strings.TrimPrefix(r.task.Context.Project, "ctx1_")
+	}
+	args := []string{r.task.TaskID, "--expected-root", r.project.RootToken, projectFlag, projectGuard, flag, file}
 	if command == "dispatch" {
 		args = args[1:]
 		args = append(args, "--id", r.task.TaskID)
@@ -243,6 +236,12 @@ func (r request) guarded(ctx context.Context, owner *controlOwner, command strin
 		args = append(args, "--expected-spec-sha256", r.task.SpecSHA256)
 	}
 	args = append(args, extra...)
+	if r.task.Route.Version == 1 {
+		args = append(args, "--include-workspace-constraint")
+	}
+	if r.scoped != nil && (command == "dispatch" || r.command.Operation == protocol.ResumeExisting) && r.scoped.scope.ExpectedWorkspace != "" {
+		args = append(args, "--expected-workspace", r.scoped.scope.ExpectedWorkspace, "--relative-project", r.scoped.selection.RelativePath)
+	}
 	if r.workspace != nil {
 		args = append(args, "--expected-workspace", r.workspace.pin.WorkspaceContext, "--relative-project", r.workspace.pin.Request.RelativePath)
 	}
@@ -255,6 +254,8 @@ func (r request) invocation(ctx context.Context, owner *controlOwner) (invocatio
 		return r.inspectionInvocation(ctx)
 	case protocol.Admit:
 		return r.admissionInvocation(ctx, owner)
+	case protocol.Continue:
+		return r.continuationInvocation(ctx, owner)
 	case protocol.Resolve:
 		return r.guarded(ctx, owner, "resolve")
 	case protocol.ResumeExisting:
@@ -275,7 +276,7 @@ func (r request) invocation(ctx context.Context, owner *controlOwner) (invocatio
 		return r.inventoryInvocation(ctx)
 	case protocol.OriginReopen:
 		return r.common(ctx, "origin", "reopen", "--gateway-id", r.reopen.GatewayID, "--recovery-id", r.reopen.RecoveryID, "--generation", r.reopen.Generation, "--completeness-receipt", r.reopen.CompletenessReceipt, "--expected-root", r.project.RootToken)
-	case protocol.ResolveProject:
+	case protocol.ProviderModels, protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.ResolveProject:
 		return invocation{}, ErrEvidence // Resolution uses guarded context inspection.
 	default:
 		return invocation{}, ErrEvidence
@@ -287,14 +288,33 @@ func (r request) admissionInvocation(ctx context.Context, owner *controlOwner) (
 	if err != nil {
 		return invocation{}, err
 	}
-	args := []string{"--cwd", r.project.Directory, "--brief", brief, "--provider", r.admission.Provider, "--permission", r.admission.Permission, "--budget", (time.Duration(r.admission.BudgetSeconds) * time.Second).String()}
-	if r.admission.Model.Kind == "explicit" {
-		args = append(args, "--model", r.admission.Model.Value)
+	args := []string{"--cwd", r.project.Directory, "--brief", brief}
+	if r.admission.Native.Version == 1 {
+		native := r.admission.Native
+		args = append(args, "--provider", native.Provider)
+		for _, option := range []struct{ flag, value string }{{"--permission", native.Permission}, {"--budget", native.Budget}, {"--review-target", native.ReviewTarget}, {"--native-timeout", native.NativeTimeout}, {"--output-silence-timeout", native.OutputSilenceTimeout}} {
+			if option.value != "" {
+				args = append(args, option.flag, option.value)
+			}
+		}
+		if native.Model.Kind == "explicit" {
+			args = append(args, "--model", native.Model.Value)
+		}
+		if native.Effort.Kind == "explicit" {
+			args = append(args, "--effort", native.Effort.Value)
+		}
+	} else {
+		args = append(args, "--provider", r.admission.Provider, "--permission", r.admission.Permission, "--budget", (time.Duration(r.admission.BudgetSeconds) * time.Second).String())
+		if r.admission.Model.Kind == "explicit" {
+			args = append(args, "--model", r.admission.Model.Value)
+		}
+		if r.admission.Effort.Kind == "explicit" {
+			args = append(args, "--effort", r.admission.Effort.Value)
+		}
 	}
-	if r.admission.Effort.Kind == "explicit" {
-		args = append(args, "--effort", r.admission.Effort.Value)
-	}
-	return r.guarded(ctx, owner, "dispatch", args...)
+	call, err := r.guarded(ctx, owner, "dispatch", args...)
+	call.classifyArgumentExit2 = r.task.Route.Version == 1 && r.admission.Native.Version == 1
+	return call, err
 }
 
 func (r request) resultInvocation(ctx context.Context, owner *controlOwner) (invocation, error) {
@@ -321,6 +341,12 @@ func briefHash(value string) string {
 }
 
 func (r request) inspectionInvocation(ctx context.Context) (invocation, error) {
+	if r.scoped != nil && !r.rootOnly {
+		if r.scoped.scope.ExpectedWorkspace != "" {
+			return r.common(ctx, "context", "inspect", "--expected-workspace", r.scoped.scope.ExpectedWorkspace, "--relative-project", r.scoped.selection.RelativePath, "--gateway-id", string(r.config.GatewayID))
+		}
+		return r.common(ctx, "context", "inspect", "--cwd", r.project.Directory, "--gateway-id", string(r.config.GatewayID))
+	}
 	if r.rootOnly {
 		return r.common(ctx, "context", "inspect", "--gateway-id", string(r.config.GatewayID))
 	}

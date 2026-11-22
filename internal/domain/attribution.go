@@ -5,6 +5,9 @@ import "time"
 // AttributeNativeReceipt reconstructs immutable attribution; it grants no
 // authority and never infers an alias or rounds historical execution options.
 func AttributeNativeReceipt(gateway GatewayID, device DeviceID, candidate ProjectRegistration, receipt NativeTaskReceipt) (Correlation, ExecutionOptions, bool, error) {
+	if receipt.Binding.Origin.Binding != "" {
+		return attributeBoundNativeReceipt(gateway, device, candidate, receipt)
+	}
 	if RoutingToken(string(gateway)) != nil || CredentialToken(string(device)) != nil || candidate.Validate() != nil || receipt.Validate() != nil {
 		return Correlation{}, ExecutionOptions{}, false, ErrInvalid
 	}
@@ -33,6 +36,18 @@ func AttributeNativeReceipt(gateway GatewayID, device DeviceID, candidate Projec
 	return correlation, options, true, nil
 }
 
+func attributeBoundNativeReceipt(gateway GatewayID, device DeviceID, candidate ProjectRegistration, receipt NativeTaskReceipt) (Correlation, ExecutionOptions, bool, error) {
+	key := NativeTaskKey{Device: device, Root: candidate.Context.Root, Task: receipt.Binding.Task}
+	c, err := VerifyBoundNativeReceipt(gateway, key, receipt)
+	if err != nil {
+		return Correlation{}, ExecutionOptions{}, false, err
+	}
+	if candidate.Validate() != nil || candidate.Destination != c.Destination || candidate.Context != c.Context {
+		return Correlation{}, ExecutionOptions{}, false, Reject(EvidenceInvalid)
+	}
+	return c, ExecutionOptions{}, true, nil
+}
+
 func (o HistoricalExecutionOptions) ExecutionOptions() (ExecutionOptions, bool) {
 	const second = int64(time.Second)
 	if o.Validate() != nil || o.BudgetNanoseconds%second != 0 || o.BudgetNanoseconds/second > int64(^uint32(0)) {
@@ -41,6 +56,11 @@ func (o HistoricalExecutionOptions) ExecutionOptions() (ExecutionOptions, bool) 
 	return ExecutionOptions{Provider: o.Provider, Permission: o.Permission, BudgetSeconds: uint32(o.BudgetNanoseconds / second), Model: o.Model, Effort: o.Effort}, true
 }
 
+// OriginFromCorrelation projects legacy v2/v3 correlations only. Compact callers
+// must use CompactOrigin and handle its error; this helper cannot drop a binding.
 func OriginFromCorrelation(c Correlation) TaskOrigin {
+	if c.RequestVersion != 0 {
+		return TaskOrigin{}
+	}
 	return TaskOrigin{Gateway: c.Gateway, AdmissionGeneration: c.AdmissionGeneration, Operation: c.Operation, Principal: c.Owner.Principal, RequestDigest: c.RequestDigest}
 }

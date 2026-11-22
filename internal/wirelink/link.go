@@ -130,6 +130,8 @@ func publicError(err error) error {
 	code := "protocol_error"
 	retry := false
 	switch {
+	case errors.Is(err, protocol.ErrTooLarge):
+		return protocol.ErrTooLarge
 	case errors.Is(err, transport.ErrOffline):
 		code = "device_offline"
 		retry = true

@@ -1,15 +1,18 @@
 """Controller contract regressions; no native or provider process is launched."""
 
+import argparse
+import base64
 import contextlib
 import copy
 import io
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 import e2e_local
-from e2e_native_connect import NativeConnectHarness
+from e2e_native_connect import NativeConnectHarness, configure_arguments
 
 
 class WorkspaceSelectionTests(unittest.TestCase):
@@ -28,6 +31,334 @@ class WorkspaceSelectionTests(unittest.TestCase):
         self.assertIsNone(harness.advertised_workspace("device", "a" * 32))
 
 
+class CompactPreparationControllerTests(unittest.TestCase):
+    def controller(self, compact):
+        harness = object.__new__(NativeConnectHarness)
+        harness.args = SimpleNamespace(compact_routes=compact)
+        harness.operations = {}
+        harness.responses = []
+        harness.summary = {"stages": []}
+        harness.assert_no_project_pins = mock.Mock()
+        harness.mcp = mock.Mock(
+            return_value={
+                "operation_id": "owned-operation",
+                "task_id": "a" * 32,
+                "expires_at": "2026-11-21T20:07:30.394671128Z",
+            }
+        )
+        harness.until = lambda check, _seconds, _description: check()
+        harness.prepare_selected = lambda request: harness.mcp(
+            "prepare_dispatch", request
+        )
+        root = SimpleNamespace(
+            device="owned-device",
+            alias="legacy-project",
+            tasks=[],
+            selection={"scope_id": "public-workspace", "relative_path": "nested"},
+            approval={"id": "local-profile-workspace"},
+        )
+        return harness, root
+
+    def test_compact_preparation_uses_public_scope_and_native_options(self):
+        harness, root = self.controller(True)
+        harness.prepare(root, "literal fixture brief")
+        tool, request = harness.mcp.call_args_list[0].args
+        self.assertEqual(tool, "prepare_dispatch")
+        self.assertEqual(
+            request.get("selection"),
+            {"scope_id": "public-workspace", "relative_path": "nested"},
+        )
+        self.assertEqual(
+            request.get("native_options"),
+            {
+                "provider": "pi:json",
+                "permission": "read-only",
+                "budget": "30s",
+                "model": "openai/gpt-4.1",
+            },
+        )
+        self.assertNotIn("project_alias", request)
+        self.assertNotIn("budget_seconds", request)
+        self.assertEqual(len(request["request_id"]), 32)
+        self.assertEqual(harness.mcp.call_args_list[1], harness.mcp.call_args_list[0])
+        self.assertEqual(root.tasks, ["a" * 32])
+        self.assertEqual(len(harness.operations), 1)
+
+    def test_legacy_default_keeps_original_preparation_contract(self):
+        harness, root = self.controller(False)
+        harness.prepare(root, "literal fixture brief")
+        harness.mcp.assert_called_once_with(
+            "prepare_dispatch",
+            {
+                "device_id": "owned-device",
+                "project_alias": "legacy-project",
+                "brief": "literal fixture brief",
+                "provider": "pi:json",
+                "permission": "read-only",
+                "budget_seconds": 30,
+                "model": "openai/gpt-4.1",
+            },
+        )
+
+    def test_compact_replay_rejects_replacement_identity(self):
+        harness, root = self.controller(True)
+        harness.mcp.side_effect = [
+            {
+                "operation_id": "owned-operation",
+                "task_id": "a" * 32,
+                "expires_at": "2026-11-21T20:07:30.394671128Z",
+            },
+            {
+                "operation_id": "replacement-operation",
+                "task_id": "b" * 32,
+                "expires_at": "2026-11-21T20:07:30.394671128Z",
+            },
+        ]
+        with self.assertRaisesRegex(e2e_local.ProofFailure, "preparation replay"):
+            harness.prepare(root, "literal fixture brief")
+        self.assertEqual(root.tasks, ["a" * 32])
+        self.assertEqual(set(harness.operations), {"owned-operation"})
+
+    def test_preparation_replay_compares_exact_expiry_instant(self):
+        for expiry, accepted in (
+            ("2026-11-21T20:07:30.394671128Z", True),
+            ("2026-11-21T20:07:30.394671129Z", False),
+        ):
+            with self.subTest(expiry=expiry):
+                harness, root = self.controller(True)
+                first = {
+                    "operation_id": "owned-operation",
+                    "task_id": "a" * 32,
+                    "expires_at": "2026-11-21T21:07:30.394671128+01:00",
+                }
+                harness.mcp.side_effect = [first, {**first, "expires_at": expiry}]
+                if accepted:
+                    self.assertEqual(
+                        harness.prepare(root, "literal fixture brief"), first
+                    )
+                else:
+                    with self.assertRaisesRegex(
+                        e2e_local.ProofFailure, "preparation replay"
+                    ):
+                        harness.prepare(root, "literal fixture brief")
+
+    def test_flag_is_explicit_and_help_preserves_legacy_default(self):
+        parser = argparse.ArgumentParser()
+        configure_arguments(parser)
+        self.assertFalse(parser.parse_args([]).compact_routes)
+        self.assertTrue(parser.parse_args(["--compact-routes"]).compact_routes)
+        self.assertIn("--compact-routes", parser.format_help())
+
+    def test_pending_preparation_keeps_request_identity(self):
+        harness, _root = self.controller(True)
+        harness.pace_mcp = mock.Mock()
+        harness.mcp_input = lambda tool, request: {"tool": tool, "arguments": request}
+        prepared = {
+            "operation_id": "owned-operation",
+            "task_id": "a" * 32,
+            "expires_at": "2026-11-21T20:07:30.394671128Z",
+        }
+        request = {
+            "request_id": "b" * 32,
+            "selection": {"scope_id": "public-scope", "relative_path": "nested"},
+        }
+        harness.helper = mock.Mock(
+            side_effect=[
+                {
+                    "isError": True,
+                    "structuredContent": {
+                        "error": {"code": "pending", "request_id": "b" * 32}
+                    },
+                },
+                {"structuredContent": {"data": prepared}},
+            ]
+        )
+        self.assertIsNone(NativeConnectHarness.prepare_selected(harness, request))
+        self.assertEqual(
+            NativeConnectHarness.prepare_selected(harness, request), prepared
+        )
+        self.assertEqual(
+            harness.helper.call_args_list[0], harness.helper.call_args_list[1]
+        )
+        harness.helper.return_value = {
+            "isError": True,
+            "structuredContent": {"error": {"code": "pending", "request_id": "c" * 32}},
+        }
+        harness.helper.side_effect = None
+        with self.assertRaisesRegex(e2e_local.ProofFailure, "request identity"):
+            NativeConnectHarness.prepare_selected(harness, request)
+
+    def test_compact_no_pin_check_allows_existing_operations(self):
+        harness, root = self.controller(True)
+        root.command = mock.Mock(
+            return_value={
+                "upgrade": {
+                    "phase": "preview",
+                    "profile": {"from_version": 3, "to_version": 3, "pins": 0},
+                }
+            }
+        )
+        harness.mcp.side_effect = [{"project_budget": {"used": 0}}, {"projects": []}]
+        NativeConnectHarness.assert_no_project_pins(harness, root)
+        self.assertEqual(
+            [call.args[0] for call in harness.mcp.call_args_list],
+            ["list_workspaces", "list_projects"],
+        )
+        root.command.return_value["upgrade"]["profile"]["pins"] = 1
+        harness.mcp.reset_mock()
+        with self.assertRaisesRegex(e2e_local.ProofFailure, "local pin"):
+            NativeConnectHarness.assert_no_project_pins(harness, root)
+        harness.mcp.assert_not_called()
+
+
+class FilesystemControllerFailureTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def diagnostic_controller(self, *, encoded):
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = object.__new__(NativeConnectHarness)
+            harness.base = Path(temporary)
+            harness.args = SimpleNamespace(gateway=Path("/fixture/gateway"))
+            harness.summary = {
+                "result": "started",
+                "cleanup_confirmed": True,
+                "cleanup_errors": [],
+            }
+            harness.filesystem_canary = (
+                b"E2E_REQUESTED_FILE_0123456789abcdef0123456789abcdef"
+            )
+            # The fixture contract requests 17-byte ranges. This expected leak
+            # is independent of the checker's range construction.
+            fragment = harness.filesystem_canary[17:34]
+            leak = base64.b64encode(fragment) if encoded else fragment
+            self.assertNotIn(harness.filesystem_canary, leak)
+            self.assertNotIn(base64.b64encode(harness.filesystem_canary), leak)
+            output = harness.base / "gateway.stdout"
+            output.write_bytes(b'{"data":"' + leak + b'"}\n')
+            errors = harness.base / "gateway.stderr"
+            errors.write_bytes(b"")
+            harness.processes = SimpleNamespace(
+                entries=[
+                    SimpleNamespace(
+                        argv=["/fixture/gateway", "serve"],
+                        stdout_path=output,
+                        stderr_path=errors,
+                    )
+                ]
+            )
+            harness.embedded_connector_invocations = []
+            yield harness
+
+    def test_middle_range_leak_fails_when_the_whole_canary_is_absent(self):
+        for encoded in (False, True):
+            with (
+                self.subTest(encoded=encoded),
+                self.diagnostic_controller(encoded=encoded) as harness,
+            ):
+                with self.assertRaisesRegex(e2e_local.ProofFailure, "canary escaped"):
+                    harness.check_filesystem_diagnostics()
+
+    def test_range_leak_after_join_fails_the_overall_run_and_still_cleans_temp(self):
+        with self.diagnostic_controller(encoded=True) as harness:
+            harness.interruptions = e2e_local.Interruptions()
+            harness.start_network = mock.Mock()
+            harness.start_connectors = mock.Mock()
+            harness.task_scenarios = mock.Mock()
+            harness.recovery_scenarios = mock.Mock()
+            harness.filesystem_temp_roots = [object()]
+            harness.acceptance = mock.Mock()
+            with (
+                mock.patch.object(
+                    e2e_local.Harness, "_finish_owned", return_value=True
+                ),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                self.assertEqual(harness.run(), 1)
+            self.assertEqual(harness.summary["result"], "failed")
+            self.assertEqual(
+                harness.summary["filesystem_diagnostic_failure"], "ProofFailure"
+            )
+            self.assertTrue(harness.summary["cleanup_confirmed"])
+            harness.acceptance.directories.remove_owned_directory.assert_called_once()
+
+    def test_fresh_profile_pin_check_rejects_a_pin_before_cached_inventory(self):
+        harness = object.__new__(NativeConnectHarness)
+        harness.mcp = mock.Mock()
+        root = mock.Mock()
+        root.command.return_value = {
+            "upgrade": {
+                "phase": "preview",
+                "profile": {
+                    "from_version": 3,
+                    "to_version": 3,
+                    "pins": 1,
+                },
+            }
+        }
+        with self.assertRaises(e2e_local.ProofFailure):
+            harness.require_read_only_state(root)
+        root.command.assert_called_once_with(["gateway", "upgrade", "--preview"])
+        harness.mcp.assert_not_called()
+
+    def test_repeated_directory_cursor_fails_with_finite_observations(self):
+        harness = object.__new__(NativeConnectHarness)
+        harness.mcp = mock.Mock(
+            return_value={
+                "list": {"entries": [{}], "eof": False, "next_cursor": "stuck"}
+            }
+        )
+        with self.assertRaises(e2e_local.ProofFailure):
+            harness.directory_pages({}, {b"one", b"two", b"three"})
+        self.assertEqual(harness.mcp.call_count, 2)
+
+    def test_empty_nonterminal_file_range_fails_without_retrying(self):
+        harness = object.__new__(NativeConnectHarness)
+        harness.mcp = mock.Mock(
+            return_value={"read": {"offset": 0, "data_base64": "", "eof": False}}
+        )
+        with self.assertRaises(e2e_local.ProofFailure):
+            harness.read_exact_file({}, b"expected bytes")
+        self.assertEqual(harness.mcp.call_count, 1)
+
+    def test_temp_cleanup_requires_inherited_join_and_reports_cleanup_failure(self):
+        for joined, cleanup_fails, expected in (
+            (False, False, False),
+            (True, False, True),
+            (True, True, False),
+        ):
+            with (
+                self.subTest(joined=joined, cleanup_fails=cleanup_fails),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                harness = object.__new__(NativeConnectHarness)
+                harness.base = Path(temporary)
+                harness.summary = {"cleanup_errors": [], "cleanup_confirmed": joined}
+                harness.filesystem_temp_roots = [object()]
+                harness.acceptance = mock.Mock()
+                harness.check_filesystem_diagnostics = mock.Mock()
+                removal = harness.acceptance.directories.remove_owned_directory
+                if cleanup_fails:
+                    removal.side_effect = OSError("fixture removal failed")
+                with mock.patch.object(
+                    e2e_local.Harness, "_finish_owned", return_value=joined
+                ) as inherited:
+                    removal.side_effect = (
+                        OSError("fixture removal failed")
+                        if cleanup_fails
+                        else lambda *_args: self.assertTrue(inherited.called)
+                    )
+                    self.assertEqual(harness._finish_owned(), expected)
+                self.assertEqual(removal.call_count, int(joined))
+                self.assertEqual(harness.summary["cleanup_confirmed"], expected)
+                self.assertEqual(
+                    harness.summary["filesystem_temp_cleanup_confirmed"], expected
+                )
+                if cleanup_fails:
+                    self.assertEqual(
+                        harness.summary["cleanup_errors"],
+                        [{"stage": "filesystem_temp_cleanup", "kind": "OSError"}],
+                    )
+
+
 class NativeControllerOwnershipTests(unittest.TestCase):
     @contextlib.contextmanager
     def controller(self):
@@ -36,7 +367,9 @@ class NativeControllerOwnershipTests(unittest.TestCase):
             harness.interruptions = e2e_local.Interruptions()
             harness.base = Path(temporary).resolve()
             harness.args = mock.Mock(
-                gateway=Path("/fixture/gateway"), delegate=Path("/fixture/delegate")
+                compact_routes=False,
+                gateway=Path("/fixture/gateway"),
+                delegate=Path("/fixture/delegate"),
             )
             harness.summary = {"result": "started"}
             harness.operations = {}
@@ -127,6 +460,23 @@ class NativeControllerOwnershipTests(unittest.TestCase):
             def start(_name, argv, _cwd, **options):
                 self.assertIsInstance(argv, tuple)
                 self.assertEqual(harness.embedded_connector_invocations, [argv])
+                self.assertEqual(
+                    argv,
+                    (
+                        "/fixture/delegate",
+                        "--root",
+                        str(root.state),
+                        "gateway",
+                        "connect",
+                        harness.public,
+                        "--token-file",
+                        str(harness.base / "token.json"),
+                        "--foreground",
+                        "--ca",
+                        str(harness.material["ca_file"]),
+                        "--json",
+                    ),
+                )
                 harness.processes.entries.append(process)
                 options["on_spawned"](process)
                 return process
@@ -135,6 +485,33 @@ class NativeControllerOwnershipTests(unittest.TestCase):
             harness.start_native_connector(root, harness.base / "token.json")
             self.assertEqual(harness.connectors, [process])
             self.assertIs(harness.connectors[0], harness.processes.entries[0])
+
+    def test_owner_authority_uses_access_only_before_any_native_start(self):
+        class StopBeforeNative(Exception):
+            pass
+
+        with self.controller() as (harness, _root):
+            harness.gateway_config_path = harness.base / "gateway.json"
+            harness.command = mock.Mock()
+            with mock.patch(
+                "e2e_native_connect.DelegateRoot", side_effect=StopBeforeNative
+            ):
+                with self.assertRaises(StopBeforeNative):
+                    NativeConnectHarness.start_connectors(harness)
+            harness.command.assert_called_once_with(
+                harness.args.gateway,
+                [
+                    "users",
+                    "allow",
+                    "--config",
+                    harness.gateway_config_path,
+                    "--subject",
+                    "local-e2e-subject",
+                    "--max-devices",
+                    "2",
+                ],
+            )
+            harness.processes.start.assert_not_called()
 
     def test_callback_failure_retains_registry_owner_and_blocks_descendant_cleanup(
         self,

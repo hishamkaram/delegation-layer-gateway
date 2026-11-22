@@ -79,9 +79,13 @@ func invalidateRouteApproval(ctx context.Context, tx *sql.Tx, device domain.Devi
 // A route is current only on the exact credential and socket generation. This
 // query counts reservations, including ownerless and unattributed rows.
 func missingDestinationMappings(ctx context.Context, tx *sql.Tx, destination domain.RecoveryDestination) (int, error) {
+	if err := validateCompactRecoveryMappings(ctx, tx, destination); err != nil {
+		return 0, err
+	}
 	var missing int
 	err := tx.QueryRowContext(ctx, `SELECT count(*) FROM operations o
-	WHERE o.device=? AND o.root_guard=? AND o.reserved=1 AND NOT EXISTS(
+		WHERE o.device=? AND o.root_guard=? AND o.reserved=1
+		AND coalesce(json_extract(o.correlation,'$.RequestVersion'),0)<>4 AND NOT EXISTS(
 	 SELECT 1 FROM administrative_routes a
 	 JOIN devices d ON d.id=a.device
 	 JOIN credentials c ON c.device=d.id

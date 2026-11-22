@@ -3,6 +3,7 @@ package mcpadapter
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func (f *fixture) project(t *testing.T, alias string, grant bool) {
 	destination := domain.Destination{Device: deviceID(0), Project: domain.ProjectAlias(alias)}
 	check(t, f.store.RegisterProject(t.Context(), domain.ProjectRegistration{Destination: destination, Context: domain.ContextBinding{Root: domain.RootGuard(protocol.WireContextGuard(privateCanary)), Project: domain.ProjectGuard(protocol.WireContextGuard("local " + alias))}}))
 	if grant {
-		check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: destination}, Scopes: f.alice.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 120}}))
+		check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: destination}, Scopes: f.alice.Scopes}))
 	}
 }
 
@@ -130,7 +131,7 @@ func TestHiddenProjectReadinessDoesNotLeakThroughDeviceSummary(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesExposeEffectiveCurrentActorCeiling(t *testing.T) {
+func TestCapabilitiesPreserveDatedPeerMetadataWithoutGatewayCeilings(t *testing.T) {
 	f := newFixture(t, 1)
 	session := f.session(t, "alice")
 	input := args(t, CapabilitiesInput{DeviceID: string(deviceID(0)), ProjectAlias: "public"})
@@ -141,8 +142,8 @@ func TestCapabilitiesExposeEffectiveCurrentActorCeiling(t *testing.T) {
 		t.Fatal("authorized capabilities missing")
 	}
 	provider := envelope.Data.Providers[0]
-	if !provider.DispatchAllowed || provider.MaxBudgetSeconds != 120 || len(provider.Permissions) != 1 || provider.Permissions[0] != "read-only" || provider.Authentication != "unknown" {
-		t.Fatalf("ceiling was not intersected with actor grant: %+v", provider)
+	if !provider.DispatchAllowed || provider.MaxBudgetSeconds != 300 || !slices.Equal(provider.Permissions, []string{"read-only", "workspace-write"}) || provider.Authentication != "unknown" {
+		t.Fatalf("dated peer metadata was changed by Gateway execution policy: %+v", provider)
 	}
 	inventory := f.session(t, "inventory")
 	envelope = decodeResult[Capabilities](t, f.call(t, inventory, "get_capabilities", input))

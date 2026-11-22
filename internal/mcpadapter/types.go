@@ -39,7 +39,8 @@ type Operations interface {
 
 type WorkspaceTools interface {
 	gateway.TargetedCapabilities
-	ListWorkspaces(context.Context, domain.Actor, domain.DeviceID) (workspaces.Inventory, error)
+	ObserveWorkspaces(context.Context, domain.Actor, domain.DeviceID) (workspaces.InventoryObservation, error)
+	metadataChecker
 	ResolveProject(context.Context, domain.Actor, workspaces.ResolveInput) (workspaces.Resolution, error)
 }
 type (
@@ -61,18 +62,22 @@ type ProjectsInput struct {
 	Limit    int    `json:"limit,omitempty"`
 }
 type CapabilitiesInput struct {
-	DeviceID     string `json:"device_id"`
-	ProjectAlias string `json:"project_alias"`
+	Selection    *protocol.FileSelection `json:"selection,omitempty"`
+	DeviceID     string                  `json:"device_id"`
+	ProjectAlias string                  `json:"project_alias,omitempty"`
 }
 type PrepareInput struct {
-	DeviceID      string  `json:"device_id"`
-	ProjectAlias  string  `json:"project_alias"`
-	Brief         string  `json:"brief" jsonschema:"UTF-8 brief up to 256 KiB; encoded frame must also fit 1 MiB."`
-	Provider      string  `json:"provider"`
-	Permission    string  `json:"permission"`
-	BudgetSeconds uint32  `json:"budget_seconds"`
-	Model         *string `json:"model,omitempty" jsonschema:"Omit for the provider native default; otherwise select an advertised model."`
-	Effort        *string `json:"effort,omitempty" jsonschema:"Omit for the provider native default; otherwise select an advertised effort."`
+	RequestID     string                  `json:"request_id,omitempty" jsonschema:"Stable 32-character lowercase hex preparation ID. Retain and reuse it with identical selection, brief and Native options after every uncertain response."`
+	Selection     *protocol.FileSelection `json:"selection,omitempty"`
+	NativeOptions *NativeOptionsInput     `json:"native_options,omitempty"`
+	DeviceID      string                  `json:"device_id"`
+	ProjectAlias  string                  `json:"project_alias,omitempty"`
+	Brief         string                  `json:"brief" jsonschema:"UTF-8 brief up to 256 KiB; encoded frame must also fit 1 MiB."`
+	Provider      string                  `json:"provider,omitempty"`
+	Permission    string                  `json:"permission,omitempty"`
+	BudgetSeconds uint32                  `json:"budget_seconds,omitempty"`
+	Model         *string                 `json:"model,omitempty" jsonschema:"Omit for the provider native default; otherwise request an explicit Native model."`
+	Effort        *string                 `json:"effort,omitempty" jsonschema:"Omit for the provider native default; otherwise request an explicit Native effort."`
 }
 type (
 	OperationInput struct {
@@ -97,6 +102,7 @@ type Envelope[T any] struct {
 }
 type ToolError struct {
 	Code         string `json:"code"`
+	Stage        string `json:"stage,omitempty"`
 	Retryable    bool   `json:"retryable"`
 	OperationID  string `json:"operation_id,omitempty"`
 	RequestID    string `json:"request_id,omitempty"`
@@ -116,12 +122,15 @@ type (
 )
 
 type WorkspaceInventory struct {
-	DeviceID      string                         `json:"device_id"`
-	Online        bool                           `json:"online"`
-	DelegateReady bool                           `json:"delegate_ready"`
-	ObservedAt    *time.Time                     `json:"observed_at,omitempty"`
-	Workspaces    []protocol.WorkspaceCapability `json:"workspaces"`
-	ProjectBudget *protocol.ProjectBudget        `json:"project_budget,omitempty"`
+	metadataSource      *gateway.MetadataSource
+	Scopes              []protocol.FilesystemScope     `json:"scopes"`
+	ScopeDiscoveryError string                         `json:"scope_discovery_error,omitempty"`
+	DeviceID            string                         `json:"device_id"`
+	Online              bool                           `json:"online"`
+	DelegateReady       bool                           `json:"delegate_ready"`
+	ObservedAt          *time.Time                     `json:"observed_at,omitempty"`
+	Workspaces          []protocol.WorkspaceCapability `json:"workspaces"`
+	ProjectBudget       *protocol.ProjectBudget        `json:"project_budget,omitempty"`
 }
 type ResolvedProject struct {
 	DeviceID     string                    `json:"device_id"`
@@ -154,6 +163,9 @@ type ProjectPage struct {
 	NextCursor string    `json:"next_cursor,omitempty"`
 }
 type Capabilities struct {
+	metadataSource        *gateway.MetadataSource
+	Selection             *protocol.FileSelection    `json:"selection,omitempty"`
+	AdmissionOpen         bool                       `json:"admission_open"`
 	DeviceID              string                     `json:"device_id"`
 	ProjectAlias          string                     `json:"project_alias"`
 	TaskReadAllowed       bool                       `json:"task_read_allowed"`
@@ -168,13 +180,17 @@ type Capabilities struct {
 }
 
 type Provider struct {
+	SupportedModes   []string `json:"supported_modes,omitempty"`
+	SupportedOptions []string `json:"supported_options,omitempty"`
+	RequiredOptions  []string `json:"required_options,omitempty"`
+	Continuation     string   `json:"continuation,omitempty"`
 	Provider         string   `json:"provider"`
 	Models           []string `json:"models"`
 	Efforts          []string `json:"efforts"`
 	Authentication   string   `json:"authentication"`
 	DispatchAllowed  bool     `json:"dispatch_allowed"`
 	Permissions      []string `json:"permissions"`
-	MaxBudgetSeconds uint32   `json:"max_budget_seconds"`
+	MaxBudgetSeconds uint32   `json:"max_budget_seconds,omitempty"`
 }
 type Prepared struct {
 	OperationID string    `json:"operation_id"`

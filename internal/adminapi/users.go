@@ -16,17 +16,14 @@ type OwnerPolicies interface {
 }
 
 type OwnerPolicyInput struct {
-	Issuer           string              `json:"issuer"`
-	Subject          string              `json:"subject"`
-	Scopes           domain.ScopeSet     `json:"scopes"`
-	Providers        []domain.ProviderID `json:"providers"`
-	Permissions      []domain.Permission `json:"permissions"`
-	MaxBudgetSeconds uint32              `json:"max_budget_seconds"`
-	MaxDevices       uint32              `json:"max_devices"`
+	Issuer     string          `json:"issuer"`
+	Subject    string          `json:"subject"`
+	Scopes     domain.ScopeSet `json:"scopes"`
+	MaxDevices uint32          `json:"max_devices"`
 }
 
 func (i OwnerPolicyInput) Policy() domain.OwnerPolicy {
-	return domain.OwnerPolicy{Enabled: true, Scopes: i.Scopes, Ceiling: domain.DispatchCeiling{Providers: i.Providers, Permissions: i.Permissions, MaxBudgetSeconds: i.MaxBudgetSeconds}, MaxDevices: i.MaxDevices}
+	return domain.OwnerPolicy{Enabled: true, Scopes: i.Scopes, MaxDevices: i.MaxDevices}
 }
 
 func (i OwnerPolicyInput) Validate() error {
@@ -93,7 +90,7 @@ func (h *Handler) showOwner(ctx context.Context, input ResolvePrincipalInput) (O
 	if err != nil {
 		return OwnerPolicyView{}, err
 	}
-	return OwnerPolicyView{PrincipalID: string(principal.ID), Enabled: policy.Enabled, Policy: OwnerPolicyInput{Issuer: input.Issuer, Subject: input.Subject, Scopes: policy.Scopes, Providers: policy.Ceiling.Providers, Permissions: policy.Ceiling.Permissions, MaxBudgetSeconds: policy.Ceiling.MaxBudgetSeconds, MaxDevices: policy.MaxDevices}}, nil
+	return OwnerPolicyView{PrincipalID: string(principal.ID), Enabled: policy.Enabled, Policy: OwnerPolicyInput{Issuer: input.Issuer, Subject: input.Subject, Scopes: policy.Scopes, MaxDevices: policy.MaxDevices}}, nil
 }
 
 func (h *Handler) disableOwner(ctx context.Context, input ResolvePrincipalInput) (Mutation, error) {

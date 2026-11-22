@@ -1,10 +1,54 @@
 package registry
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 )
+
+func TestStoredObservationAbsenceAndCorruptionRemainDistinct(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		data         []byte
+		absent       bool
+		invalidValue bool
+	}{
+		{name: "SQL null", absent: true},
+		{name: "empty bytes", data: []byte{}, absent: true},
+		{name: "JSON null", data: []byte("null"), invalidValue: true},
+		{name: "invalid observation", data: []byte("{}"), invalidValue: true},
+		{name: "malformed JSON", data: []byte("{malformed")},
+		{name: "unknown field", data: []byte(`{"unexpected":true}`)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := newFixture(t)
+			correlation := f.prepare(t, "stored-observation")
+			_, err := f.store.db.ExecContext(t.Context(), "UPDATE operations SET observation=? WHERE id=?", test.data, correlation.Operation)
+			requireOK(t, err)
+			view, err := f.store.GetOperation(t.Context(), f.actor, correlation.Operation)
+			if test.absent {
+				requireOK(t, err)
+				if view.Observation != nil {
+					t.Fatal("absent observation became cached evidence")
+				}
+			} else if err == nil {
+				t.Fatal("nonempty invalid stored observation became absent evidence")
+			}
+			if test.invalidValue && !errors.Is(err, domain.ErrInvalid) {
+				t.Fatal("invalid observation lost its validation error", err)
+			}
+			var retained []byte
+			var state domain.DeliveryState
+			var reserved bool
+			requireOK(t, f.store.db.QueryRowContext(t.Context(), "SELECT observation,state,reserved FROM operations WHERE id=?", correlation.Operation).Scan(&retained, &state, &reserved))
+			if !bytes.Equal(retained, test.data) || state != domain.Prepared || reserved {
+				t.Fatal("reading an observation changed its stored bytes or delivery authority")
+			}
+		})
+	}
+}
 
 func TestRefusalRetainsKnownSpecWithoutOverwritingAcceptedEvidence(t *testing.T) {
 	cases := []struct {

@@ -14,7 +14,7 @@ import (
 // Opaque IDs, URLs, projects and provider names are absent from metric dimensions.
 const (
 	metricCodeCount       = 30
-	controlClassCount     = 14
+	controlClassCount     = 22
 	transportOutcomeCount = 6
 )
 
@@ -23,7 +23,7 @@ func metricCodes() [metricCodeCount]Code {
 }
 
 func controlClasses() [controlClassCount]routing.ControlClass {
-	return [controlClassCount]routing.ControlClass{routing.PrepareClass, routing.ControlClass(protocol.ContextInspect), routing.ControlClass(protocol.Admit), routing.ControlClass(protocol.Resolve), routing.ControlClass(protocol.ResumeExisting), routing.ControlClass(protocol.FenceAbsent), routing.ControlClass(protocol.Status), routing.ControlClass(protocol.Collect), routing.ControlClass(protocol.ResultChunk), routing.ControlClass(protocol.Cancel), routing.ControlClass(protocol.OriginBarrier), routing.ControlClass(protocol.OriginInventory), routing.ControlClass(protocol.OriginReopen), routing.ControlClass(protocol.ResolveProject)}
+	return [controlClassCount]routing.ControlClass{routing.PrepareClass, routing.ControlClass(protocol.ContextInspect), routing.ControlClass(protocol.Admit), routing.ControlClass(protocol.Continue), routing.ControlClass(protocol.Resolve), routing.ControlClass(protocol.ResumeExisting), routing.ControlClass(protocol.FenceAbsent), routing.ControlClass(protocol.Status), routing.ControlClass(protocol.Collect), routing.ControlClass(protocol.ResultChunk), routing.ControlClass(protocol.Cancel), routing.ControlClass(protocol.OriginBarrier), routing.ControlClass(protocol.OriginInventory), routing.ControlClass(protocol.OriginReopen), routing.ControlClass(protocol.ResolveProject), routing.ControlClass(protocol.FilesystemScopes), routing.ControlClass(protocol.ListDirectory), routing.ControlClass(protocol.ReadFile), routing.ControlClass(protocol.InspectFile), routing.ControlClass(protocol.InspectGit), routing.ControlClass(protocol.SelectProject), routing.ControlClass(protocol.ProviderModels)}
 }
 
 func transportOutcomes() [transportOutcomeCount]routing.TransportOutcome {

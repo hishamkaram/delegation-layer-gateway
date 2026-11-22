@@ -29,7 +29,7 @@ import (
 
 func allowOwnedTokenOwner(t *testing.T, f *fixture) adminapi.OwnerPolicyView {
 	t.Helper()
-	input := adminapi.OwnerPolicyInput{Issuer: "https://issuer.example/", Subject: "alice", Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60, MaxDevices: 2}
+	input := adminapi.OwnerPolicyInput{Issuer: "https://issuer.example/", Subject: "alice", Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 2}
 	data, err := json.Marshal(input)
 	check(t, err)
 	var view adminapi.OwnerPolicyView

@@ -33,6 +33,81 @@ def cleanup_root():
 
 
 class PeerBoundaryTests(unittest.TestCase):
+    def test_enrollment_projects_schema2_access_and_exact_local_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            root_base = base / "d"
+            root_base.mkdir(mode=0o700)
+            owner = object.__new__(peer.Peer)
+            owner.base, owner.sequence = base, 0
+            owner.enrolled, owner.connector = False, None
+            owner.manifest = SimpleNamespace(
+                gateway_id="gateway",
+                device_id="device",
+                project_alias="project",
+                gateway=Path("/fixture/gateway"),
+                enrollment_url="https://fixture.invalid/v1/enroll",
+                wss_url="wss://fixture.invalid/device",
+            )
+            owner.material = {"ca_file": str(base / "server-ca.pem")}
+            owner.device_ca = base / "device-ca.pem"
+            owner.root = SimpleNamespace(
+                base=root_base,
+                state=root_base / "state",
+                workspace=root_base / "workspace",
+                temporary=root_base / "temporary",
+                connector_executable=Path("/fixture/delegate"),
+                context={"root_token": "root-token", "project_token": "project-token"},
+                env={},
+            )
+            owner.command = mock.Mock()
+            token = {
+                "device_id": "device",
+                "token": "A" * 43,
+                "expires_at": "2030-01-01T00:00:00Z",
+            }
+            self.assertEqual(owner.enroll(token), {"enrolled": True})
+            config = json.loads(owner.connector_config.read_text())
+            self.assertEqual(
+                config,
+                {
+                    "schema_version": 2,
+                    "gateway_id": "gateway",
+                    "expected_device_id": "device",
+                    "enrollment_url": "https://fixture.invalid/v1/enroll",
+                    "wss_url": "wss://fixture.invalid/device",
+                    "trust_ca_file": str(base / "server-ca.pem"),
+                    "device_ca_file": str(base / "device-ca.pem"),
+                    "identity_directory": str(root_base / "identity"),
+                    "delegate_executable": "/fixture/delegate",
+                    "temporary_directory": str(root_base / "temporary"),
+                    "control_timeout": "30s",
+                    "network_timeout": "35s",
+                    "projects": [
+                        {
+                            "alias": "project",
+                            "root": str(root_base / "state"),
+                            "directory": str(root_base / "workspace"),
+                            "root_token": "root-token",
+                            "project_token": "project-token",
+                        }
+                    ],
+                },
+            )
+            owner.command.assert_called_once_with(
+                owner.manifest.gateway,
+                [
+                    "connector",
+                    "enroll",
+                    "--config",
+                    owner.connector_config,
+                    "--token-file",
+                    base / "input-0002.json",
+                ],
+                owner.root.env,
+            )
+            self.assertEqual(owner.connector_config.stat().st_mode & 0o777, 0o600)
+
     def test_run_identity_is_canonical_and_derives_exact_known_path(self):
         self.assertEqual(
             peer.run_directory(Path("/owned/home"), "0123456789abcdef"),
@@ -843,6 +918,16 @@ class OwnedProcessTests(unittest.TestCase):
                     ):
                         receipt = owner.initialize()
                     root = owner.root
+                    self.assertEqual(
+                        receipt["fixture_task_options"],
+                        {
+                            "provider": "pi:json",
+                            "model": "openai/gpt-4.1",
+                            "permission": "read-only",
+                            "budget_seconds": 30,
+                        },
+                    )
+                    self.assertNotIn("providers", receipt)
                     if capture_native:
                         self.assertEqual(
                             receipt["native_control_variant"], "diagnostic_capture"
@@ -876,6 +961,19 @@ class OwnedProcessTests(unittest.TestCase):
                     with mock.patch.object(owner, "command") as command:
                         self.assertEqual(owner.enroll(enrollment), {"enrolled": True})
                     config = json.loads(owner.connector_config.read_text())
+                    self.assertEqual(config["schema_version"], 2)
+                    self.assertEqual(
+                        config["projects"],
+                        [
+                            {
+                                "alias": manifest.project_alias,
+                                "root": str(root.state),
+                                "directory": str(root.workspace),
+                                "root_token": "fixture-root",
+                                "project_token": "fixture-project",
+                            }
+                        ],
+                    )
                     self.assertEqual(
                         config["delegate_executable"], str(root.connector_executable)
                     )

@@ -192,7 +192,7 @@ func importCanonicalEntries(ctx context.Context, tx *sql.Tx, p domain.ImportedIn
 	}
 	for i, e := range p.Entries {
 		if e.Refusal != nil {
-			err = applyNamespaceRefusal(ctx, tx, p, *e.Refusal)
+			err = applyNamespaceRefusal(ctx, tx, p, *e.Refusal, slots[i])
 		} else if slots[i].known != nil {
 			err = hydrateKnownReceipt(ctx, tx, *slots[i].known, *e.Existing)
 		} else {
@@ -214,6 +214,14 @@ func prepareImportSlots(ctx context.Context, tx *sql.Tx, p domain.ImportedInvent
 	for i, e := range p.Entries {
 		if err := checkPageOriginIdentity(e, seen); err != nil {
 			return nil, err
+		}
+		bound, present, err := prepareBoundImportSlot(ctx, tx, p, e, gateway)
+		if err != nil {
+			return nil, err
+		}
+		if present {
+			slots[i] = bound
+			continue
 		}
 		row, err := prepareImportSlot(ctx, tx, p, e, gateway)
 		if err != nil {
@@ -282,7 +290,7 @@ func hasCode(err error, code domain.ErrorCode) bool {
 func classifyImportSlots(ctx context.Context, tx *sql.Tx, p domain.ImportedInventoryPage, gateway domain.GatewayID, slots []importSlot) error {
 	contexts := make(map[domain.ContextBinding][]int)
 	for i, e := range p.Entries {
-		if e.Existing != nil && slots[i].known == nil {
+		if e.Existing != nil && slots[i].known == nil && slots[i].correlation == nil {
 			c := e.Existing.Receipt.Binding.Context
 			contexts[c] = append(contexts[c], i)
 		}

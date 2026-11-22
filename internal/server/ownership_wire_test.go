@@ -49,7 +49,7 @@ func TestRuntimeOwnedOnlyWireV2PreservesLegacyV1AndAuthorizedDevicePage(t *testi
 	f.start(t)
 	_, legacy := f.enrollDevice(t)
 	f.adminCall(t, "/v1/projects", adminapi.RegisterProjectInput{DeviceID: "device", ProjectAlias: "public", RootGuard: protocol.WireContextGuard("legacy root"), ProjectGuard: protocol.WireContextGuard("legacy project")}, nil)
-	routingAuditAdmin(t, f, "PUT", "/v1/grants", adminapi.PutGrantInput{PrincipalID: string(principal), DeviceID: "device", ProjectAlias: "public", Scopes: []domain.Scope{domain.InventoryRead}, Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60})
+	routingAuditAdmin(t, f, "PUT", "/v1/grants", adminapi.PutGrantInput{PrincipalID: string(principal), DeviceID: "device", ProjectAlias: "public", Scopes: []domain.Scope{domain.InventoryRead}})
 	ownedReceipt, owned := f.selfEnroll(t)
 	endpoint := strings.Replace(f.deviceURL(t), "https://", "wss://", 1)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)

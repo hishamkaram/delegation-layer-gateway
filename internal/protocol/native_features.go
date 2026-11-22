@@ -17,7 +17,7 @@ func NativeFeaturesCompatible(features []string) bool {
 // RecognizedNativeFeatures projects actual evidence in a stable wire order.
 func RecognizedNativeFeatures(features []string) []string {
 	var result []string
-	for _, feature := range [...]string{FeatureNamespaceAdmission, FeatureNamespaceMutationLease, WorkspaceFeature, FeaturePathProject} {
+	for _, feature := range [...]string{FeatureNamespaceAdmission, FeatureNamespaceMutationLease, WorkspaceFeature, FeaturePathProject, FeatureFilesystem, FeatureNativeOptions, FeatureProjectHashGuard, FeatureGuardedContinuation, FeatureScopedModels, FeatureOriginBinding} {
 		if slices.Contains(features, feature) {
 			result = append(result, feature)
 		}

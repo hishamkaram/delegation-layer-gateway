@@ -10,14 +10,14 @@ import (
 )
 
 type MigrationResult struct {
-	Gateway     domain.GatewayID
-	FromVersion int
-	ToVersion   int
+	Gateway     domain.GatewayID `json:"gateway_id"`
+	FromVersion int              `json:"from_version"`
+	ToVersion   int              `json:"to_version"`
 }
 
-// Migrate upgrades an existing private schema-6, 7 or 8 database without replacing its
+// Migrate upgrades an existing private schema-6, 7, 8 or 9 database without replacing its
 // authority or discarding evidence. The caller holds the process instance lease.
-// A valid schema-9 database is an idempotent success. Open never migrates.
+// A valid schema-10 database is an idempotent success. Open never migrates.
 func Migrate(ctx context.Context, path string) (result MigrationResult, err error) {
 	if err = validateRegistryFile(path); err != nil {
 		return result, err
@@ -37,8 +37,8 @@ func migrateRegistry(ctx context.Context, tx *sql.Tx) (MigrationResult, error) {
 	if err := tx.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return MigrationResult{}, err
 	}
-	if version < 6 || version > 9 {
-		return MigrationResult{}, fmt.Errorf("registry migration supports schema 6, 7, 8 or 9: %w", domain.Reject(domain.Conflict))
+	if version < 6 || version > 10 {
+		return MigrationResult{}, fmt.Errorf("registry migration supports schema 6, 7, 8, 9 or 10: %w", domain.Reject(domain.Conflict))
 	}
 	gateway, err := validateRegistryAuthority(ctx, tx, "")
 	if err != nil {
@@ -52,23 +52,44 @@ func migrateRegistry(ctx context.Context, tx *sql.Tx) (MigrationResult, error) {
 	if err = verifyRoutingConstraints(ctx, tx); err != nil {
 		return MigrationResult{}, err
 	}
+	if err = migrateAccessSchema(ctx, tx, version); err != nil {
+		return MigrationResult{}, err
+	}
+	return MigrationResult{Gateway: gateway, FromVersion: version, ToVersion: 10}, nil
+}
+
+func migrateAccessSchema(ctx context.Context, tx *sql.Tx, version int) error {
 	if version < 8 {
-		if _, err = tx.ExecContext(ctx, ownershipSchema); err != nil {
-			return MigrationResult{}, fmt.Errorf("migrate ownership: %w", err)
+		if _, err := tx.ExecContext(ctx, ownershipSchema); err != nil {
+			return fmt.Errorf("migrate ownership: %w", err)
 		}
 	}
 	if version < 9 {
-		if _, err = tx.ExecContext(ctx, projectResolutionSchema); err != nil {
-			return MigrationResult{}, fmt.Errorf("migrate project correlations: %w", err)
+		if _, err := tx.ExecContext(ctx, projectResolutionSchema); err != nil {
+			return fmt.Errorf("migrate project correlations: %w", err)
 		}
 	}
-	if err = verifyOwnershipSchema(ctx, tx); err != nil {
-		return MigrationResult{}, err
+	if err := verifyOwnershipSchema(ctx, tx); err != nil {
+		return err
 	}
-	if err = verifyProjectResolutionSchema(ctx, tx); err != nil {
-		return MigrationResult{}, err
+	if err := verifyProjectResolutionSchema(ctx, tx); err != nil {
+		return err
 	}
-	return MigrationResult{Gateway: gateway, FromVersion: version, ToVersion: 9}, nil
+	if version < 10 {
+		if err := migrateExecutionPolicies(ctx, tx); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE operations ADD COLUMN preparation_key TEXT; ALTER TABLE operations ADD COLUMN preparation_expires_ns INTEGER;"); err != nil {
+			return fmt.Errorf("migrate preparation storage: %w", err)
+		}
+		if err := migratePreparationExpiries(ctx, tx); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, preparationSchema); err != nil {
+			return fmt.Errorf("create preparation indexes: %w", err)
+		}
+	}
+	return verifyPreparationSchema(ctx, tx)
 }
 
 const migrateRoutingPermits = `

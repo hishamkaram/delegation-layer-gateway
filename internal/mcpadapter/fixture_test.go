@@ -316,7 +316,7 @@ func (f *fixture) registerDevice(t *testing.T, index int) {
 	_ = checked(t, device, err)
 	destination := domain.Destination{Device: id, Project: "public"}
 	check(t, f.store.RegisterProject(t.Context(), domain.ProjectRegistration{Destination: destination, Context: domain.ContextBinding{Root: domain.RootGuard(protocol.WireContextGuard(privateCanary)), Project: domain.ProjectGuard(protocol.WireContextGuard("private project path"))}}))
-	check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: destination}, Scopes: f.alice.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 120}}))
+	check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: destination}, Scopes: f.alice.Scopes}))
 }
 
 func (f *fixture) enrollPrimary(t *testing.T) {

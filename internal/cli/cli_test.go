@@ -55,8 +55,8 @@ func TestHelpVersionAndErrorsNeverEchoArgumentsOrEnvironment(t *testing.T) {
 				Version string `json:"version"`
 			}
 			require(t, json.Unmarshal([]byte(out), &reported))
-			if reported.Version != "0.1.0" {
-				t.Fatalf("public CLI software version = %q, want 0.1.0", reported.Version)
+			if reported.Version != "0.2.0" {
+				t.Fatalf("public CLI software version = %q, want 0.2.0", reported.Version)
 			}
 		}
 	}

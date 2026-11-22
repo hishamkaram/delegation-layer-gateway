@@ -575,7 +575,7 @@ class ContractTests(unittest.TestCase):
             "https://gateway/mcp",
         )
 
-    def test_cleanup_authority_and_provider_ceiling_fail_closed_independently(self):
+    def test_cleanup_authority_and_native_provider_advice_are_independent(self):
         config = contracts.Config.parse(configuration(), "provider")
         for change in (
             {"task_read_allowed": False},
@@ -602,20 +602,29 @@ class ContractTests(unittest.TestCase):
         ):
             value = capabilities(config)
             value["providers"][0].update(change)
-            with self.subTest(change=change), self.assertRaises(live.Failure):
+            with self.subTest(advice=change):
                 contracts.require_capability(
                     value, config, config.targets[0], dispatch=True
                 )
         contracts.require_capability(
             capabilities(config), config, config.targets[0], dispatch=True
         )
-        with self.assertRaises(live.Failure):
-            contracts.require_capability(
-                capabilities(config),
-                replace(config, model="other-model"),
-                config.targets[0],
-                dispatch=True,
-            )
+        contracts.require_capability(
+            capabilities(config),
+            replace(config, provider="future-provider", model="other-model"),
+            config.targets[0],
+            dispatch=True,
+        )
+        value = capabilities(config)
+        value["providers"] = []
+        contracts.require_capability(value, config, config.targets[0], dispatch=True)
+        for providers in (None, "invalid", [{"provider": "duplicate"}] * 2):
+            value = capabilities(config)
+            value["providers"] = providers
+            with self.subTest(providers=providers), self.assertRaises(live.Failure):
+                contracts.require_capability(
+                    value, config, config.targets[0], dispatch=True
+                )
 
     def test_private_json_rejects_duplicates_nonfinite_symlinks_and_wide_permissions(
         self,

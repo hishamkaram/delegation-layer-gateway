@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
@@ -42,7 +41,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := Project{Alias: "project-one", Root: t.TempDir(), Directory: t.TempDir(), RootToken: strings.Repeat("a", 64), ProjectToken: "local-project-token-PRIVATE-CANARY", Providers: []ProviderPolicy{{Provider: "fixture", Models: []string{"model-safe"}, Permissions: []domain.Permission{domain.ReadOnly, domain.WorkspaceWrite}, MaxBudgetSeconds: 120, NativeModel: true, NativeEffort: true}}}
+	project := Project{Alias: "project-one", Root: t.TempDir(), Directory: t.TempDir(), RootToken: strings.Repeat("a", 64), ProjectToken: "local-project-token-PRIVATE-CANARY"}
 	config := Config{Executable: executable, TemporaryDirectory: t.TempDir(), GatewayID: "gateway-one", Projects: []Project{project}, ControlTimeout: time.Second}
 	clock := &testClock{value: time.Now()}
 	adapter, err := NewAdapter(config, clock.now)
@@ -190,15 +189,19 @@ func TestAdmissionUsesOwnedFilesAndPassiveVerification(t *testing.T) {
 	}
 }
 
-func TestCurrentCeilingBlocksResumeAndReloadRejectsOldGeneration(t *testing.T) {
+func TestNativeBudgetHasNoConnectorCeilingAndReloadRejectsOldGeneration(t *testing.T) {
 	f := newFixture(t)
 	f.state.Budget = int64(121 * time.Second)
 	f.writeState()
-	assertCode(t, f.adapter.Execute(t.Context(), f.command(protocol.ResumeExisting)), "forbidden")
+	if reply := f.adapter.Execute(t.Context(), f.command(protocol.ResumeExisting)); reply.Error != nil {
+		t.Fatal("Native budget was vetoed by connector policy", reply.Error.Code)
+	}
+	resumed := false
 	for _, call := range f.calls() {
-		if slicesContains(call.Args, "--resume-admission") {
-			t.Fatal("resume started outside local ceiling")
-		}
+		resumed = resumed || slicesContains(call.Args, "--resume-admission")
+	}
+	if !resumed {
+		t.Fatal("Native-owned resume did not reach public CLI")
 	}
 	generation := f.adapter.Generation()
 	if err := f.adapter.Reload(t.Context(), f.config); err != nil {
@@ -336,8 +339,7 @@ func TestResumeReloadBetweenPassiveReceiptAndStartRefusesMutation(t *testing.T) 
 	waitPath(t, filepath.Join(f.config.Projects[0].Root, "started-"+f.task().TaskID))
 	config := f.config
 	config.Projects = append([]Project(nil), config.Projects...)
-	config.Projects[0].Providers = clonePolicies(config.Projects[0].Providers)
-	config.Projects[0].Providers[0].MaxBudgetSeconds = 1
+	config.Projects[0].ProjectToken = "changed-project-token"
 	if err := f.adapter.Reload(t.Context(), config); err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +348,7 @@ func TestResumeReloadBetweenPassiveReceiptAndStartRefusesMutation(t *testing.T) 
 	assertCode(t, reply, "context_mismatch")
 	for _, call := range f.calls() {
 		if slicesContains(call.Args, "--resume-admission") {
-			t.Fatal("stale ceiling generation reached resume Start")
+			t.Fatal("stale configuration generation reached resume Start")
 		}
 	}
 }

@@ -37,11 +37,13 @@ func (c MetadataCall) valid() bool {
 
 func (c MetadataCall) permittedOperation() bool {
 	switch c.Command.Operation {
-	case protocol.ResolveProject:
+	case protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit:
+		return c.Scope == domain.TaskRead && c.Command.Root != ""
+	case protocol.ResolveProject, protocol.SelectProject, protocol.ProviderModels:
 		return c.Scope == domain.TaskDispatch && c.Command.Root != ""
 	case protocol.ContextInspect:
 		return (c.Scope == domain.InventoryRead || c.Scope == domain.TaskDispatch) && c.Command.Project != ""
-	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
+	case protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.OriginBarrier, protocol.OriginInventory, protocol.OriginReopen:
 		return false
 	}
 	return false

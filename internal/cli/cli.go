@@ -38,15 +38,16 @@ type message struct {
 const help = `Usage:
   gateway init --database ABS
   gateway identity --database ABS
-  gateway migrate --database ABS
+  gateway migrate --database ABS [--preview] [--accept-execution-policy-removal]
   gateway begin-recovery --database ABS --recovery-id ID
   gateway serve --config ABS
-  gateway users allow --config ABS --subject SUBJECT --provider ID [--max-budget-seconds N] [--max-devices N]
+  gateway users allow --config ABS --subject SUBJECT [--scope SCOPE] [--max-devices N]
   gateway users show|disable --config ABS --subject SUBJECT
   gateway devices enrollment-token --config ABS --subject SUBJECT --name NAME --output-file ABS
   gateway devices revoke --config ABS --device DEVICE_ID
   gateway connector enroll --config ABS --token-file ABS [--replace-existing]
   gateway connector run --config ABS
+  gateway connector migrate --config ABS [--preview] [--accept-execution-policy-removal]
   gateway admin --socket ABS --action ENUM --input-file ABS [--output-file ABS]
   gateway version
 
@@ -61,6 +62,9 @@ routing-drain-target, attest-routing-drained.
 initialize-root advances one durable phase; repeat the same input until ready.
 advance-recovery advances one durable phase for the selected device/root.
 refresh-project inspects the selected project's current execution readiness.
+Migration previews policy counts and requires --accept-execution-policy-removal
+when the existing database contains saved execution ceilings.
+Connector migration uses the same explicit acceptance; stop the connector first.
 After restoring a database, run offline begin-recovery before serve.
 Use a fresh recovery ID for each distinct restore event.
 issue-enrollment-token requires a new private --output-file.

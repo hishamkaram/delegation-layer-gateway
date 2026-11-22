@@ -28,7 +28,7 @@ func newRuntimeConfiguration(directory string, p profile) (runtimeConfiguration,
 	var result runtimeConfiguration
 	executable, err := os.Stat(p.DelegateExecutable)
 	if err != nil || !executable.Mode().IsRegular() || executable.Mode().Perm()&0o111 == 0 {
-		return result, ErrConfiguration
+		return result, failed(ErrMigrationRequired, err)
 	}
 	selectedRoot, err := os.Stat(p.DelegateRoot)
 	if err != nil || !selectedRoot.IsDir() {

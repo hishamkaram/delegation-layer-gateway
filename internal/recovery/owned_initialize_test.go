@@ -79,7 +79,7 @@ func newOwnedRecoveryTLS(t *testing.T) *ownedRecoveryTLS {
 	principal, err := f.store.ResolvePrincipal(t.Context(), domain.ExternalSubject{Issuer: "https://issuer.example/", Subject: "owned-root-user"})
 	recoveryOK(t, err)
 	f.actor = domain.Actor{Principal: principal.ID, Scopes: domain.ScopeSet{domain.DeviceEnroll, domain.DeviceManage, domain.InventoryRead}}
-	recoveryOK(t, f.store.PutOwnerPolicy(f.admin, principal.ID, domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60}, MaxDevices: 2}))
+	recoveryOK(t, f.store.PutOwnerPolicy(f.admin, principal.ID, domain.OwnerPolicy{Enabled: true, Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 2}))
 	ca, cert, ref := ownedTestCertificate(t, f)
 	f.connectOwnedPeer(t, ca, cert, ref)
 	return f
@@ -178,8 +178,10 @@ func (f *ownedRecoveryTLS) response(t *testing.T, command protocol.Command, prog
 		return f.inventoryResponse(t, command, progress)
 	case protocol.OriginReopen:
 		return f.reopenResponse(t, command, progress)
-	case protocol.Admit, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.ResolveProject:
+	case protocol.Admit, protocol.Continue, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel, protocol.ResolveProject:
 		t.Fatal("task or project resolution crossed root initialization")
+	case protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.ProviderModels:
+		t.Fatal("unexpected root operation")
 	}
 	t.Fatal("unexpected root operation")
 	return nil

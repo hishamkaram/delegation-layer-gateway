@@ -129,7 +129,7 @@ func (s *Store) ListOperations(ctx context.Context, actor domain.Actor, page dom
 }
 
 func operationIDs(ctx context.Context, tx *sql.Tx, actor domain.Actor, page domain.OperationPageRequest, limit int) (ids []domain.OperationID, err error) {
-	rows, err := tx.QueryContext(ctx, effectiveAccessCTE+`SELECT o.id FROM operations o JOIN devices d ON d.id=o.device JOIN effective_access g ON g.device=o.device AND g.project=o.project AND g.principal=o.owner WHERE o.owner=? AND o.id>? AND d.revoked=0 AND ((? AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?)) OR (? AND o.state IN (?,?) AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?))) ORDER BY o.id LIMIT ?`, actor.Principal, page.After, actor.Scopes.Has(domain.TaskRead), domain.TaskRead, actor.Scopes.Has(domain.TaskDispatch), domain.Prepared, domain.ExpiredUnsent, domain.TaskDispatch, limit+1)
+	rows, err := tx.QueryContext(ctx, effectiveAccessCTE+`SELECT DISTINCT o.id FROM operations o JOIN devices d ON d.id=o.device JOIN effective_access g ON g.device=o.device AND g.principal=o.owner AND (g.project=o.project OR (json_extract(o.correlation,'$.Route.Version')=1 AND EXISTS(SELECT 1 FROM device_owners owner WHERE owner.device=o.device AND owner.principal=o.owner))) WHERE o.owner=? AND o.id>? AND d.revoked=0 AND ((? AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?)) OR (? AND o.state IN (?,?) AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value=?))) ORDER BY o.id LIMIT ?`, actor.Principal, page.After, actor.Scopes.Has(domain.TaskRead), domain.TaskRead, actor.Scopes.Has(domain.TaskDispatch), domain.Prepared, domain.ExpiredUnsent, domain.TaskDispatch, limit+1)
 	if err != nil {
 		return nil, err
 	}

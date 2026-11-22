@@ -125,6 +125,75 @@ class MaintainedFixtureLeaseTests(unittest.TestCase):
 
 
 class MCPPolicyTests(unittest.TestCase):
+    def test_connector_config_and_grant_contain_access_and_routing_only(self):
+        class ConfigCaptured(Exception):
+            pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            harness = object.__new__(e2e_local.Harness)
+            harness.roots = []
+            harness.gateway_id, harness.principal = "gateway", "principal"
+            harness.public, harness.device_url = (
+                "https://fixture.invalid",
+                "wss://fixture.invalid/device",
+            )
+            harness.material = {
+                "ca_file": "server-ca.pem",
+                "device_ca": {"certificate": "device-ca.pem"},
+            }
+            harness.admin = mock.Mock()
+            harness.input_file = mock.Mock(side_effect=ConfigCaptured)
+            harness.command = mock.Mock()
+            harness.start_connector = mock.Mock()
+            root = e2e_local.SimpleNamespace(
+                base=base,
+                state=base / "state",
+                workspace=base / "project",
+                temporary=base / "tmp",
+                connector_executable=Path("/fixture/delegate"),
+                context={"root_token": "root", "project_token": "project"},
+                start=mock.Mock(),
+                env={},
+            )
+            with mock.patch.object(e2e_local, "DelegateRoot", return_value=root):
+                with self.assertRaises(ConfigCaptured):
+                    harness.start_connectors()
+            config = harness.input_file.call_args.args[0]
+            self.assertEqual(config["schema_version"], 2)
+            self.assertEqual(
+                config["projects"],
+                [
+                    {
+                        "alias": "fixture-project",
+                        "root": str(root.state),
+                        "directory": str(root.workspace),
+                        "root_token": "root",
+                        "project_token": "project",
+                    }
+                ],
+            )
+            self.assertIn(
+                mock.call(
+                    "put-grant",
+                    {
+                        "principal_id": "principal",
+                        "device_id": "fixture-device-1",
+                        "project_alias": "fixture-project",
+                        "scopes": [
+                            "inventory:read",
+                            "task:dispatch",
+                            "task:read",
+                            "task:cancel",
+                        ],
+                    },
+                ),
+                harness.admin.call_args_list,
+            )
+            harness.command.assert_not_called()
+            harness.start_connector.assert_not_called()
+            self.assertEqual(harness.roots, [root])
+
     def test_sequential_mcp_preserves_spacing_request_policy_and_response_validation(
         self,
     ):
@@ -1188,8 +1257,12 @@ class HarnessBoundaryTests(unittest.TestCase):
             (private / "fixtures.py").write_text(
                 "raise RuntimeError('must never execute')"
             )
-            with self.assertRaisesRegex(e2e_local.ProofFailure, "source changed"):
-                e2e_local.load_acceptance(root)
+            paths_before = e2e_local.sys.path[:]
+            with mock.patch.object(e2e_local.importlib, "import_module") as imports:
+                with self.assertRaisesRegex(e2e_local.ProofFailure, "source changed"):
+                    e2e_local.load_acceptance(root)
+            imports.assert_not_called()
+            self.assertEqual(e2e_local.sys.path, paths_before)
 
     def test_cancel_proof_requires_requested_termination_and_native_wait(self):
         task = {

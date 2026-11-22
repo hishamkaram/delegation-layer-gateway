@@ -108,7 +108,7 @@ func fixtureGuard(token string) string {
 
 func (f *fixture) putGrant(t *testing.T, principal domain.PrincipalID, scopes domain.ScopeSet) {
 	t.Helper()
-	requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: principal, Destination: destination()}, Scopes: scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 300}}))
+	requireOK(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: principal, Destination: destination()}, Scopes: scopes}))
 }
 
 func (f *fixture) enrollment(t *testing.T, mode domain.CredentialMode) domain.EnrollmentAttempt {

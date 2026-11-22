@@ -22,18 +22,18 @@
         "patchSha256": "0e9244a4757693d26d0399a9975a0b34784c22ceb16cc5f51054820d58b19ee6",
         "build": "node scripts/generate-viewer.mjs (in owned source checkout)"
       },
-      "startedAt": "2026-11-14T05:38:51.041Z",
-      "finishedAt": "2026-11-14T05:38:59.082Z",
+      "startedAt": "2026-11-21T20:46:16.314Z",
+      "finishedAt": "2026-11-21T20:46:24.984Z",
       "exitCode": 0,
       "source": {
         "path": "components.json",
-        "sha256": "81645372fb743de0cf7e7321fb3dc19236580a62e11a4154a90f468443e083ae",
-        "bytes": 15315
+        "sha256": "c34ac22d94a052011554d5ff12bbc46e62e70f786af914e5dccb3911c4def39f",
+        "bytes": 16535
       },
       "html": {
         "path": "components.html",
-        "sha256": "3a2d44b9d5974573d690f4a18f8af428c34a07545694e7c76a7cf42b7fb7a5e0",
-        "bytes": 843994
+        "sha256": "06090d658e7040b9c3b370d52c1c6fec42ec7a20892241c994c5fd03b32788cd",
+        "bytes": 845253
       },
       "gates": {
         "validate": "pass",
@@ -53,7 +53,7 @@
       "browserEvidence": {
         "kind": "automated-browser",
         "status": "pass",
-        "artifactSha256": "3a2d44b9d5974573d690f4a18f8af428c34a07545694e7c76a7cf42b7fb7a5e0",
+        "artifactSha256": "06090d658e7040b9c3b370d52c1c6fec42ec7a20892241c994c5fd03b32788cd",
         "state": {
           "detail": "read",
           "motion": "still"
@@ -129,18 +129,18 @@
         "patchSha256": "0e9244a4757693d26d0399a9975a0b34784c22ceb16cc5f51054820d58b19ee6",
         "build": "node scripts/generate-viewer.mjs (in owned source checkout)"
       },
-      "startedAt": "2026-11-14T05:39:10.730Z",
-      "finishedAt": "2026-11-14T05:39:27.534Z",
+      "startedAt": "2026-11-21T20:46:29.018Z",
+      "finishedAt": "2026-11-21T20:46:40.169Z",
       "exitCode": 0,
       "source": {
         "path": "operation-safety.json",
-        "sha256": "ed86630fec1586a942cd1a0fc0c347eb1365d24694d328113d8997248d5b3fa6",
-        "bytes": 27125
+        "sha256": "ff3e909d4f6d02fcbb58014b72c68b5217e39592d89f2fae0f277a13ad9440ae",
+        "bytes": 29677
       },
       "html": {
         "path": "operation-safety.html",
-        "sha256": "2a2aae864abf6cdc89495c61131253ce3a306dd495cf795aee3e59d44486b776",
-        "bytes": 878453
+        "sha256": "c9316bcc2873efbacfd50b3cf19f78237b80a4608496bf993806815fcb9e3855",
+        "bytes": 880513
       },
       "gates": {
         "validate": "pass",
@@ -160,7 +160,7 @@
       "browserEvidence": {
         "kind": "automated-browser",
         "status": "pass",
-        "artifactSha256": "2a2aae864abf6cdc89495c61131253ce3a306dd495cf795aee3e59d44486b776",
+        "artifactSha256": "c9316bcc2873efbacfd50b3cf19f78237b80a4608496bf993806815fcb9e3855",
         "state": {
           "detail": "read",
           "motion": "still"

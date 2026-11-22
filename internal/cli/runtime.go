@@ -68,6 +68,8 @@ func connector(ctx context.Context, args []string, stdout io.Writer) error {
 		return enroll(ctx, args[1:], stdout)
 	case "run":
 		return runConnector(ctx, args[1:])
+	case "migrate":
+		return migrateConnector(ctx, args[1:], stdout)
 	default:
 		return problem(exitUsage, "invalid_arguments", nil)
 	}
@@ -79,6 +81,9 @@ func connectorConfig(path string) (*connectorconfig.Config, error) {
 	}
 	cfg, err := connectorconfig.Load(path)
 	if err != nil {
+		if errors.Is(err, connectorconfig.ErrMigrationRequired) {
+			return nil, problem(exitUsage, "connector_configuration_migration_required", err)
+		}
 		return nil, problem(exitUsage, "configuration_invalid", err)
 	}
 	return cfg, nil

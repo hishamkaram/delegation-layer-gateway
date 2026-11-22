@@ -420,9 +420,6 @@ class SnapshotRollback(RecoveryScenario):
                 "device_id": root.device,
                 "project_alias": root.alias,
                 "scopes": ["inventory:read", "task:read", "task:cancel"],
-                "providers": ["pi:json"],
-                "permissions": ["read-only"],
-                "max_budget_seconds": 30,
             },
         )
         unknown = h.admin(

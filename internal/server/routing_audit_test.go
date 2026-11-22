@@ -137,8 +137,10 @@ func (p *routingAuditPeer) response(command protocol.Command, operation string) 
 		return p.reopen(command.Body)
 	case protocol.Admit:
 		return p.admit(command.Body, operation)
-	case protocol.ResolveProject, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
+	case protocol.Continue, protocol.ResolveProject, protocol.Resolve, protocol.ResumeExisting, protocol.FenceAbsent, protocol.Status, protocol.Collect, protocol.ResultChunk, protocol.Cancel:
 		return nil, errors.New("unexpected task control in audit fixture")
+	case protocol.SelectProject, protocol.FilesystemScopes, protocol.ListDirectory, protocol.ReadFile, protocol.InspectFile, protocol.InspectGit, protocol.ProviderModels:
+		return nil, fmt.Errorf("unexpected audit fixture operation: %s", command.Operation)
 	default:
 		return nil, fmt.Errorf("unexpected audit fixture operation: %s", command.Operation)
 	}
@@ -259,7 +261,7 @@ func TestRuntimeRoutingAuditCorrelatesPreparedDispatchWithoutPayload(t *testing.
 	var principal adminapi.Principal
 	f.adminCall(t, "/v1/principals/resolve", adminapi.ResolvePrincipalInput{Issuer: f.cfg.Identity.Issuer, Subject: "subject"}, &principal)
 	peer := startRoutingAuditPeer(t, f, principal.PrincipalID)
-	routingAuditAdmin(t, f, http.MethodPut, "/v1/grants", adminapi.PutGrantInput{PrincipalID: principal.PrincipalID, DeviceID: "device", ProjectAlias: "project", Scopes: []domain.Scope{domain.TaskDispatch}, Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60})
+	routingAuditAdmin(t, f, http.MethodPut, "/v1/grants", adminapi.PutGrantInput{PrincipalID: principal.PrincipalID, DeviceID: "device", ProjectAlias: "project", Scopes: []domain.Scope{domain.TaskDispatch}})
 	root := adminapi.RootInput{DeviceID: "device", ProjectAlias: "project", RootGuard: peer.context.Root, ProjectGuard: peer.context.Project}
 	var progress adminapi.RootProgress
 	for range 4 {

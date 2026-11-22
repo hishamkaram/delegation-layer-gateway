@@ -15,6 +15,11 @@ import (
 func databaseCommand(ctx context.Context, args []string, stdout io.Writer, name string) (result error) {
 	set := flags(name)
 	path := set.String("database", "", "absolute private SQLite database path")
+	var migration migrationOptions
+	if name == "migrate" {
+		set.BoolVar(&migration.preview, "preview", false, "show schema and access-policy counts without changes")
+		set.BoolVar(&migration.acceptExecutionPolicyRemoval, "accept-execution-policy-removal", false, "explicitly accept removal of saved execution ceilings")
+	}
 	var recoveryID string
 	if name == "begin-recovery" {
 		set.StringVar(&recoveryID, "recovery-id", "", "stable identity for this explicit restore intent")
@@ -41,7 +46,7 @@ func databaseCommand(ctx context.Context, args []string, stdout io.Writer, name 
 	case "init":
 		return createDatabase(ctx, *path, stdout)
 	case "migrate":
-		return migrateDatabase(ctx, *path, stdout)
+		return migrateDatabase(ctx, *path, migration, stdout)
 	case "begin-recovery":
 		return beginOfflineRecovery(ctx, *path, domain.RecoveryID(recoveryID), stdout)
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -20,9 +19,11 @@ type Origin struct {
 	OperationID         string `json:"operation_id"`
 	PrincipalRef        string `json:"principal_ref"`
 	RequestSHA256       string `json:"gateway_request_sha256"`
+	Binding             string `json:"binding,omitempty"`
 }
 
 type TaskBinding struct {
+	Route      TaskRoute      `json:"route,omitzero"`
 	TaskID     string         `json:"task_id"`
 	Context    ContextBinding `json:"context"`
 	Origin     Origin         `json:"origin"`
@@ -30,15 +31,13 @@ type TaskBinding struct {
 }
 
 func (b TaskBinding) Validate(requireSpec bool) error {
+	if b.Route != (TaskRoute{}) && b.Route.Validate() != nil {
+		return ErrInvalid
+	}
 	if !lowerHex(b.TaskID, 32) || !guardToken(b.Context.Root) || !guardToken(b.Context.Project) {
 		return ErrInvalid
 	}
-	for _, id := range []string{b.Origin.GatewayID, b.Origin.AdmissionGeneration, b.Origin.OperationID, b.Origin.PrincipalRef} {
-		if !identifier(id) {
-			return ErrInvalid
-		}
-	}
-	if !lowerHex(b.Origin.RequestSHA256, 64) || ((requireSpec || b.SpecSHA256 != "") && !lowerHex(b.SpecSHA256, 64)) {
+	if b.Origin.Validate() != nil || ((requireSpec || b.SpecSHA256 != "") && !lowerHex(b.SpecSHA256, 64)) {
 		return ErrInvalid
 	}
 	return nil
@@ -59,39 +58,59 @@ func (s Selection) Validate() error {
 	return ErrInvalid
 }
 
+// selectionToken carries one literal fixed-argv value. Native owns support and
+// semantic validation; encoded frame size bounds its bytes independently.
 func selectionToken(value string) bool {
-	if value == "" || len(value) > 256 || !utf8.ValidString(value) {
-		return false
-	}
-	for _, r := range value {
-		if unicode.IsControl(r) || unicode.IsSpace(r) {
-			return false
-		}
-	}
-	return true
+	return value != "" && len(value) <= MaxFrameBytes && utf8.ValidString(value) && !strings.ContainsRune(value, 0)
 }
 
 type Admission struct {
-	Task          TaskBinding `json:"task"`
-	Provider      string      `json:"provider"`
-	Model         Selection   `json:"model"`
-	Effort        Selection   `json:"effort"`
-	Permission    string      `json:"permission"`
-	BudgetSeconds uint32      `json:"budget_seconds"`
-	Brief         string      `json:"brief"`
+	Native        NativeOptions `json:"native,omitzero"`
+	Task          TaskBinding   `json:"task"`
+	Provider      string        `json:"provider"`
+	Model         Selection     `json:"model"`
+	Effort        Selection     `json:"effort"`
+	Permission    string        `json:"permission"`
+	BudgetSeconds uint32        `json:"budget_seconds"`
+	Brief         string        `json:"brief"`
 }
 
 func (a Admission) Validate() error {
-	if a.Task.Validate(false) != nil || a.Task.SpecSHA256 != "" || !identifier(a.Provider) || a.Model.Validate() != nil || a.Effort.Validate() != nil {
+	if a.Task.Validate(false) != nil || a.Task.SpecSHA256 != "" || !validAdmissionBrief(a.Brief) {
 		return ErrInvalid
 	}
-	if a.Permission != "read-only" && a.Permission != "workspace-write" && a.Permission != "danger-full-access" {
-		return ErrInvalid
+	if a.Native != (NativeOptions{}) {
+		return a.validateNativeOptions()
 	}
-	if a.BudgetSeconds == 0 || len(a.Brief) == 0 || len(a.Brief) > 256<<10 || !utf8.ValidString(a.Brief) {
+	return a.validateLegacyOptions()
+}
+
+func (a Admission) validateNativeOptions() error {
+	if a.Task.Route.Validate() != nil || a.Native.Validate() != nil || !a.legacyOptionsEmpty() {
 		return ErrInvalid
 	}
 	return nil
+}
+
+func (a Admission) legacyOptionsEmpty() bool {
+	return a.Provider == "" && a.Model == (Selection{}) && a.Effort == (Selection{}) && a.Permission == "" && a.BudgetSeconds == 0
+}
+
+func (a Admission) validateLegacyOptions() error {
+	if !identifier(a.Provider) || a.Model.Validate() != nil || a.Effort.Validate() != nil {
+		return ErrInvalid
+	}
+	if !selectionToken(a.Permission) {
+		return ErrInvalid
+	}
+	if a.BudgetSeconds == 0 {
+		return ErrInvalid
+	}
+	return nil
+}
+
+func validAdmissionBrief(brief string) bool {
+	return len(brief) != 0 && len(brief) <= 256<<10 && utf8.ValidString(brief)
 }
 
 type (

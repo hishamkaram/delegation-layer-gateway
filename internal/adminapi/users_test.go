@@ -13,7 +13,7 @@ import (
 
 func TestOwnerPolicyAdministrationUsesPrivateUnixAndExactSubject(t *testing.T) {
 	f := newFixture(t, nil)
-	input := adminapi.OwnerPolicyInput{Issuer: "https://issuer.example/", Subject: "alice", Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, Providers: []domain.ProviderID{"claude:print"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60, MaxDevices: 2}
+	input := adminapi.OwnerPolicyInput{Issuer: "https://issuer.example/", Subject: "alice", Scopes: domain.ScopeSet{domain.InventoryRead, domain.TaskDispatch, domain.TaskRead, domain.TaskCancel}, MaxDevices: 2}
 	body, err := json.Marshal(input)
 	check(t, err)
 	public := httptest.NewRecorder()
@@ -26,8 +26,8 @@ func TestOwnerPolicyAdministrationUsesPrivateUnixAndExactSubject(t *testing.T) {
 	}
 	var allowed adminapi.OwnerPolicyView
 	f.call(t, http.MethodPost, "/v1/users/allow", string(body), &allowed)
-	if allowed.Validate() != nil || !allowed.Enabled || allowed.Policy.MaxDevices != 2 || allowed.Policy.MaxBudgetSeconds != 60 {
-		t.Fatal("allow response lost the explicit ceiling")
+	if allowed.Validate() != nil || !allowed.Enabled || allowed.Policy.MaxDevices != 2 {
+		t.Fatal("allow response lost the access policy")
 	}
 	var shown adminapi.OwnerPolicyView
 	f.call(t, http.MethodPost, "/v1/users/show", `{"issuer":"https://issuer.example/","subject":"alice"}`, &shown)
@@ -46,15 +46,29 @@ func TestOwnerPolicyAdministrationUsesPrivateUnixAndExactSubject(t *testing.T) {
 	f.call(t, http.MethodPost, "/v1/users/disable", `{"issuer":"https://issuer.example/","subject":"alice"}`, nil)
 	f.call(t, http.MethodPost, "/v1/principals/revocation", `{"principal_id":"`+allowed.PrincipalID+`","revoked":false}`, nil)
 	f.call(t, http.MethodPost, "/v1/users/show", `{"issuer":"https://issuer.example/","subject":"alice"}`, &shown)
-	if shown.Enabled || shown.PrincipalID != allowed.PrincipalID || shown.Policy.MaxDevices != 2 || shown.Policy.MaxBudgetSeconds != 60 {
+	if shown.Enabled || shown.PrincipalID != allowed.PrincipalID || shown.Policy.MaxDevices != 2 {
 		t.Fatal("unrevocation resurrected disabled authority or changed its limits")
 	}
 }
 
 func TestOwnerPolicyCannotGrantManagementAsTaskAuthority(t *testing.T) {
 	f := newFixture(t, nil)
-	status, _ := f.request(t, http.MethodPost, "/v1/users/allow", `{"issuer":"https://issuer.example/","subject":"alice","scopes":["device:manage"],"providers":["claude:print"],"permissions":["read-only"],"max_budget_seconds":60,"max_devices":2}`)
+	status, _ := f.request(t, http.MethodPost, "/v1/users/allow", `{"issuer":"https://issuer.example/","subject":"alice","scopes":["device:manage"],"max_devices":2}`)
 	if status != http.StatusBadRequest {
 		t.Fatal("management scope became an owner task grant")
+	}
+}
+
+func TestRemovedExecutionPolicyFieldsAreRejectedAtAdminBoundary(t *testing.T) {
+	f := newFixture(t, nil)
+	for _, body := range []string{
+		`{"issuer":"https://issuer.example/","subject":"alice","scopes":["task:dispatch"],"max_devices":2,"providers":["provider"]}`,
+		`{"issuer":"https://issuer.example/","subject":"alice","scopes":["task:dispatch"],"max_devices":2,"permissions":["read-only"]}`,
+		`{"issuer":"https://issuer.example/","subject":"alice","scopes":["task:dispatch"],"max_devices":2,"max_budget_seconds":60}`,
+	} {
+		status, _ := f.request(t, http.MethodPost, "/v1/users/allow", body)
+		if status != http.StatusBadRequest {
+			t.Fatal("obsolete execution ceiling was accepted by access administration")
+		}
 	}
 }

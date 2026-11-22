@@ -15,7 +15,7 @@ func TestAdvertisedDelegateReadyDoesNotOpenPendingRegistryRoot(t *testing.T) {
 	route := domain.Destination{Device: deviceID(0), Project: "pending-root"}
 	binding := domain.ContextBinding{Root: domain.RootGuard(protocol.WireContextGuard("pending-root")), Project: domain.ProjectGuard(protocol.WireContextGuard("pending-project"))}
 	check(t, f.store.RegisterProject(t.Context(), domain.ProjectRegistration{Destination: route, Context: binding}))
-	check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: route}, Scopes: f.alice.Scopes, Ceiling: domain.DispatchCeiling{Providers: []domain.ProviderID{"provider"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 120}}))
+	check(t, f.store.PutGrant(t.Context(), domain.Grant{Key: domain.GrantKey{Principal: f.alice.Principal, Destination: route}, Scopes: f.alice.Scopes}))
 	advertised := f.link.snapshot.Capabilities.Projects[0]
 	advertised.Alias = string(route.Project)
 	advertised.Context = protocol.ContextBinding{Root: string(binding.Root), Project: string(binding.Project)}

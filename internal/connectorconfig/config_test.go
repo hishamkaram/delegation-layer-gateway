@@ -15,8 +15,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/hishamkaram/delegation-layer-gateway/internal/domain"
 )
 
 type configFixture struct {
@@ -48,7 +46,7 @@ func fixture(t *testing.T) configFixture {
 	if writeErr := os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	doc := document{Version: 1, GatewayID: "gateway-one", DeviceID: "device-one", EnrollmentURL: "https://gateway.example:443/enroll", WSSURL: "wss://gateway.example:9443/connect", TrustCAFile: caPath, IdentityDirectory: filepath.Join(parent, "identity"), Executable: exe, TemporaryDirectory: parent, ControlTimeout: "30s", NetworkTimeout: "35s", Projects: []projectDocument{{Alias: "project-one", Root: parent, Directory: parent, RootToken: strings.Repeat("a", 64), ProjectToken: "local-PRIVATE-CANARY", Providers: []policyDocument{{Provider: "fixture", Models: []string{"safe-model"}, Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 120, NativeModel: true, NativeEffort: true}}}}}
+	doc := document{Version: 2, GatewayID: "gateway-one", DeviceID: "device-one", EnrollmentURL: "https://gateway.example:443/enroll", WSSURL: "wss://gateway.example:9443/connect", TrustCAFile: caPath, IdentityDirectory: filepath.Join(parent, "identity"), Executable: exe, TemporaryDirectory: parent, ControlTimeout: "30s", NetworkTimeout: "35s", Projects: []projectDocument{{Alias: "project-one", Root: parent, Directory: parent, RootToken: strings.Repeat("a", 64), ProjectToken: "local-PRIVATE-CANARY"}}}
 	f := configFixture{rootDER: der, rootKey: key, path: filepath.Join(parent, "config.json"), doc: doc, t: t}
 	f.write()
 	return f
@@ -76,7 +74,7 @@ func TestLoadImmutableLocalConfiguration(t *testing.T) {
 	}
 	adapter := config.Adapter()
 	adapter.Projects[0].ProjectToken = "mutated"
-	adapter.Projects[0].Providers[0].Models[0] = "mutated"
+	adapter.Projects[0].Alias = "mutated"
 	endpoint := config.WSSURL()
 	endpoint.Host = "attacker.example"
 	roots, rootsErr := config.Roots()
@@ -90,7 +88,7 @@ func TestLoadImmutableLocalConfiguration(t *testing.T) {
 	if freshRootsErr != nil {
 		t.Fatal(freshRootsErr)
 	}
-	if fresh.Projects[0].ProjectToken != f.doc.Projects[0].ProjectToken || fresh.Projects[0].Providers[0].Models[0] != "safe-model" || config.WSSURL().Hostname() != "gateway.example" || !freshRoots.Equal(before) || roots.Equal(before) {
+	if fresh.Projects[0].ProjectToken != f.doc.Projects[0].ProjectToken || fresh.Projects[0].Alias != "project-one" || config.WSSURL().Hostname() != "gateway.example" || !freshRoots.Equal(before) || roots.Equal(before) {
 		t.Fatal("caller mutated immutable local configuration")
 	}
 }
@@ -116,7 +114,7 @@ func TestStrictConfigurationAndEndpointBoundaries(t *testing.T) {
 		{"relative_executable", func(d *document) { d.Executable = "delegate" }},
 		{"missing_executable", func(d *document) { d.Executable = filepath.Join(d.TemporaryDirectory, "absent") }},
 		{"duplicate_alias", func(d *document) { d.Projects = append(d.Projects, d.Projects[0]) }},
-		{"zero_ceiling", func(d *document) { d.Projects[0].Providers[0].MaxBudgetSeconds = 0 }},
+		{"invalid_project_token", func(d *document) { d.Projects[0].ProjectToken = "invalid\ntoken" }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

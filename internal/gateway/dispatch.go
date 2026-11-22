@@ -17,6 +17,8 @@ import (
 )
 
 type DispatchStore interface {
+	AuthorizeOwnedDevice(context.Context, domain.OwnedDeviceRequest) (domain.OwnedDeviceAuthorization, error)
+	LookupPreparation(context.Context, domain.Actor, domain.DeviceID, domain.RequestID, domain.Digest) (domain.PreparedOperation, bool, error)
 	Authorize(context.Context, domain.AuthorizationRequest) (domain.Authorization, error)
 	Prepare(context.Context, domain.Actor, domain.Preparation) (domain.PreparedOperation, error)
 	GetForDispatch(context.Context, domain.Actor, domain.OperationID, time.Time) (domain.DispatchView, error)
@@ -102,11 +104,6 @@ func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination d
 		s.observeClassAuthorizationFailure(actor, routing.PrepareClass, err)
 		return domain.PreparedOperation{}, err
 	}
-	if !allows(capability, request) {
-		refusal := domain.Reject(domain.Forbidden)
-		s.observeClassAuthorizationFailure(actor, routing.PrepareClass, refusal)
-		return domain.PreparedOperation{}, refusal
-	}
 	var entropy [32]byte
 	if _, err = io.ReadFull(s.random, entropy[:]); err != nil {
 		return domain.PreparedOperation{}, errors.New("operation entropy unavailable")
@@ -118,13 +115,10 @@ func (s *Service) Prepare(ctx context.Context, actor domain.Actor, destination d
 	}
 	command, err := admissionCommand(correlation, request)
 	if err != nil {
-		if errors.Is(err, protocol.ErrTooLarge) {
-			return domain.PreparedOperation{}, domain.Reject(domain.ResourceLimit)
-		}
 		return domain.PreparedOperation{}, err
 	}
 	if err = preflight(command, string(correlation.Operation)); err != nil {
-		return domain.PreparedOperation{}, domain.Reject(domain.ResourceLimit)
+		return domain.PreparedOperation{}, err
 	}
 	prepared, err = s.store.Prepare(ctx, actor, domain.Preparation{Correlation: correlation, Request: request, Now: s.now()})
 	if err == nil {
@@ -149,12 +143,14 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 		return DispatchResult{}, err
 	}
 	attempt.bind(view.Operation.Correlation)
+	operationKind := dispatchOperation(view.Operation.Correlation)
+	attempt.value.Control.Class = routing.ControlClass(operationKind)
 	if view.Operation.Delivery != domain.Prepared {
 		return DispatchResult{Operation: view.Operation}, nil
 	}
 	reservation, err := s.reserveDispatch(ctx, actor, view, operation)
 	if err != nil {
-		s.observeAuthorizationFailure(actor, protocol.Admit, err)
+		s.observeAuthorizationFailure(actor, operationKind, err)
 		return DispatchResult{}, err
 	}
 	attempt.reservation = reservation
@@ -170,7 +166,7 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	route.Now = transmission.Now
 	decision, err := s.store.MarkPossibleSendRouted(ctx, actor, transmission, route)
 	if err != nil {
-		s.observeAuthorizationFailure(actor, protocol.Admit, err)
+		s.observeAuthorizationFailure(actor, operationKind, err)
 		return DispatchResult{}, err
 	}
 	if decision.Kind == domain.ObserveExisting {
@@ -195,7 +191,7 @@ func (s *Service) Dispatch(ctx context.Context, actor domain.Actor, operation do
 	if err != nil {
 		return DispatchResult{Operation: decision.Operation}, err
 	}
-	if reply.Operation != protocol.Admit || reply.Validate() != nil {
+	if reply.Operation != operationKind || reply.Validate() != nil {
 		return DispatchResult{Operation: decision.Operation}, domain.Reject(domain.EvidenceInvalid)
 	}
 	attempt.replyValid = true
@@ -212,16 +208,29 @@ func (s *Service) reserveDispatch(ctx context.Context, actor domain.Actor, view 
 	if err != nil {
 		return nil, err
 	}
-	capability, err := s.currentProject(ctx, actor, view.Operation.Correlation.Destination, snapshot)
+	if view.Operation.Correlation.Route.Version == 1 {
+		if err = validateSelectedSnapshot(snapshot, view.Operation.Correlation); err != nil {
+			return nil, err
+		}
+	} else {
+		capability, e := s.currentProject(ctx, actor, view.Operation.Correlation.Destination, snapshot)
+		if e != nil {
+			return nil, e
+		}
+		if err = matchesCapability(snapshot, capability, view); err != nil {
+			return nil, err
+		}
+	}
+	command, err := s.dispatchCommand(ctx, actor, view.Operation.Correlation, view.Request)
 	if err != nil {
 		return nil, err
 	}
-	if err = matchesCapability(snapshot, capability, view); err != nil {
-		return nil, err
-	}
-	command, err := admissionCommand(view.Operation.Correlation, view.Request)
-	if err != nil {
-		return nil, err
+	// Historical unsent v4 drafts remain replayable, but must pass the current
+	// control budget before their first possible-send transition or reservation.
+	if view.Operation.Correlation.RequestVersion == domain.CompactRequestVersion {
+		if err = preflight(command, string(operation)); err != nil {
+			return nil, err
+		}
 	}
 	reservation, err := s.link.Reserve(ctx, view.Operation.Correlation.Destination.Device, operation, command)
 	if err != nil {
@@ -254,58 +263,160 @@ func matchesCapability(snapshot LinkSnapshot, capability protocol.ProjectCapabil
 	if snapshot.Credential.Device != c.Destination.Device || capability.Context.Root != string(c.Context.Root) || capability.Context.Project != string(c.Context.Project) || capability.AdmissionGeneration != string(c.AdmissionGeneration) {
 		return domain.Reject(domain.Conflict)
 	}
-	if !allows(capability, view.Request) {
-		return domain.Reject(domain.Forbidden)
-	}
 	return nil
 }
 
-func allows(project protocol.ProjectCapability, request domain.FrozenRequest) bool {
-	for _, provider := range project.Providers {
-		if provider.Provider != string(request.Provider) {
-			continue
-		}
-		if request.BudgetSeconds > provider.MaxBudgetSeconds || !contains(provider.Permissions, string(request.Permission)) {
-			return false
-		}
-		return selectionAllowed(request.Model, provider.Models) && selectionAllowed(request.Effort, provider.Efforts)
-	}
-	return false
-}
-
-func selectionAllowed(selection domain.Selection, values []string) bool {
-	return selection.Kind == domain.NativeDefault || (selection.Kind == domain.Explicit && contains(values, selection.Value))
-}
-
-func contains(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
-
 func admissionCommand(c domain.Correlation, r domain.FrozenRequest) (protocol.Command, error) {
-	admission := protocol.Admission{Task: protocol.TaskBinding{TaskID: string(c.Task), Context: protocol.ContextBinding{Root: string(c.Context.Root), Project: string(c.Context.Project)}, Origin: protocol.Origin{GatewayID: string(c.Gateway), AdmissionGeneration: string(c.AdmissionGeneration), OperationID: string(c.Operation), PrincipalRef: string(c.Owner.Principal), RequestSHA256: hex.EncodeToString(c.RequestDigest[:])}}, Provider: string(r.Provider), Model: protocol.Selection{Kind: string(r.Model.Kind), Value: r.Model.Value}, Effort: protocol.Selection{Kind: string(r.Effort.Kind), Value: r.Effort.Value}, Permission: string(r.Permission), BudgetSeconds: r.BudgetSeconds, Brief: r.Brief}
-	if err := admission.Validate(); err != nil {
+	if c.Kind == domain.RequestKindContinuation {
+		return protocol.Command{}, domain.ErrInvalid
+	}
+	task, err := binding(c, domain.Digest{})
+	if err != nil {
+		return protocol.Command{}, err
+	}
+	admission := protocol.Admission{Native: wireNativeOptions(r.Native), Task: task, Provider: string(r.Provider), Model: protocol.Selection{Kind: string(r.Model.Kind), Value: r.Model.Value}, Effort: protocol.Selection{Kind: string(r.Effort.Kind), Value: r.Effort.Value}, Permission: string(r.Permission), BudgetSeconds: r.BudgetSeconds, Brief: r.Brief}
+	if err = admission.Validate(); err != nil {
 		return protocol.Command{}, err
 	}
 	body, err := protocol.Encode(admission, protocol.MaxFrameBytes)
 	return protocol.Command{Operation: protocol.Admit, Project: string(c.Destination.Project), Body: body}, err
 }
 
+func dispatchOperation(c domain.Correlation) protocol.Operation {
+	if c.Kind == domain.RequestKindContinuation {
+		return protocol.Continue
+	}
+	return protocol.Admit
+}
+
+func (s *Service) dispatchCommand(ctx context.Context, actor domain.Actor, c domain.Correlation, request domain.FrozenRequest) (protocol.Command, error) {
+	if c.Kind != domain.RequestKindContinuation {
+		return admissionCommand(c, request)
+	}
+	parent, err := s.continuationPredecessor(ctx, actor, c.Predecessor.Operation)
+	if err != nil {
+		return protocol.Command{}, err
+	}
+	return continuationCommand(c, request, parent)
+}
+
 func preflight(command protocol.Command, operation string) error {
-	payload, err := protocol.Encode(command, protocol.MaxFrameBytes)
+	if err := preflightFrame(command, maximumControlFrame(operation, protocol.Version), protocol.MaxAdmissionFrameBytes); err != nil {
+		return err
+	}
+	task, err := preflightTask(command)
 	if err != nil {
 		return err
 	}
-	encoded, err := protocol.EncodeFrame(protocol.Frame{Version: protocol.Version, Type: protocol.Request, RequestID: strings.Repeat("r", 128), Generation: protocol.Generation{BootEpoch: strings.Repeat("b", 128), Counter: math.MaxUint64}, OperationID: operation, TTLMillis: 30000, Payload: payload})
+	// This synthetic projection is used only for encoded-size bounds. No receipt
+	// or task closure is recorded, and the immutable admission binding is intact.
+	task.SpecSHA256 = strings.Repeat("f", 64)
+	for _, control := range []protocol.Operation{protocol.FenceAbsent, protocol.Cancel} {
+		if err = preflightProtectedControl(task, command.Project, operation, control); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func preflightTask(command protocol.Command) (protocol.TaskBinding, error) {
+	if command.Operation == protocol.Continue {
+		var value protocol.Continuation
+		if protocol.DecodeStrict(command.Body, &value, protocol.MaxFrameBytes) != nil || value.Validate() != nil {
+			return protocol.TaskBinding{}, protocol.ErrInvalid
+		}
+		return value.Task, nil
+	}
+	var value protocol.Admission
+	if command.Operation != protocol.Admit || protocol.DecodeStrict(command.Body, &value, protocol.MaxFrameBytes) != nil || value.Validate() != nil {
+		return protocol.TaskBinding{}, protocol.ErrInvalid
+	}
+	return value.Task, nil
+}
+
+func maximumControlFrame(operation string, version int) protocol.Frame {
+	return protocol.Frame{Version: version, Type: protocol.Request, RequestID: strings.Repeat("r", 128), Generation: protocol.Generation{BootEpoch: strings.Repeat("b", 128), Counter: math.MaxUint64}, OperationID: operation, TTLMillis: protocol.MaxTTL.Milliseconds()}
+}
+
+func preflightFrame[T any](value T, frame protocol.Frame, limit int) error {
+	payload, err := protocol.Encode(value, protocol.MaxFrameBytes)
 	if err != nil {
 		return err
 	}
-	if len(encoded) > protocol.MaxAdmissionFrameBytes {
+	frame.Payload = payload
+	encoded, err := protocol.EncodeFrameVersion(frame, frame.Version)
+	if err != nil {
+		return err
+	}
+	if len(encoded) > limit {
 		return protocol.ErrTooLarge
 	}
 	return nil
+}
+
+func preflightProtectedControl(task protocol.TaskBinding, project, operation string, control protocol.Operation) error {
+	var body []byte
+	var err error
+	if control == protocol.Cancel {
+		body, err = protocol.Encode(protocol.Cancellation{Task: task, CancellationID: strings.Repeat("c", 32)}, protocol.MaxFrameBytes)
+	} else {
+		body, err = protocol.Encode(protocol.TaskControl{Task: task}, protocol.MaxFrameBytes)
+	}
+	if err != nil {
+		return err
+	}
+	command := protocol.Command{Operation: control, Project: project, Body: body}
+	for _, version := range []int{protocol.Version, protocol.WireVersion2} {
+		frame := maximumControlFrame(operation, version)
+		if err = preflightFrame(command, frame, protocol.MaxProtectedFrameBytes); err != nil {
+			return err
+		}
+		if err = preflightProtectedReplies(task, command, frame); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func preflightProtectedReplies(task protocol.TaskBinding, command protocol.Command, frame protocol.Frame) error {
+	// These are the longest TaskObservation values allowed by its validators.
+	// A full closure exceeds the mutually exclusive pending-closure projection;
+	// false stop flags encode longer than true, and result length is int64-bound.
+	observation := protocol.TaskObservation{Task: task, BriefSHA256: strings.Repeat("f", 64), Resolution: "existing", Admission: "not-admitted", Liveness: "undetermined", Publication: "committed", Verdict: "committed", Result: &protocol.Descriptor{SHA256: strings.Repeat("d", 64), Length: math.MaxInt64}, Stop: &protocol.StopObservation{RequestID: strings.Repeat("c", 32)}, ExecutionClosure: &protocol.ExecutionClosure{Kind: "unregistered-recovered", ReferenceSHA256: strings.Repeat("e", 64)}}
+	if observation.Validate() != nil {
+		return protocol.ErrInvalid
+	}
+	body, err := protocol.Encode(observation, protocol.MaxFrameBytes)
+	if err != nil {
+		return err
+	}
+	replies := []protocol.Reply{
+		{Operation: command.Operation, Body: body},
+		{Operation: command.Operation, Error: &protocol.Failure{Code: "result_verification_timeout", Stage: strings.Repeat("s", 128)}},
+	}
+	frame.Type = protocol.Response
+	for _, reply := range replies {
+		if err = preflightFrame(reply, frame, protocol.MaxProtectedFrameBytes); err != nil {
+			return err
+		}
+		if err = preflightCompletedReply(reply, frame); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func preflightCompletedReply(reply protocol.Reply, frame protocol.Frame) error {
+	// Bound each validated field independently. The outer frame permits 128-byte
+	// IDs; a completion call permits only the shorter canonical g:uint64 ID.
+	call := protocol.ControlCall{Generation: frame.Generation, RequestID: "g:18446744073709551615", OperationID: frame.OperationID, Operation: reply.Operation, RequestSHA256: strings.Repeat("f", 64)}
+	disposition := protocol.ControlPending
+	if reply.Error != nil {
+		disposition = protocol.ControlNotClaimed
+	}
+	response := protocol.ControlResponse{Completion: protocol.ControlCompletion{ProcessBoot: strings.Repeat("a", 32), Call: call, Disposition: disposition}, Reply: reply}
+	if response.ValidateVersion(frame.Version) != nil {
+		return protocol.ErrInvalid
+	}
+	return preflightFrame(response, frame, protocol.MaxProtectedFrameBytes)
 }

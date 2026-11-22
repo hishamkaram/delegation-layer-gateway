@@ -83,19 +83,11 @@ func (a testCA) sign(ctx context.Context, t *testing.T, csr []byte, ref domain.C
 
 type (
 	projectDoc struct {
-		Alias        string      `json:"alias"`
-		Root         string      `json:"root"`
-		Directory    string      `json:"directory"`
-		RootToken    string      `json:"root_token"`
-		ProjectToken string      `json:"project_token"`
-		Providers    []policyDoc `json:"providers"`
-	}
-	policyDoc struct {
-		Provider         string              `json:"provider"`
-		Permissions      []domain.Permission `json:"permissions"`
-		MaxBudgetSeconds uint32              `json:"max_budget_seconds"`
-		NativeModel      bool                `json:"native_model"`
-		NativeEffort     bool                `json:"native_effort"`
+		Alias        string `json:"alias"`
+		Root         string `json:"root"`
+		Directory    string `json:"directory"`
+		RootToken    string `json:"root_token"`
+		ProjectToken string `json:"project_token"`
 	}
 	configDoc struct {
 		Version    int          `json:"schema_version"`
@@ -128,7 +120,7 @@ func fixtureConfigWithDeviceCA(t *testing.T, a testCA, deviceCA *testCA, endpoin
 		exe, err := os.Executable()
 		executable = checked(t, exe, err)
 	}
-	doc := configDoc{Version: 1, Gateway: "gateway", Device: "device", Enrollment: endpoint + "/enroll", WSS: strings.Replace(endpoint, "https://", "wss://", 1) + "/connect", CA: caPath, Identity: filepath.Join(parent, "identity"), Executable: executable, Temporary: parent, Control: "5s", Network: "10s", Projects: []projectDoc{{Alias: "project", Root: parent, Directory: parent, RootToken: strings.Repeat("a", 64), ProjectToken: "private-local-canary", Providers: []policyDoc{{Provider: "fixture", Permissions: []domain.Permission{domain.ReadOnly}, MaxBudgetSeconds: 60, NativeModel: true, NativeEffort: true}}}}}
+	doc := configDoc{Version: 2, Gateway: "gateway", Device: "device", Enrollment: endpoint + "/enroll", WSS: strings.Replace(endpoint, "https://", "wss://", 1) + "/connect", CA: caPath, Identity: filepath.Join(parent, "identity"), Executable: executable, Temporary: parent, Control: "5s", Network: "10s", Projects: []projectDoc{{Alias: "project", Root: parent, Directory: parent, RootToken: strings.Repeat("a", 64), ProjectToken: "private-local-canary"}}}
 	if deviceCA != nil {
 		doc.DeviceCA = filepath.Join(parent, "device-ca.pem")
 		require(t, os.WriteFile(doc.DeviceCA, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: deviceCA.certificate.Raw}), 0o600))
