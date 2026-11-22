@@ -2457,3 +2457,25 @@ boundary double; the actual Native/Pueue composition above is separate evidence.
 Native commit `f3587686` contains the integrated correction. Its full CI run
 [45052860577](https://github.com/hishamkaram/delegation-layer/actions/runs/45052860577)
 has started; no successful final-head verdict is claimed here.
+
+### Final correction: actual Home macOS scratch proof
+
+The immutable `f3587686` source built with Go 1.27.4 on Home. Its source archive
+was matched to the Git archive, and all 3,695 source entries and 287 directories
+were unchanged after build and testing. The first race-test invocation failed
+during C compilation before any test or Native fixture started: the compiler
+could not find system headers. Read-only diagnosis found the installed SDK and
+headers. A command-local `SDKROOT` and absolute compiler selection passed a
+syntax-only header probe, then the same exact
+`TestGatewayUpgradeCompletesExistingInspectionGroup` passed under
+`-race -count=1` (one test, zero failures/skips; 29.988 seconds overall).
+No global developer-tool setting or installation changed. The original failed
+invocation remains recorded; its inherited SDK selection was not captured.
+
+This was an actual Darwin Native/App/Pueue composition with SDK, service and GUI
+edges doubled. All owned commands joined, and the successful fixture completed
+its runtime cleanup. It made no original-root, Office or provider change.
+The subsequent `4d72ee3e` correction changes only two Markdown mirrors to meet
+the existing skill-packaging bound; it does not retarget or relabel this
+candidate's `f3587686` provenance. Fixed-build original-root handoff and provider
+acceptance remain outstanding.

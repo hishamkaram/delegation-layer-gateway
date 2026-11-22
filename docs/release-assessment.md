@@ -15,8 +15,9 @@ registration, credential and service PATH, with automatic GUI jobs joined and
 cleaned. Its first post-handoff Native status still required inspection migration.
 A two-installation regression reproduced completed Gateway handoff followed
 by refused continuation and serial inspection. The Native-owned correction now
-passes that regression and a separate retained-operation recovery/publication
-test on Linux. Final Sol6.1 high, Opus5.5 high and independent native reviews
+passes both Linux regressions. The two-installation composition also passed
+the actual Home macOS scratch test. Final Sol6.1 high, Opus5.5 high and
+independent native reviews
 reported no P0–P3 findings in the frozen correction. Final-head CI and
 fixed-build macOS acceptance are still required before treating the automatic
 flow as proven.
@@ -130,9 +131,14 @@ at `475fcc52` was deliberately cancelled as superseded after fifteen successful
 jobs; cancellation is not a passing verdict. Native run
 [45038346801](https://github.com/hishamkaram/delegation-layer/actions/runs/45038346801)
 at `f9f318bc` passed all 22 jobs, including the full macOS gate. It precedes the
-inspection-readiness correction. Its final-head run
+inspection-readiness correction. Its run
 [45052860577](https://github.com/hishamkaram/delegation-layer/actions/runs/45052860577)
-at `f3587686` is in progress; the earlier success does not cover that change. Gateway CI
+at `f3587686` failed distribution-install checks because a skill reference
+exceeded the existing 64 KiB packaging bound. Docs-only commit `4d72ee3e`
+shortens that reference without changing its meaning or the guard. All Go,
+fixture and module inputs are unchanged. Its fresh full run
+[45054011827](https://github.com/hishamkaram/delegation-layer/actions/runs/45054011827)
+is in progress; the earlier success does not cover this head. Gateway CI
 [45031243127](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45031243127)
 at `ed7b94d6` passed all three jobs.
 The later Gateway run
