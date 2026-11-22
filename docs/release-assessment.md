@@ -56,7 +56,20 @@ Both deterministic regressions now pass, along with 71 affected service cases
 and 24 dependent command cases against the public SDK pin. The same follow-up
 corrects a generic blocker label without changing Native's refusal/action.
 Independent native review found no further findings in the four-file follow-up.
-These scopes do not replace current full CI or final Sol/Opus follow-up review.
+Sol and Opus subsequently reviewed that four-file correction with zero known
+P0–P3 findings. The final-test counterfactual reproduced both expected failures
+against the old code while conservative controls passed.
+Gateway CI at `545307a` passed all three jobs. Native's earlier macOS gate
+failed its App composition fixture: an actual child could not consume the
+fixture's in-memory SDK profile. Native `84102f26` makes the existing injected
+GUI control available to both parent and child; the default production Manager
+and its validation remain unchanged. The corrected fixture exercises the public
+App child and real Native lifecycle, with only the OS edge simulated. Both GUI
+and Linux direct routes passed, along with the other-profile refusal, 111 fast
+consumer/guard cases and scoped static checks. Full CI and independent final
+review at that revision remain outstanding; simulated OS evidence does not prove
+actual launchctl behavior. Public commands, schemas and architecture ownership
+did not change, so this internal correction needs no guide or diagram changes.
 Actual automatic macOS adapter acceptance has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
 source used by Native's pinned pseudo-version before branch squash/deletion.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
