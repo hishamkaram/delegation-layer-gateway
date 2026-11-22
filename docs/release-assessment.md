@@ -84,11 +84,27 @@ or actual macOS behavior. Sol, Opus and the independent native reviewer found no
 P0/P1/P2 in the correction. Opus identified a lost legacy-alias test partition;
 Native `d18b9e44` restores it alongside the requested and acknowledged cases.
 All three partitions passed with the race detector. Follow-up review and full CI
-for that test correction remain outstanding. Gateway CI
+for that test correction were still pending at that checkpoint. Gateway CI
 [45030213612](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45030213612)
-passed all three jobs. Simulated OS evidence does not prove actual launchctl
-behavior. Public commands, schemas and architecture ownership
+at `42bddbb2` passed all three jobs. Simulated OS evidence does not prove actual
+launchctl behavior. Public commands, schemas and architecture ownership
 did not change, so this internal correction needs no guide or diagram changes.
+Subsequent Native CI
+[45031237723](https://github.com/hishamkaram/delegation-layer/actions/runs/45031237723)
+at `d18b9e44` passed eighteen jobs but failed both platform checks and their
+dependent gates. The App fixture's current-output DTO lacked the new journal
+field; Linux also exhausted an unsupported four-call test limit while Native
+correctly reported the same predecessor Wait pending. These are distinct test
+defects. Native `475fcc52` repairs the current-output DTO and bounds the cold-test
+driver by its existing caller context, retaining exact-operation checks and
+stopping on faults. The strict DTO repair passed all 24 affected top-level tests.
+The driver regression failed specifically at the old four-call cap, then passed
+alongside its negative controls. Final-name static checks, real-process proof
+and independent correction reviews remain in progress. No timeout, closure or
+strict-decoding requirement was relaxed. Final-head full CI must still pass.
+Gateway CI
+[45031243127](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45031243127)
+at `ed7b94d6` passed all three jobs.
 Actual automatic macOS adapter acceptance has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
 source used by Native's pinned pseudo-version before branch squash/deletion.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
@@ -99,9 +115,18 @@ Gateway test on Home, including exact bytes/hashes and both canonical terminal
 closures. Root independently matched the stored correlation, descriptors and
 closure observations. A later seven-call Cloud report also passed workspace,
 directory, structural Git, requested-file and accepted-result reads. The operator
-explicitly identified that client as ChatGPT; current Claude.ai acceptance remains
-unverified. This Cloud evidence is separate from the Native proof. Office rollout,
-actual automatic GUI upgrade acceptance and seven actual elapsed days of
+explicitly identified that client as ChatGPT. A separate Claude.ai report then
+passed the same seven read-only tools and retrieved the exact existing
+`FIRST_OK` result. Both client identities are operator-confirmed. These reports
+test the existing Home service; they do not establish final-build upgrade,
+fresh provider execution or OAuth refresh. This Cloud evidence is separate from
+the Native proof. The final `d18b9e44` source built successfully on both Macs,
+with verified unchanged source inventories and joined build/transport owners.
+Those installations are staged only. The later four test-file changes do not
+alter normal CLI build inputs; the candidates retain their `d18b9e44` provenance.
+Office's scheduler remains running at the
+operator's request; Home's handoff was deferred while CI corrections finish.
+Office rollout, actual automatic GUI upgrade acceptance and seven actual elapsed days of
 login/refresh acceptance remain outstanding. See the
 [deployment checkpoint](verification.md#november-21-reviewed-candidate-deployment).
 Home's current Claude authentication differs between Aqua and SSH despite the
