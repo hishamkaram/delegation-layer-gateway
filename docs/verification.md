@@ -2479,3 +2479,14 @@ The subsequent `4d72ee3e` correction changes only two Markdown mirrors to meet
 the existing skill-packaging bound; it does not retarget or relabel this
 candidate's `f3587686` provenance. Fixed-build original-root handoff and provider
 acceptance remain outstanding.
+
+The later `ec866dfa` delta changes only three assertions in the GUI-upgrade
+tests. Initial verification failure still requires zero maintenance calls; its
+next explicit fresh upgrade now correctly requires one. A post-CAS failure
+checks one call before retry and the same total afterward, proving the NoNew
+retry adds none. The actual macOS CI failure exposed the old expectations;
+production code was unchanged. Full affected-package race testing passed 409
+checks with five Pueue-dependent skips. A separate configured native run passed
+all five missing partitions and their parent, with Wait joins and cleanup.
+Sol and Opus independently reviewed the delta without P0–P3 findings. The
+original failed CI remains a failure, and final-head CI is still required.

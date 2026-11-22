@@ -136,9 +136,15 @@ inspection-readiness correction. Its run
 at `f3587686` failed distribution-install checks because a skill reference
 exceeded the existing 64 KiB packaging bound. Docs-only commit `4d72ee3e`
 shortens that reference without changing its meaning or the guard. All Go,
-fixture and module inputs are unchanged. Its fresh full run
+fixture and module inputs are unchanged. Its run
 [45054011827](https://github.com/hishamkaram/delegation-layer/actions/runs/45054011827)
-is in progress; the earlier success does not cover this head. Gateway CI
+passed all six installer checks. The macOS platform gate also exposed four
+obsolete GUI-retry counter expectations. Test-only commit `ec866dfa` corrects
+them and strengthens the zero-additional-maintenance assertion. Both affected
+packages passed 409 checks with five native skips; those five partitions then
+passed separately with the installed Pueue pair. The fresh full run
+[45056098935](https://github.com/hishamkaram/delegation-layer/actions/runs/45056098935)
+is in progress; earlier results do not establish a green final head. Gateway CI
 [45031243127](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45031243127)
 at `ed7b94d6` passed all three jobs.
 The later Gateway run
