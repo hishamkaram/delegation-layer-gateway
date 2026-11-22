@@ -80,9 +80,12 @@ Thirty-five focused race cases passed, including ordinary/legacy recovery,
 publication faults and strict older-reader compatibility. The real public CLI
 cold-upgrade test passed on Linux against the final source; scoped static and
 documentation checks passed too. This does not establish the historical CI cause
-or actual macOS behavior. Independent code reviews and full CI for this correction
-remain outstanding. Gateway CI
-[45022386639](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45022386639)
+or actual macOS behavior. Sol, Opus and the independent native reviewer found no
+P0/P1/P2 in the correction. Opus identified a lost legacy-alias test partition;
+Native `d18b9e44` restores it alongside the requested and acknowledged cases.
+All three partitions passed with the race detector. Follow-up review and full CI
+for that test correction remain outstanding. Gateway CI
+[45030213612](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45030213612)
 passed all three jobs. Simulated OS evidence does not prove actual launchctl
 behavior. Public commands, schemas and architecture ownership
 did not change, so this internal correction needs no guide or diagram changes.
