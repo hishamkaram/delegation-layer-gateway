@@ -2383,3 +2383,77 @@ client report; it is not an independent retrieval of accepted bytes.
 This proves the reported Home Cloud/provider/continuation
 scenario, not actual refresh-token exchange, seven elapsed login days, another
 Cloud client, Office execution or automated GUI maintenance.
+
+### Home installation handoff and temporary recovery
+
+On 22 November, the public `gateway upgrade` command activated Home's owned
+`d18b9e44` source-built candidate on its original default state. One initial
+invocation returned typed pending; one explicitly permitted reconciliation
+completed the same Native operation. Both automatic GUI jobs reported their
+owned children joined and their jobs cleaned. The original root identity,
+registration, credential generation and validated service PATH were preserved.
+Gateway recorded an authenticated reconnection using the same credential.
+Office's original service and scheduler remained untouched.
+
+This handoff exposed a separate readiness defect. Passive status still reported
+`legacy_present` with `run_supervisor_migrate`. A read-only Native projection
+confirmed that the private generation was complete and current, but the
+inspection head still selected its predecessor (`GroupCleanupDue=true`). There
+was no pending private upgrade or prepared inspection successor. A scratch
+two-installation regression independently reproduced completed Gateway upgrade
+followed by refused continuation and serial inspection, without a setup or
+cleanup failure.
+
+For temporary restoration, the operator ran one supported `supervisor migrate`
+from a normal Home macOS Terminal using the staged candidate. It returned
+`migrated` and `retry_dispatch`. Subsequent passive status reported a current
+installation binding, clear migration readiness and `next_action: none`. A
+second read-only projection confirmed head, active and published binding agreed
+and `GroupCleanupDue=false`. This recovery did not dispatch provider work. It
+does not prove unchanged daemon lifetime or history bytes across the operator
+command; no matching before/after baseline was captured for those claims.
+
+The separate recovery is a temporary operational mitigation. The fixed-build
+original-root proof of the automatic Native-owned correction remains pending.
+Home's submission pause was released; local commands must use the staged
+candidate until the compatible release. No PR or release readiness follows
+from the preservation or temporary-recovery evidence.
+
+### Automatic inspection-readiness correction: Linux proof
+
+The Native correction separates historical upgrade completion from current
+admission readiness. Replaying a completed operation remains read-only. A
+separate internal request for that exact operation uses Native's existing
+startup and inspection-routing owners; Gateway verifies the original root's
+readiness before changing the profile or restarting its service.
+
+The source-built Linux regression `TestGatewayUpgradeCompletesExistingInspectionGroup`
+passed under `-race`, including continuation validation and serial inspection
+after a two-installation handoff. The retained-operation recovery regression
+`TestGatewayUpgradeReadiesCompletedCurrentGenerationAfterDaemonStop` also passed
+under `-race` (40.46 seconds). It used the actual App, Native owner, store,
+resident and Pueue. Its historical retained intent was fixture data; the GUI
+Manager still performed its real claim, finish, join and cleanup. Recovery
+changed the stopped daemon's runtime birth, preserved the completed operation
+and history, and settled a subsequent same-target identity-publication receipt
+without another runtime birth. This does not establish how an earlier GUI
+receipt arose or prove macOS launchd placement.
+
+The exact custodian-contact regression
+`TestUpgradeReadyCurrentContactsCustodianWithoutRetirement` passed separately
+under `-race`. It was omitted from an earlier 124-pass selector, so that earlier
+aggregate is not evidence for this case. The genuine-uninitialized App upgrade
+also passed its four partitions, preserving startup on first dispatch and
+rejecting malformed, wrong-type and symlinked private state.
+
+These are local composition and fault-test results. Final-head CI,
+fixed-build original-root macOS acceptance and OAuth refresh/week-long login
+acceptance remain separate gates.
+
+The additional pending-without-operation retry regression failed with the old
+Manager and passed with the correction. Its focused race selection ran 53
+checks with no skips. Those cases use real Manager/profile storage and a Native
+boundary double; the actual Native/Pueue composition above is separate evidence.
+Native commit `f3587686` contains the integrated correction. Its full CI run
+[45052860577](https://github.com/hishamkaram/delegation-layer/actions/runs/45052860577)
+has started; no successful final-head verdict is claimed here.

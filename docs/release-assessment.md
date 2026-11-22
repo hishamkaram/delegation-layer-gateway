@@ -10,7 +10,22 @@ package installations were not replaced. The candidate removes
 duplicate execution ceilings and adds scope-relative filesystem/provider discovery, explicit profile
 migration and an installed-executable handoff.
 
-**Not release-ready.** Compact registry-loss intent reconstruction and Gateway
+**Not release-ready.** The original Home handoff has now preserved the root,
+registration, credential and service PATH, with automatic GUI jobs joined and
+cleaned. Its first post-handoff Native status still required inspection migration.
+A two-installation regression reproduced completed Gateway handoff followed
+by refused continuation and serial inspection. The Native-owned correction now
+passes that regression and a separate retained-operation recovery/publication
+test on Linux. Final Sol6.1 high, Opus5.5 high and independent native reviews
+reported no P0–P3 findings in the frozen correction. Final-head CI and
+fixed-build macOS acceptance are still required before treating the automatic
+flow as proven.
+One supported migration from the operator's normal Home Terminal restored the
+inspection head. A subsequent read-only check confirmed current routing and
+passive status reported migrated with no next action. This temporary recovery
+does not prove that the automatic upgrade path is fixed. Home submissions can
+resume using the staged candidate; Office remains running unchanged.
+Compact registry-loss intent reconstruction and Gateway
 continuation are implemented in the candidate. New path-based admission requires
 the matching Native executable features and immutable binding; legacy
 binding-absent routes fail closed. The local paired-process compact-dispatch
@@ -18,8 +33,8 @@ scenario passed with two connectors, exact accepted results, stable retries,
 restart/reconnect and confirmed cleanup. It used a literal test provider;
 installed-provider acceptance on Office and final integrated verification
 remain incomplete.
-Scoped Opus and native correction reviews do not replace the required final
-integrated Sol/Opus reviews. New actual-process Linux filesystem evidence has its
+The recorded review scopes do not replace the remaining live acceptance.
+Actual-process Linux filesystem evidence has its
 own [recorded checkpoint](verification.md#november-21-remote-filesystem-candidate-checkpoint).
 [Gateway CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44998593189)
 passed all three Linux/macOS and harness jobs at `57ac598`.
@@ -112,16 +127,22 @@ in these corrections. No runtime code, timeout, closure or strict-decoding
 requirement changed. Native run
 [45037268782](https://github.com/hishamkaram/delegation-layer/actions/runs/45037268782)
 at `475fcc52` was deliberately cancelled as superseded after fifteen successful
-jobs; cancellation is not a passing verdict. Final-head Native run
+jobs; cancellation is not a passing verdict. Native run
 [45038346801](https://github.com/hishamkaram/delegation-layer/actions/runs/45038346801)
-at `f9f318bc` remains in progress and must pass. Gateway CI
+at `f9f318bc` passed all 22 jobs, including the full macOS gate. It precedes the
+inspection-readiness correction. Its final-head run
+[45052860577](https://github.com/hishamkaram/delegation-layer/actions/runs/45052860577)
+at `f3587686` is in progress; the earlier success does not cover that change. Gateway CI
 [45031243127](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45031243127)
 at `ed7b94d6` passed all three jobs.
 The later Gateway run
 [45037355670](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45037355670)
 at `4755f580` also passed all three jobs; it precedes the final test-only Native
-pin update.
-Actual automatic macOS adapter acceptance has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
+pin update. The Gateway run
+[45038958323](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45038958323)
+at `d62b0231` also passed all three jobs.
+Actual automatic macOS adapter handoff ran on Home and exposed the readiness
+blocker above. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
 source used by Native's pinned pseudo-version before branch squash/deletion.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
 also passed exact-byte/hash verification and observed-session continuation.
@@ -138,11 +159,12 @@ test the existing Home service; they do not establish final-build upgrade,
 fresh provider execution or OAuth refresh. This Cloud evidence is separate from
 the Native proof. The final `d18b9e44` source built successfully on both Macs,
 with verified unchanged source inventories and joined build/transport owners.
-Those installations are staged only. The later four test-file changes do not
+Home's staged installation was subsequently activated through the public upgrade
+command; Office's remains staged only. The later four test-file changes do not
 alter normal CLI build inputs; the candidates retain their `d18b9e44` provenance.
-Office's scheduler remains running at the
-operator's request; Home's handoff was deferred while CI corrections finish.
-Office rollout, actual automatic GUI upgrade acceptance and seven actual elapsed days of
+Office's scheduler remains running at the operator's request. Home's handoff
+preserved its original identity and PATH, but needed the separate supported
+migration described above. Office rollout, fixed-build automatic readiness and seven actual elapsed days of
 login/refresh acceptance remain outstanding. See the
 [deployment checkpoint](verification.md#november-21-reviewed-candidate-deployment).
 Home's current Claude authentication differs between Aqua and SSH despite the
@@ -151,8 +173,8 @@ rejected; their historical execution-context cause remains unverified. The later
 GUI-controlled upgrade wrote a minimal service PATH. Supported service
 uninstall/install/start restored the invoking user's provider PATH; all six
 installed provider executable names then resolved. Routine-upgrade PATH
-preservation and automatic GUI control are implemented; final integrated review
-and actual-Mac proof remain outstanding.
+preservation and automatic GUI control are implemented and reviewed; the
+fixed-build actual-Mac proof remains outstanding.
 There are no PR, merge or release claims for this candidate.
 
 The sections below retain the earlier revisions and evidence; they do not
