@@ -269,7 +269,10 @@ connector service definition and retains that configuration through pending
 reconciliation. No other SSH environment or credentials are copied. A missing
 GUI session is an explicit prerequisite. Preview remains passive; the normal
 connector service carries no maintenance authority. Follow the same profile's
-reported next action after uncertainty. See Native's
+reported next action. `gateway_upgrade_not_started` permits a later explicit
+same-profile invocation after recorded exact-job cleanup; uncertainty does not.
+`gateway_upgrade_review_required` preserves Native's `stop_and_report`, never
+retry guidance. See Native's
 [upgrade procedure](https://github.com/hishamkaram/delegation-layer/blob/main/docs/gateway-connect.md#native-root-and-profile).
 
 For a standalone legacy connector configuration, stop that connector first:

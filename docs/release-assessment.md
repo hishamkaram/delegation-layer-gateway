@@ -38,8 +38,21 @@ guard is implemented in Native `845b1372` and passed focused race/static checks
 and independent scoped review. Two valid completion crash tails retain their
 canonical cleanup path. Native `db086178` implements the automatic GUI upgrade
 adapter; 74 focused race-test cases, scoped static checks and independent native
-review passed. Current full CI, final integrated Sol/Opus review and actual
-macOS adapter acceptance remain outstanding.
+review passed. Gateway CI at `3d5158f` passed all three jobs. Native CI
+`45010946262` at `db086178` reported failures in the Linux cold-predecessor
+fixture and macOS Gateway-upgrade tests; their causes are under investigation.
+Those integrated reviews initially disagreed. Cross-review confirmed the
+retry/retarget lockout, pre-claim recovery, lost Native review guidance and a
+shared missing-helper retirement gap; both reviewers withdrew an unsupported
+re-enrollment counterexample and corrected their proposed crash ordering.
+Native `64aa9e79` implements the corrections. Independent native source review
+found no outstanding P0–P3 in that correction delta. The affected command/service
+race scope passed 134 cases against the pinned SDK with `GOWORK=off`; the
+remaining App scope passed 22 cases. Scoped static and documentation checks
+passed. These scopes do not replace full CI or final Sol/Opus correction-code
+review, which remain outstanding. Actual automatic macOS adapter acceptance
+has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
+source used by Native's pinned pseudo-version before branch squash/deletion.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
 also passed exact-byte/hash verification and observed-session continuation.
 They used the managed service's configured PATH in a natural Aqua context.

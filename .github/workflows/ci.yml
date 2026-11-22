@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  NATIVE_ACCEPTANCE_REVISION: db0861784b34404aa0ac294a2c9ac5d0a277dbb2
+  NATIVE_ACCEPTANCE_REVISION: 64aa9e79f02d1b74b97aee278ce2c06b4fa166cb
   DELEGATE_ACCEPTANCE_REPOSITORY: ${{ github.workspace }}/.ci-native
 
 jobs:
