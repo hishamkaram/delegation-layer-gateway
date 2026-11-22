@@ -49,9 +49,15 @@ Native `64aa9e79` implements the corrections. Independent native source review
 found no outstanding P0–P3 in that correction delta. The affected command/service
 race scope passed 134 cases against the pinned SDK with `GOWORK=off`; the
 remaining App scope passed 22 cases. Scoped static and documentation checks
-passed. These scopes do not replace full CI or final Sol/Opus correction-code
-review, which remain outstanding. Actual automatic macOS adapter acceptance
-has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
+passed. Sol subsequently identified a terminal-publication race that Opus and
+the native reviewer had missed; both confirmed its concrete interleaving.
+Native `c6384e0c` corrects that race and the adjacent concurrent-proof case.
+Both deterministic regressions now pass, along with 71 affected service cases
+and 24 dependent command cases against the public SDK pin. The same follow-up
+corrects a generic blocker label without changing Native's refusal/action.
+Independent native review found no further findings in the four-file follow-up.
+These scopes do not replace current full CI or final Sol/Opus follow-up review.
+Actual automatic macOS adapter acceptance has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
 source used by Native's pinned pseudo-version before branch squash/deletion.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
 also passed exact-byte/hash verification and observed-session continuation.
