@@ -99,12 +99,28 @@ defects. Native `475fcc52` repairs the current-output DTO and bounds the cold-te
 driver by its existing caller context, retaining exact-operation checks and
 stopping on faults. The strict DTO repair passed all 24 affected top-level tests.
 The driver regression failed specifically at the old four-call cap, then passed
-alongside its negative controls. Final-name static checks, real-process proof
-and independent correction reviews remain in progress. No timeout, closure or
-strict-decoding requirement was relaxed. Final-head full CI must still pass.
-Gateway CI
+alongside its negative controls. Final-name vet, lint and formatting passed.
+The actual Linux public-CLI cold upgrade and shared Gateway composition also
+passed: two top-level tests and six subtests, with the command joined and source
+unchanged. Sol and Opus reported zero P0/P1/P2 findings. Sol identified a P3
+privacy-oracle gap that Opus also noted: the test omitted the real per-attempt
+projection. Native `f9f318bc` strengthens that single test. Reverting only that
+projection's sanitization now makes it fail on the private canary. After exact
+helper restoration, the focused race test and scoped static checks passed.
+Sol, Opus and the independent native reviewer then reported zero P0–P3 findings
+in these corrections. No runtime code, timeout, closure or strict-decoding
+requirement changed. Native run
+[45037268782](https://github.com/hishamkaram/delegation-layer/actions/runs/45037268782)
+at `475fcc52` was deliberately cancelled as superseded after fifteen successful
+jobs; cancellation is not a passing verdict. Final-head Native run
+[45038346801](https://github.com/hishamkaram/delegation-layer/actions/runs/45038346801)
+at `f9f318bc` remains in progress and must pass. Gateway CI
 [45031243127](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45031243127)
 at `ed7b94d6` passed all three jobs.
+The later Gateway run
+[45037355670](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45037355670)
+at `4755f580` also passed all three jobs; it precedes the final test-only Native
+pin update.
 Actual automatic macOS adapter acceptance has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
 source used by Native's pinned pseudo-version before branch squash/deletion.
 Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
