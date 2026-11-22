@@ -66,9 +66,25 @@ GUI control available to both parent and child; the default production Manager
 and its validation remain unchanged. The corrected fixture exercises the public
 App child and real Native lifecycle, with only the OS edge simulated. Both GUI
 and Linux direct routes passed, along with the other-profile refusal, 111 fast
-consumer/guard cases and scoped static checks. Full CI and independent final
-review at that revision remain outstanding; simulated OS evidence does not prove
-actual launchctl behavior. Public commands, schemas and architecture ownership
+consumer/guard cases and scoped static checks. Independent Sol and Opus reviews
+found no P0–P3 in that four-file correction. Its full Native CI
+[45022132280](https://github.com/hishamkaram/delegation-layer/actions/runs/45022132280)
+passed twenty jobs but failed the macOS cold-predecessor upgrade test. The retained
+failure does not identify its private error cause. Native `4bc39ef8` corrects a
+separate shutdown-acknowledgement counterexample: a successful graceful command
+can precede daemon exit, so reconciliation must retain that success rather than
+resend it just because the endpoint still responds. The regression failed with
+two shutdown Starts before the fix and passed afterward. The correction retains
+the existing exact-operation, Wait and process-absence closure requirements.
+Thirty-five focused race cases passed, including ordinary/legacy recovery,
+publication faults and strict older-reader compatibility. The real public CLI
+cold-upgrade test passed on Linux against the final source; scoped static and
+documentation checks passed too. This does not establish the historical CI cause
+or actual macOS behavior. Independent code reviews and full CI for this correction
+remain outstanding. Gateway CI
+[45022386639](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/45022386639)
+passed all three jobs. Simulated OS evidence does not prove actual launchctl
+behavior. Public commands, schemas and architecture ownership
 did not change, so this internal correction needs no guide or diagram changes.
 Actual automatic macOS adapter acceptance has not run. The `sdk-source-751a59e24f17` archive tag retains the immutable SDK
 source used by Native's pinned pseudo-version before branch squash/deletion.
@@ -78,7 +94,10 @@ They used the managed service's configured PATH in a natural Aqua context.
 The operator subsequently reported a successful actual ChatGPT Cloud two-turn
 Gateway test on Home, including exact bytes/hashes and both canonical terminal
 closures. Root independently matched the stored correlation, descriptors and
-closure observations. This is separate evidence from the Native proof. Office rollout,
+closure observations. A later seven-call Cloud report also passed workspace,
+directory, structural Git, requested-file and accepted-result reads. The operator
+explicitly identified that client as ChatGPT; current Claude.ai acceptance remains
+unverified. This Cloud evidence is separate from the Native proof. Office rollout,
 actual automatic GUI upgrade acceptance and seven actual elapsed days of
 login/refresh acceptance remain outstanding. See the
 [deployment checkpoint](verification.md#november-21-reviewed-candidate-deployment).
