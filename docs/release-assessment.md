@@ -16,33 +16,41 @@ the matching Native executable features and immutable binding; legacy
 binding-absent routes fail closed. The local paired-process compact-dispatch
 scenario passed with two connectors, exact accepted results, stable retries,
 restart/reconnect and confirmed cleanup. It used a literal test provider;
-installed-provider continuation and final integrated verification remain incomplete.
+installed-provider acceptance on Office and final integrated verification
+remain incomplete.
 Scoped Opus and native correction reviews do not replace the required final
 integrated Sol/Opus reviews. New actual-process Linux filesystem evidence has its
 own [recorded checkpoint](verification.md#november-21-remote-filesystem-candidate-checkpoint).
-[Gateway CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44952678892)
-passed its complete Linux/macOS and harness gates at `958afe0`.
-[Native CI](https://github.com/hishamkaram/delegation-layer/actions/runs/44952678897)
-passed Linux's gate and all six Linux/macOS distribution installations at
-`bac77dbf`. Its first macOS attempt failed during a public dependency download;
-the bounded failed-job rerun reached the tests and failed the cold-predecessor
-upgrade scenario. The exact focused scenario subsequently passed on Linux and
-Home's native macOS, but the aggregate failure remains unexplained and Native
-CI is not green. Home's SSH-driven original-profile upgrade and authenticated
-same-credential WSS reconnect passed after an explicit Native supervisor
-handoff. Its composition correction and the stdin EOF fix passed focused Linux
-and actual macOS scratch tests; original-service rollout remains outstanding.
-The corrected Native revision `d5208d35` has a separate
-[current CI run](https://github.com/hishamkaram/delegation-layer/actions/runs/44996630923).
+[Gateway CI](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44998593189)
+passed all three Linux/macOS and harness jobs at `57ac598`.
+[Native CI](https://github.com/hishamkaram/delegation-layer/actions/runs/44996630923)
+passed all 22 jobs at `d5208d35`, including its full macOS gate. Earlier failed
+CI attempts remain recorded in the deployment checkpoint; the new pass does not
+explain their causes. Home now selects the reviewed Native correction candidate.
+Its original identity and credential survived the GUI-controlled installation
+handoff and authenticated WSS reconnection. The composition and stdin EOF fixes
+also passed focused Linux and actual macOS scratch tests.
 Independent Sol and Opus reviews found no actionable P0/P1/P2 in those
-corrections. Their separate P2 execution-placement design finding remains open.
-Current ChatGPT Cloud browsing passed. Installed-provider continuation and
-seven actual elapsed days of
+corrections. Subsequent source review identified a P2 retirement case: an
+unfinished upgrade can retire the resident that still owns its accepted
+target's Wait. A regression reproduced the forbidden retirement attempt; its
+guard and the automatic GUI upgrade adapter remain under implementation.
+Current ChatGPT Cloud browsing passed. Two real Native Claude turns on Home
+also passed exact-byte/hash verification and observed-session continuation.
+They used the managed service's configured PATH in a natural Aqua context.
+The operator subsequently reported a successful actual ChatGPT Cloud two-turn
+Gateway test on Home, including exact bytes/hashes and both canonical terminal
+closures. This is separate evidence from the Native proof. Office rollout,
+automatic GUI upgrade implementation and seven actual elapsed days of
 login/refresh acceptance remain outstanding. See the
 [deployment checkpoint](verification.md#november-21-reviewed-candidate-deployment).
 Home's current Claude authentication differs between Aqua and SSH despite the
 same executable/config directory and no auth overrides. Two Cloud tasks were
-rejected; the execution-context cause and safe recovery remain under review.
+rejected; their historical execution-context cause remains unverified. The later
+GUI-controlled upgrade wrote a minimal service PATH. Supported service
+uninstall/install/start restored the invoking user's provider PATH; all six
+installed provider executable names then resolved. Routine-upgrade PATH
+preservation and automatic GUI control still need implementation and review.
 There are no PR, merge or release claims for this candidate.
 
 The sections below retain the earlier revisions and evidence; they do not

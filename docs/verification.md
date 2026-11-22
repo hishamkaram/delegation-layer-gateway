@@ -2286,3 +2286,94 @@ was removed through its exact launchd label, and its identity-checked files
 were removed. These dated observations support an execution-context hypothesis;
 they do not identify the failed task's historical context or prove its Keychain
 cause. Original-state recovery and provider continuation remain unverified.
+
+## November 22 original Home handoff and Native provider proof
+
+The corrected Native revision `d5208d35` passed all 22 jobs in
+[CI](https://github.com/hishamkaram/delegation-layer/actions/runs/44996630923),
+including the full macOS gate. Gateway `57ac598` passed all three jobs in its
+[matching CI run](https://github.com/hishamkaram/delegation-layer-gateway/actions/runs/44998593189).
+These successes do not explain the earlier aggregate macOS failure.
+
+One actual Aqua control job ran the supported Gateway upgrade against Home's
+original root and a different reviewed candidate installation. It returned
+pending with an exact reactive Native operation. One subsequent public
+`supervisor ensure-owner --complete-upgrade` completed that same operation;
+one same-profile Gateway finalization then verified Native context/capabilities,
+preserved device identity, completed the source CAS and registered the service.
+Authenticated WSS admission followed with the same generation-1 credential.
+All three control jobs exited naturally; exact labels were removed, direct
+children joined and identity-checked control files removed.
+
+The GUI upgrade wrote its minimal ambient PATH into the service definition.
+A subsequent natural-GUI provider test stopped at `prepare-provider` with
+`provider_unavailable` and explicit-ID task creation `unknown`. That identity
+was retired without observation or replay; its private inputs remain retained.
+Source inspection placed this invocation's refusal before ordinary task creation
+and submission, but did not prove the identity's present absence.
+
+Passive checks confirmed that both the natural GUI and actual service PATH
+omitted all six installed provider executable names. Supported service
+uninstall/install/start restored the same user's existing SSH PATH, preserving
+the profile, executable and service label. The validated definition contains
+only PATH in its environment; all six executable names resolved in place.
+No installed executable was copied, hashed or invoked by those lookup checks.
+The exact device reconnected with its existing credential after this repair.
+This is an operational configuration repair; upgrade PATH preservation is not
+yet implemented in production source.
+
+A new, independent Native test used Native-allocated task identities and actual
+Aqua context, overriding only PATH with the validated service configuration.
+The first Claude turn committed exactly eight bytes, `FIRST_OK`, with SHA-256
+`5f11dd5eea3687a1d9eeb64f0975bfcb83f24c444d3832f9e1565a05664a0a07`.
+The conditional continuation committed the exact 28-byte remembered marker,
+with SHA-256
+`44636498b62cc09580fb4fe865aae22484bba658d2dd039db8a214a88e114420`.
+Both complete payloads were saved through the public descriptor API and
+independently length/hash/byte verified. Parent/predecessor links matched;
+Native reported continuation mode `native` and session source `observed`.
+No model override was requested; the provider reported `claude-opus-5-5`.
+
+The initial continuation admission returned the documented `not_created`
+supervisor-migration prerequisite. One same-root migration reported
+`migrated`/`retry_dispatch`, followed by the argv-identical continuation retry.
+Thus three admission calls produced two confirmed-created provider turns.
+All new GUI/control resources joined and were removed. Shared-root task history
+and the earlier uncertain identity remain retained. Ordinary Native controls
+did not export a raw provider conversation ID or connector execution-closure
+witness. This proves installed-provider Native continuation, separately from
+MCP routing or a Cloud client.
+
+The operator reported saving the required Auth0 offline-access, refresh grant
+and lifetime settings. Fresh Cloud issuance/refresh and seven actual elapsed
+days remain unverified. Office's original root was only inspected/staged;
+its running scheduled work was left untouched. No PR, merge or release
+readiness follows from these checkpoints.
+
+### Actual Home Cloud two-turn acceptance
+
+After saving the Auth0 settings, the operator reported a successful actual
+ChatGPT Cloud Gateway test on the same Home device and approved project. Fresh
+capabilities showed online, Delegate-ready, open admission, Native continuation
+and task read/cancel access. The exact 90-second Native budget was accepted;
+this does not test timeout enforcement or enumerate supported durations.
+
+One prepare/dispatch returned `FIRST_OK`; one conditional continuation
+prepare/dispatch returned the exact 24-byte remembered marker. The client
+reported retrieving the actual accepted chunks and independently decoding and
+hashing them with Python. Root separately verified the bytes supplied in that
+report against both lengths and digests. Root did not retrieve the Cloud tool
+responses independently. The first digest matched the eight-byte Native
+checkpoint above; the second was
+`4b6b7f5cacd8e43b9b69e62ab18d54358856ecc80867a7e8c5d3cb57f300ea86`.
+Both reported final delivery `resolved`, observation `terminal`, closure kind
+`registered-native` and reservation false. The predecessor link was supplied
+to the successful continuation request; status did not separately echo it.
+
+The client reported one retryable status `resource_limit` and one retryable
+collection `pending`; only passive collection was retried. Exactly two
+dispatch calls were reported. No replacement, redispatch, admission recovery,
+credential change or device switch occurred. Earlier rejected operations were
+left untouched. This proves the reported Home Cloud/provider/continuation
+scenario, not actual refresh-token exchange, seven elapsed login days, another
+Cloud client, Office execution or automated GUI maintenance.
