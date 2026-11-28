@@ -36,11 +36,12 @@ func (r request) normalizeInventoryEntry(local inventoryEntry) (protocol.OriginI
 			return protocol.OriginInventoryEntry{}, ErrEvidence
 		}
 		wire.Receipt = &protocol.InventoryReceipt{
-			Task:             protocol.TaskBinding{TaskID: receipt.TaskID, Context: protocol.ContextBinding{Root: protocol.WireContextGuard(receipt.RootToken), Project: protocol.WireContextGuard(receipt.ProjectToken)}, Origin: receipt.Origin, SpecSHA256: receipt.SpecSHA256},
-			ExecutionOptions: protocol.InventoryExecutionOptions(receipt.ExecutionOptions), BriefSHA256: receipt.BriefSHA256,
+			Task:        protocol.TaskBinding{TaskID: receipt.TaskID, Context: protocol.ContextBinding{Root: protocol.WireContextGuard(receipt.RootToken), Project: protocol.WireContextGuard(receipt.ProjectToken)}, Origin: receipt.Origin, SpecSHA256: receipt.SpecSHA256},
+			BriefSHA256: receipt.BriefSHA256,
 		}
-		if receipt.Origin.Binding != "" {
-			wire.Receipt.ExecutionOptions = protocol.InventoryExecutionOptions{}
+		if receipt.Origin.Binding == "" {
+			options := receipt.ExecutionOptions
+			wire.Receipt.ExecutionOptions = protocol.InventoryExecutionOptions{Provider: options.Provider, Permission: options.Permission, BudgetNanoseconds: options.BudgetNanoseconds, Model: options.Model, Effort: options.Effort}
 		}
 	}
 	if wire.Validate() != nil {

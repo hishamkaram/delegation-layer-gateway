@@ -95,7 +95,7 @@ func prepareProtected(t *testing.T, f *dispatchFixture, input SelectedPreparatio
 	if parent.Correlation.Operation == "" {
 		return f.service.PrepareSelected(t.Context(), f.actor, input)
 	}
-	return f.service.PrepareContinuation(t.Context(), f.actor, ContinuationPreparation{Device: input.Device, RequestID: domain.RequestID(strings.Repeat("b", 32)), Predecessor: parent.Correlation.Operation, Selection: &input.Selection, Overrides: domain.ContinuationOverrides{Version: 1}})
+	return f.service.PrepareContinuation(t.Context(), f.actor, ContinuationPreparation{Device: input.Device, RequestID: domain.RequestID(strings.Repeat("b", 32)), Predecessor: parent.Correlation.Operation, Selection: &input.Selection, Overrides: domain.ContinuationOverrides{Version: 1, Budget: "1h"}})
 }
 
 func protectedParent(t *testing.T, f *dispatchFixture, input SelectedPreparation) domain.PreparedOperation {

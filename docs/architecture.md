@@ -211,7 +211,11 @@ there is no automatic rebase or replacement task submission.
 See [operator recovery and its availability limits](recovery.md).
 
 Preparation freezes the brief, selected provider/model/effort/permissions/budget,
-context guards and random operation/task identities. It launches nothing.
+context guards and random operation/task identities. New preparations require
+an explicit positive budget duration or `unlimited`; historical request replay
+precedes this validation. Unlimited requires Native's `execution-budget-v1`
+capability at preparation and again before a new connector admission. Gateway
+adds no independent execution ceiling. Preparation launches nothing.
 The versioned request digest binds these immutable fields and the brief's SHA-256;
 restored attribution can verify the digest without recovering brief plaintext.
 Confirmation checks the encoded frame before persisting possible-send, then

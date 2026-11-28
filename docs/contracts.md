@@ -57,10 +57,17 @@ authority; these fields cannot promise cleanup after expiry or revocation.
 
 The new `prepare_dispatch` shape uses `request_id`, `device_id`, `selection`
 (`scope_id`, `relative_path`), `brief`, and `native_options`. Its provider is
-explicit; model, effort, permission, budget, review target and timeout fields
-remain omitted unless requested. The Gateway validates literal wire shape and
+explicit, and each new preparation requires `native_options.budget` as a
+positive duration or `unlimited`. Model, effort, permission, review target and
+timeout fields remain omitted unless requested. The Gateway validates literal wire shape and
 size; Native decides support and defaults. The legacy `project_alias` shape is
 separate; mixed old/new fields, including explicit zero/null fields, are rejected.
+
+Unlimited preparation requires Native feature `execution-budget-v1`; the
+connector rechecks it before a new admission. Finite requests remain compatible
+with older peers. Historical preparation replays retain their omitted budget
+and resolve their existing request ID before new-budget validation. Gateway
+adds no unlimited-task permission or independent execution ceiling.
 
 The client retains the request ID before invocation. The Registry resolves that
 key before live selection and ID allocation; identical replay returns the same
@@ -83,8 +90,9 @@ For a follow-up, call `prepare_continuation` with `device_id`, the saved
 `predecessor_operation_id`, and a new stable `request_id`. Omit `selection` to
 reuse the predecessor's captured route; an explicitly selected approval must
 still match the same Native root, project and workspace guards. Omit `brief` to
-inherit Native's exact saved bytes. Only budget, model, effort and output-silence
-timeout can be overridden; `output_silence_timeout: "0"` disables that timeout.
+inherit Native's exact saved bytes. Supply `overrides.budget` explicitly for
+every new turn. Only budget, model, effort and output-silence timeout can be
+overridden; `output_silence_timeout: "0"` disables that timeout.
 Explicit null selection/brief is invalid. Native alone decides whether its saved
 session is eligible for continuation. Retain the returned successor operation
 and confirm it with `dispatch_task`. After uncertainty, reuse that same request
@@ -173,7 +181,10 @@ and busy observations carry no release proof. Accepted publication may precede
 native closure; retrieving an accepted result does not release its reservation.
 Native receipt `execution_options` exposes requested selections, permission and exact
 `budget_nanoseconds` without rounding historical intent during existing-only
-recovery. Binding-present wire inventory omits these observed options; its
+recovery. Explicit unlimited receipts carry zero nanoseconds with
+`budget_unlimited: true`; contradictory or unmarked zero budgets are rejected.
+Only compact bindings support this marker; legacy correlations remain finite-only.
+Binding-present wire inventory omits these observed options; its
 correlation comes from the binding commitment. Legacy wire receipts retain them.
 These are Native facts, not a connector execution ceiling. No brief, path,
 environment or raw error belongs in this projection.

@@ -9,9 +9,10 @@ import (
 )
 
 // ContinuationOverridesInput contains only literal Native continuation choices.
-// Empty values inherit; Native owns validation of supported option semantics.
+// Budget is explicit for new turns. Other empty values inherit; Native owns
+// validation of supported option semantics. Historical replay retains omission.
 type ContinuationOverridesInput struct {
-	Budget               string `json:"budget,omitempty"`
+	Budget               string `json:"budget,omitempty" jsonschema:"Required for a new turn: positive duration or unlimited. Omission is retained only to replay an existing request ID."`
 	Model                string `json:"model,omitempty"`
 	Effort               string `json:"effort,omitempty"`
 	OutputSilenceTimeout string `json:"output_silence_timeout,omitempty" jsonschema:"Omit to inherit; use 0 to explicitly disable the output silence timeout."`
@@ -27,7 +28,7 @@ type PrepareContinuationInput struct {
 	RequestID              string                     `json:"request_id" jsonschema:"Stable 32-character lowercase hex preparation ID. Reuse it with the identical input after uncertainty."`
 	Selection              *protocol.FileSelection    `json:"selection,omitempty" jsonschema:"Omit to reuse the predecessor's captured selection. An explicit selection must still identify the same saved project."`
 	Brief                  *string                    `json:"brief,omitempty" jsonschema:"Omit to inherit Native's saved brief bytes; otherwise supply a UTF-8 brief up to 256 KiB."`
-	Overrides              ContinuationOverridesInput `json:"overrides,omitempty" jsonschema:"Omitted values inherit the predecessor's Native execution options."`
+	Overrides              ContinuationOverridesInput `json:"overrides,omitempty" jsonschema:"Budget is required for every new turn. Other omitted values inherit. Existing request IDs can replay their historical omission."`
 }
 
 type continuationOperations interface {

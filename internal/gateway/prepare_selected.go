@@ -58,6 +58,9 @@ func (s *Service) PrepareSelected(ctx context.Context, actor domain.Actor, input
 		}
 		return previous, err
 	}
+	if input.Request.Native.Budget == "" {
+		return domain.PreparedOperation{}, domain.ErrInvalid
+	}
 	inspector, ok := s.targeted.(SelectionInspector)
 	if !ok {
 		return domain.PreparedOperation{}, &RemoteError{Failure: protocol.Failure{Code: "unsupported_feature"}}
@@ -66,7 +69,7 @@ func (s *Service) PrepareSelected(ctx context.Context, actor domain.Actor, input
 	if err != nil {
 		return domain.PreparedOperation{}, err
 	}
-	if err = validatePreparationSelection(observed, request); err != nil {
+	if err = validateBudgetPreparationSelection(observed, request, input.Request.Native.Budget); err != nil {
 		return domain.PreparedOperation{}, err
 	}
 	plan, err := s.newSelectedPreparation(actor, input, observed, fingerprint)
@@ -164,4 +167,20 @@ func validateSelectedSnapshot(snapshot LinkSnapshot, c domain.Correlation) error
 		return &RemoteError{Failure: protocol.Failure{Code: "delegate_upgrade_required"}}
 	}
 	return nil
+}
+
+// Budget syntax belongs to Delegate. Gateway only negotiates transport support
+// before preparing a new unlimited request; historical requests stay decodable.
+func requireExecutionBudgetFeature(budget string, features []string) error {
+	if budget == "unlimited" && !slices.Contains(features, protocol.FeatureExecutionBudget) {
+		return &RemoteError{Failure: protocol.Failure{Code: "delegate_upgrade_required"}}
+	}
+	return nil
+}
+
+func validateBudgetPreparationSelection(observed protocol.SelectionObservation, request protocol.SelectionRequest, budget string) error {
+	if err := validatePreparationSelection(observed, request); err != nil {
+		return err
+	}
+	return requireExecutionBudgetFeature(budget, observed.Features)
 }

@@ -201,6 +201,9 @@ func (a *Adapter) executeRoutedExecution(ctx context.Context, r request, owner *
 	if r.command.Operation == protocol.Continue && !slices.Contains(root.Features, protocol.FeatureGuardedContinuation) {
 		return failed(r.command.Operation, ErrUnsupported)
 	}
+	if !r.executionBudgetSupported(root.Features) {
+		return failed(r.command.Operation, ErrUnsupported)
+	}
 	if a.Status().CleanupPending != 0 {
 		return failed(r.command.Operation, ErrPending)
 	}
@@ -290,4 +293,14 @@ func selectionObservation(r request, c *cliConnector, providers []protocol.Nativ
 		return result, ErrEvidence
 	}
 	return result, nil
+}
+
+func (r request) executionBudgetSupported(features []string) bool {
+	var budget string
+	if r.command.Operation == protocol.Continue {
+		budget = r.continuation.Overrides.Budget
+	} else if r.admission != nil {
+		budget = r.admission.Native.Budget
+	}
+	return budget != "unlimited" || slices.Contains(features, protocol.FeatureExecutionBudget)
 }

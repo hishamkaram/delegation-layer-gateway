@@ -85,7 +85,7 @@ func (b *selectedPreparationBackend) PrepareSelected(_ context.Context, _ domain
 }
 
 func selectedPreparationInput() PrepareInput {
-	return PrepareInput{DeviceID: "device-one", RequestID: strings.Repeat("b", 32), Selection: &protocol.FileSelection{ScopeID: protocol.SharedTempScope, RelativePath: "new:repo"}, NativeOptions: &NativeOptionsInput{Provider: "codex:review"}, Brief: "requested Native task"}
+	return PrepareInput{DeviceID: "device-one", RequestID: strings.Repeat("b", 32), Selection: &protocol.FileSelection{ScopeID: protocol.SharedTempScope, RelativePath: "new:repo"}, NativeOptions: &NativeOptionsInput{Provider: "codex:review", Budget: "unlimited"}, Brief: "requested Native task"}
 }
 
 func TestSelectedPreparationPreservesNativeOmissionsAndExplicitUnadvertisedOptions(t *testing.T) {
@@ -107,7 +107,7 @@ func TestSelectedPreparationPreservesNativeOmissionsAndExplicitUnadvertisedOptio
 		if !reflect.DeepEqual(request.Request.Native, input.NativeOptions.options()) {
 			t.Fatal("Native defaults or explicit choices were changed")
 		}
-		if !explicit && (request.Request.Native.Permission != "" || request.Request.Native.Budget != "" || request.Request.Native.Model.Kind != domain.NativeDefault || request.Request.Native.Effort.Kind != domain.NativeDefault) {
+		if !explicit && (request.Request.Native.Permission != "" || request.Request.Native.Budget != "unlimited" || request.Request.Native.Model.Kind != domain.NativeDefault || request.Request.Native.Effort.Kind != domain.NativeDefault) {
 			t.Fatal("Gateway invented an omitted Native default")
 		}
 	}
@@ -179,5 +179,20 @@ func TestLegacyPreparationPreservesLongNativeLiteralSelections(t *testing.T) {
 	}
 	if len(f.link.commands) != 0 {
 		t.Fatal("literal preparation dispatched a task")
+	}
+}
+
+func TestSelectedPreparationPreservesOmittedBudgetForHistoricalReplay(t *testing.T) {
+	backend := &selectedPreparationBackend{requests: make(chan gateway.SelectedPreparation, 1), operation: "original-operation"}
+	f := newConfiguredFixture(t, 0, nil, func(options *Options) { backend.Operations = options.Operations; options.Operations = backend })
+	input := selectedPreparationInput()
+	input.NativeOptions.Budget = ""
+	result := decodeResult[Prepared](t, f.call(t, f.session(t, "dispatch"), "prepare_dispatch", args(t, input)))
+	if result.Error != nil || result.Data == nil || result.Data.OperationID != "original-operation" {
+		t.Fatalf("historical input could not reach its replay owner: %+v", result)
+	}
+	request := <-backend.requests
+	if request.RequestID != domain.RequestID(input.RequestID) || request.Request.Native.Budget != "" {
+		t.Fatal("MCP changed historical preparation intent")
 	}
 }

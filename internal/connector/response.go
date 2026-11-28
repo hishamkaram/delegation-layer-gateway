@@ -105,6 +105,7 @@ type (
 		Provider          string             `json:"provider"`
 		Permission        string             `json:"permission"`
 		BudgetNanoseconds int64              `json:"budget_nanoseconds"`
+		BudgetUnlimited   bool               `json:"budget_unlimited,omitempty"`
 		Model             protocol.Selection `json:"model"`
 		Effort            protocol.Selection `json:"effort"`
 	}
