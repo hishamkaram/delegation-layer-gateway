@@ -68,7 +68,16 @@ func (r request) receiptBinding(receipt *cliReceipt) bool {
 
 func validReceiptOptions(receipt *cliReceipt) bool {
 	options := receipt.ExecutionOptions
-	return digest(receipt.BriefSHA256) && options.Provider != "" && options.BudgetNanoseconds > 0 && options.Model.Validate() == nil && options.Effort.Validate() == nil && domain.Permission(options.Permission).Validate() == nil
+	return digest(receipt.BriefSHA256) && options.Provider != "" && validReceiptBudget(options, receipt.Origin.Binding != "") && options.Model.Validate() == nil && options.Effort.Validate() == nil && domain.Permission(options.Permission).Validate() == nil
+}
+
+// Native owns the budget fact. Unlimited is explicit and only supported by
+// compact bindings; legacy correlations retain their finite-only contract.
+func validReceiptBudget(options executionOptions, compact bool) bool {
+	if options.BudgetUnlimited {
+		return compact && options.BudgetNanoseconds == 0
+	}
+	return options.BudgetNanoseconds > 0
 }
 
 func (r request) translate(response cliResponse) protocol.Reply {

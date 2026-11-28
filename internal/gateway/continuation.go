@@ -51,6 +51,9 @@ func (s *Service) PrepareContinuation(ctx context.Context, actor domain.Actor, i
 		}
 		return previous, err
 	}
+	if input.Overrides.Budget == "" {
+		return prepared, domain.ErrInvalid
+	}
 	parent, err := s.continuationPredecessor(ctx, actor, input.Predecessor)
 	if err != nil {
 		return prepared, err
@@ -60,6 +63,9 @@ func (s *Service) PrepareContinuation(ctx context.Context, actor domain.Actor, i
 	}
 	observed, err := s.continuationSelection(ctx, actor, input, selector, parent.Correlation)
 	if err != nil {
+		return prepared, err
+	}
+	if err = requireExecutionBudgetFeature(input.Overrides.Budget, observed.Features); err != nil {
 		return prepared, err
 	}
 	plan, err := s.newContinuation(actor, input, request, parent, observed, fingerprint, brief)

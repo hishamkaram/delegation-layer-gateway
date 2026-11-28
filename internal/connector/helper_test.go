@@ -31,6 +31,7 @@ type (
 		Provider             string
 		Permission           string
 		Budget               int64
+		BudgetUnlimited      bool
 		NativeModel          bool
 		Closure              bool
 		Closed               bool
@@ -538,6 +539,9 @@ func helperReceipt(flags map[string]string, task string, state helperState, resp
 		model = map[string]string{"kind": "explicit", "value": "model-safe"}
 	}
 	options := map[string]any{"provider": state.Provider, "permission": state.Permission, "budget_nanoseconds": state.Budget, "model": model, "effort": map[string]string{"kind": "native_default"}}
+	if state.BudgetUnlimited {
+		options["budget_unlimited"] = true
+	}
 	connector["receipt"] = map[string]any{"root_token": strings.Repeat("a", 64), "project_token": "local-project-token-PRIVATE-CANARY", "task_id": task, "origin": origin, "spec_sha256": strings.Repeat("c", 64), "brief_sha256": helperHash(state.Brief), "execution_options": options}
 	receipt, ok := connector["receipt"].(map[string]any)
 	if !ok {

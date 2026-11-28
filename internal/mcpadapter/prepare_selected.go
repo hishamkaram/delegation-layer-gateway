@@ -15,7 +15,7 @@ type NativeOptionsInput struct {
 	Model                *string `json:"model,omitempty"`
 	Effort               *string `json:"effort,omitempty"`
 	Permission           string  `json:"permission,omitempty"`
-	Budget               string  `json:"budget,omitempty"`
+	Budget               string  `json:"budget,omitempty" jsonschema:"Required for a new preparation: positive duration or unlimited. Omission is retained only to replay an existing request ID."`
 	ReviewTarget         string  `json:"review_target,omitempty"`
 	NativeTimeout        string  `json:"native_timeout,omitempty"`
 	OutputSilenceTimeout string  `json:"output_silence_timeout,omitempty"`

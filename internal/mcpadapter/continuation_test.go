@@ -39,6 +39,9 @@ func (b *continuationBackend) PrepareContinuation(_ context.Context, actor domai
 }
 
 func continuationArguments(extra string) json.RawMessage {
+	if !strings.Contains(extra, `"overrides"`) {
+		extra += `,"overrides":{"budget":"unlimited"}`
+	}
 	return json.RawMessage(`{"device_id":"device-one","predecessor_operation_id":"saved-predecessor","request_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"` + extra + `}`)
 }
 
@@ -78,7 +81,7 @@ func TestContinuationPreparationForwardsInheritedAndExplicitIntentWithoutDispatc
 	session := f.session(t, "dispatch")
 	for _, explicit := range []bool{false, true} {
 		extra := ""
-		want := gateway.ContinuationPreparation{RequestID: domain.RequestID(strings.Repeat("b", 32)), Device: "device-one", Predecessor: "saved-predecessor", Overrides: domain.ContinuationOverrides{Version: 1}}
+		want := gateway.ContinuationPreparation{RequestID: domain.RequestID(strings.Repeat("b", 32)), Device: "device-one", Predecessor: "saved-predecessor", Overrides: domain.ContinuationOverrides{Version: 1, Budget: "unlimited"}}
 		if explicit {
 			extra = `,"selection":{"scope_id":"automatic-temp","relative_path":"repo:with\\name"},"brief":"exact new\nbrief <>&","overrides":{"budget":"4h","model":"future model with spaces","effort":"future effort","output_silence_timeout":"0"}`
 			want.Selection = &protocol.FileSelection{ScopeID: "automatic-temp", RelativePath: `repo:with\name`}
@@ -218,7 +221,7 @@ func TestContinuationPreparationRepeatedRequestForwardsSameIdentity(t *testing.T
 	backend := &continuationBackend{requests: make(chan gateway.ContinuationPreparation, 2)}
 	f := newConfiguredFixture(t, 0, nil, func(options *Options) { backend.Operations = options.Operations; options.Operations = backend })
 	session := f.session(t, "dispatch")
-	input := continuationArguments(`,"overrides":{"output_silence_timeout":"0"}`)
+	input := continuationArguments(`,"overrides":{"budget":"unlimited","output_silence_timeout":"0"}`)
 	for range 2 {
 		result := decodeResult[Prepared](t, f.call(t, session, "prepare_continuation", input))
 		if result.Error != nil || result.Data == nil || result.Data.OperationID != "successor-operation" {
@@ -241,5 +244,23 @@ func TestContinuationPreparationMissingCapabilityFailsExplicitly(t *testing.T) {
 	expectError[Prepared](t, result, "unsupported_feature")
 	if len(f.link.commands) != 0 {
 		t.Fatal("unsupported continuation fell back to Native execution")
+	}
+}
+
+func TestContinuationPreservesOmittedBudgetForHistoricalReplay(t *testing.T) {
+	backend := &continuationBackend{requests: make(chan gateway.ContinuationPreparation, 1), operation: "original-successor"}
+	f := newConfiguredFixture(t, 0, nil, func(options *Options) { backend.Operations = options.Operations; options.Operations = backend })
+	for _, input := range []json.RawMessage{
+		json.RawMessage(`{"device_id":"device-one","predecessor_operation_id":"saved-predecessor","request_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}`),
+		continuationArguments(`,"overrides":{}`),
+	} {
+		result := decodeResult[Prepared](t, f.call(t, f.session(t, "dispatch"), "prepare_continuation", input))
+		if result.Error != nil || result.Data == nil || result.Data.OperationID != "original-successor" {
+			t.Fatalf("historical successor could not reach its replay owner: %+v", result)
+		}
+		request := <-backend.requests
+		if request.RequestID != domain.RequestID(strings.Repeat("b", 32)) || request.Overrides.Budget != "" {
+			t.Fatal("MCP changed historical continuation intent")
+		}
 	}
 }

@@ -10,14 +10,18 @@ import (
 	"github.com/hishamkaram/delegation-layer-gateway/internal/protocol"
 )
 
-func compactAdmissionFixture(t *testing.T) (*fixture, *workspaceTestStore, protocol.Admission) {
+func compactAdmissionFixture(t *testing.T, budgets ...string) (*fixture, *workspaceTestStore, protocol.Admission) {
 	t.Helper()
 	f, store, task := newRoutedFixture(t)
 	f.state.Features = append(f.state.Features, protocol.FeatureOriginBinding, protocol.FeatureGuardedContinuation)
 	f.writeState()
 	task.SpecSHA256 = ""
-	native := protocol.NativeOptions{Version: 1, Provider: "fixture", Model: protocol.Selection{Kind: "native_default"}, Effort: protocol.Selection{Kind: "native_default"}}
-	request := domain.FrozenRequest{Native: domain.NativeOptions{Version: 1, Provider: "fixture", Model: domain.Selection{Kind: domain.NativeDefault}, Effort: domain.Selection{Kind: domain.NativeDefault}}, Brief: f.state.Brief, BriefPresent: true}
+	var budget string
+	if len(budgets) > 0 {
+		budget = budgets[0]
+	}
+	native := protocol.NativeOptions{Version: 1, Provider: "fixture", Budget: budget, Model: protocol.Selection{Kind: "native_default"}, Effort: protocol.Selection{Kind: "native_default"}}
+	request := domain.FrozenRequest{Native: domain.NativeOptions{Version: 1, Provider: "fixture", Budget: budget, Model: domain.Selection{Kind: domain.NativeDefault}, Effort: domain.Selection{Kind: domain.NativeDefault}}, Brief: f.state.Brief, BriefPresent: true}
 	c := domain.Correlation{RequestVersion: domain.CompactRequestVersion, Kind: domain.RequestKindDispatch, Operation: domain.OperationID(task.Origin.OperationID), Task: domain.TaskID(task.TaskID), Gateway: "gateway-one", AdmissionGeneration: domain.AdmissionGeneration(task.Origin.AdmissionGeneration), Owner: domain.OperationOwner{Kind: domain.Owned, Principal: "principal-one"}, Destination: domain.Destination{Device: "device-one", Project: domain.ProjectAlias(task.Origin.OperationID)}, Context: domain.ContextBinding{Root: domain.RootGuard(task.Context.Root), Project: domain.ProjectGuard(task.Context.Project)}, BriefPresent: true, BriefDigest: domain.Hash([]byte(request.Brief)), Route: domain.OperationRoute{Version: 1, RequestID: domain.RequestID(strings.Repeat("f", 32)), InputFormat: domain.DispatchInputV1, ScopeID: task.Route.Selection.ScopeID, RelativePath: task.Route.Selection.RelativePath, WorkspaceGuard: task.Route.WorkspaceGuard}}
 	input, err := domain.DispatchInputDigestV1(c.Destination.Device, domain.RequestSelector{ScopeID: c.Route.ScopeID, RelativePath: c.Route.RelativePath}, request.Options(), c.BriefDigest)
 	if err != nil {
@@ -526,4 +530,44 @@ func TestCompactResumeDoesNotMutateAfterFailedCanonicalRead(t *testing.T) {
 		}
 	}
 	assertNativeFeaturesSettled(t, f)
+}
+
+func TestUnlimitedAdmissionRequiresNativeCapabilityBeforeDispatch(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(map[bool]string{false: "historical-peer", true: "capable-peer"}[supported], func(t *testing.T) {
+			f, _, admission := compactAdmissionFixture(t, "unlimited")
+			f.state.Budget, f.state.BudgetUnlimited = 0, true
+			if supported {
+				f.state.Features = append(f.state.Features, protocol.FeatureExecutionBudget)
+			}
+			f.writeState()
+			reply := f.adapter.Execute(t.Context(), protocol.Command{Operation: protocol.Admit, Project: admission.Task.Origin.OperationID, Body: encoded(t, admission)})
+			if supported && reply.Error != nil || !supported && reply.Error == nil {
+				t.Fatalf("capability support %v: %+v", supported, reply.Error)
+			}
+			want := 0
+			if supported {
+				want = 1
+			}
+			assertUnlimitedDispatchCalls(t, f, want)
+		})
+	}
+}
+
+func assertUnlimitedDispatchCalls(t *testing.T, f *fixture, want int) {
+	t.Helper()
+	dispatched := 0
+	for _, call := range f.calls() {
+		if call.Command != "dispatch" {
+			continue
+		}
+		dispatched++
+		flags, _, _, _ := helperArguments(call.Args)
+		if flags["budget"] != "unlimited" {
+			t.Fatal("connector changed explicit unlimited choice")
+		}
+	}
+	if dispatched != want {
+		t.Fatalf("dispatch count %d, want %d", dispatched, want)
+	}
 }

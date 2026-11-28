@@ -13,7 +13,7 @@ import (
 
 func selectedPreparationExample() (SelectedPreparation, protocol.SelectionObservation) {
 	selection := protocol.FileSelection{ScopeID: "workspace", RelativePath: "repo"}
-	input := SelectedPreparation{Device: "device", RequestID: domain.RequestID(strings.Repeat("a", 32)), Selection: selection, Request: domain.FrozenRequest{Native: domain.NativeOptions{Version: 1, Provider: "provider", Model: domain.Selection{Kind: domain.NativeDefault}, Effort: domain.Selection{Kind: domain.NativeDefault}}, Brief: "predecessor brief"}}
+	input := SelectedPreparation{Device: "device", RequestID: domain.RequestID(strings.Repeat("a", 32)), Selection: selection, Request: domain.FrozenRequest{Native: domain.NativeOptions{Version: 1, Provider: "provider", Budget: "1h", Model: domain.Selection{Kind: domain.NativeDefault}, Effort: domain.Selection{Kind: domain.NativeDefault}}, Brief: "predecessor brief"}}
 	observed := protocol.SelectionObservation{Selection: selection, Context: protocol.ContextBinding{Root: protocol.WireContextGuard("root"), Project: protocol.WireContextGuard("project")}, WorkspaceGuard: protocol.WireContextGuard("workspace"), AdmissionOpen: true, AdmissionGeneration: "generation", Features: []string{protocol.FeatureNativeOptions, protocol.FeatureProjectHashGuard, protocol.FeatureOriginBinding, protocol.FeatureGuardedContinuation}}
 	return input, observed
 }
@@ -131,5 +131,55 @@ func TestContinuationReplayPrecedesMissingParentNetworkAndEntropy(t *testing.T) 
 	got, err := f.service.PrepareContinuation(t.Context(), f.actor, input)
 	if err != nil || got != store.saved || store.reads != 0 || f.entropy.reads != 0 || f.link.reserves != 0 || store.input == (domain.Digest{}) {
 		t.Fatalf("replay consulted missing dependencies or allocated replacement work: %+v, %v", got, err)
+	}
+}
+
+func TestUnlimitedPreparationRequiresExecutionBudgetCapability(t *testing.T) {
+	for _, budget := range []string{"1h", "unlimited"} {
+		err := requireExecutionBudgetFeature(budget, nil)
+		if budget == "unlimited" {
+			var remote *RemoteError
+			if !errors.As(err, &remote) || remote.Failure.Code != "delegate_upgrade_required" {
+				t.Fatalf("unlimited without capability: %v", err)
+			}
+		} else if err != nil {
+			t.Fatalf("finite request to historical peer: %v", err)
+		}
+		if err = requireExecutionBudgetFeature(budget, []string{protocol.FeatureExecutionBudget}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestNewPreparationRequiresBudgetBeforeSelectionOrEntropy(t *testing.T) {
+	for _, kind := range []string{"dispatch", "continuation"} {
+		t.Run(kind, func(t *testing.T) {
+			f, input, _ := protectedFixture(t)
+			f.service.targeted = nil
+			f.entropy.deny = true
+			var err error
+			if kind == "dispatch" {
+				input.Request.Native.Budget = ""
+				_, err = f.service.PrepareSelected(t.Context(), f.actor, input)
+			} else {
+				_, err = f.service.PrepareContinuation(t.Context(), f.actor, ContinuationPreparation{RequestID: domain.RequestID(strings.Repeat("b", 32)), Device: input.Device, Predecessor: "absent-parent", Overrides: domain.ContinuationOverrides{Version: 1}})
+			}
+			if !errors.Is(err, domain.ErrInvalid) || f.entropy.reads != 0 || f.link.reserves != 0 {
+				t.Fatalf("new %s omitted a budget: err=%v entropy=%d sends=%d", kind, err, f.entropy.reads, f.link.reserves)
+			}
+		})
+	}
+}
+
+func TestSelectedReplayRetainsHistoricalOmittedBudget(t *testing.T) {
+	f := newDispatchFixture(t)
+	store := &continuationReplayStore{DispatchStore: f.store, saved: domain.PreparedOperation{Correlation: domain.Correlation{Operation: "original-operation", Task: domain.TaskID(strings.Repeat("c", 32))}}}
+	f.service.store, f.service.targeted = store, nil
+	f.entropy.deny = true
+	input, _ := selectedPreparationExample()
+	input.Request.Native.Budget = ""
+	got, err := f.service.PrepareSelected(t.Context(), f.actor, input)
+	if err != nil || got != store.saved || f.entropy.reads != 0 || f.link.reserves != 0 || store.input == (domain.Digest{}) {
+		t.Fatalf("historical replay minted new work: %+v %v", got, err)
 	}
 }

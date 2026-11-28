@@ -208,8 +208,10 @@ The cloud client uses the device's returned scope ID and relative paths:
    launch Native's bounded inspection process; it is not a task or an allowlist.
 6. `prepare_dispatch`: save a random 32-character lowercase hexadecimal
    `request_id` before calling. Supply the exact device, `selection` (scope ID
-   and relative project path), brief and `native_options`. Select a provider;
-   omit optional fields to use Native defaults, and include required provider
+   and relative project path), brief and `native_options`. Select a provider and
+   choose `budget` explicitly as a positive duration or `unlimited`; unlimited
+   needs Native feature `execution-budget-v1`. Omit other optional fields to
+   use Native defaults, and include required provider
    options when advertised.
 7. `dispatch_task`: confirm the returned operation exactly once. On uncertainty,
    resolve that same operation. Never replace it or switch device automatically.
